@@ -71,6 +71,7 @@
 
             <!-- Login -->
             <div id="tab-login" class="tab-pane active">
+                <form id="login-form" autocomplete="on" action="javascript:void(0)">
                 <div class="field">
                     <label>Username</label>
                     <input id="login-user" type="text" placeholder="your username" autocomplete="username" />
@@ -80,11 +81,13 @@
                     <input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password" />
                 </div>
                 <div id="login-error" class="form-error hidden"></div>
-                <button class="btn-primary full-width" id="login-btn">Sign In</button>
+                <button type="submit" class="btn-primary full-width" id="login-btn">Sign In</button>
+                </form>
             </div>
 
             <!-- Register -->
             <div id="tab-register" class="tab-pane hidden">
+                <form id="register-form" autocomplete="on" action="javascript:void(0)">
                 <div class="field">
                     <label>Username</label>
                     <input id="reg-user" type="text" placeholder="choose a username" autocomplete="username" />
@@ -98,7 +101,8 @@
                     <input id="reg-pass" type="password" placeholder="min 8 characters" autocomplete="new-password" />
                 </div>
                 <div id="reg-error" class="form-error hidden"></div>
-                <button class="btn-primary full-width" id="register-btn">Create Account</button>
+                <button type="submit" class="btn-primary full-width" id="register-btn">Create Account</button>
+                </form>
             </div>
 
             <!-- Guest -->
@@ -163,7 +167,7 @@
             <!-- Top bar -->
             <header class="topbar glass-topbar">
                 <div class="topbar-left">
-                    <button id="mobile-menu-btn" class="icon-btn mobile-only">
+                    <button id="mobile-menu-btn" class="icon-btn">
                         <svg width="18" height="18" viewBox="0 0 18 18">
                             <path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.5"
                                 stroke-linecap="round" /></svg>

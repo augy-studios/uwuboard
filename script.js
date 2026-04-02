@@ -74,6 +74,7 @@ function loadGuest() {
 function setSession(session, username) {
   S.session = session;
   S.isGuest = false;
+  localStorage.setItem('uwuboard_session', JSON.stringify({ session, username }));
   $('user-name').textContent = username;
   $('user-role').textContent = 'Signed in';
   $('user-avatar').textContent = username[0].toUpperCase();
@@ -98,6 +99,7 @@ function logout() {
   if (!S.isGuest && S.session) {
     fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${S.session.token}` } }).catch(() => {});
   }
+  localStorage.removeItem('uwuboard_session');
   S.session = null;
   S.isGuest = false;
   S.boards = [];
@@ -121,20 +123,26 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 /* ── Login ── */
-$('login-btn').addEventListener('click', async () => {
+$('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
   const user = $('login-user').value.trim();
   const pass = $('login-pass').value;
   clearError('login-error');
   if (!user || !pass) return showError('login-error', 'Please fill in all fields.');
   try {
     const data = await api('POST', '/auth/login', { username: user, password: pass });
+    if (window.PasswordCredential) {
+      const cred = new PasswordCredential({ id: user, password: pass });
+      navigator.credentials.store(cred).catch(() => {});
+    }
     setSession(data.session, data.username);
     await loadUserBoards();
   } catch (e) { showError('login-error', e.message); }
 });
 
 /* ── Register ── */
-$('register-btn').addEventListener('click', async () => {
+$('register-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
   const user = $('reg-user').value.trim();
   const email = $('reg-email').value.trim();
   const pass = $('reg-pass').value;
@@ -143,6 +151,10 @@ $('register-btn').addEventListener('click', async () => {
   if (pass.length < 8) return showError('reg-error', 'Password must be at least 8 characters.');
   try {
     const data = await api('POST', '/auth/register', { username: user, email, password: pass });
+    if (window.PasswordCredential) {
+      const cred = new PasswordCredential({ id: user, password: pass });
+      navigator.credentials.store(cred).catch(() => {});
+    }
     setSession(data.session, data.username);
     await loadUserBoards();
   } catch (e) { showError('reg-error', e.message); }
@@ -153,8 +165,7 @@ $('guest-btn').addEventListener('click', setGuest);
 $('logout-btn').addEventListener('click', logout);
 
 /* ── Enter key shortcuts ── */
-$('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('login-btn').click(); });
-$('reg-pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('register-btn').click(); });
+$('reg-pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('register-form').requestSubmit(); });
 
 /* ── Guest file import ── */
 setupFileImport($('guest-import-file'), $('guest-import-zone'), json => {
@@ -761,7 +772,11 @@ $('sidebar-toggle').addEventListener('click', () => {
 });
 
 $('mobile-menu-btn').addEventListener('click', () => {
-  $('sidebar').classList.toggle('open');
+  if (window.innerWidth <= 720) {
+    $('sidebar').classList.toggle('open');
+  } else {
+    $('sidebar').classList.toggle('collapsed');
+  }
 });
 
 /* ── Escape closes modals ── */
@@ -781,6 +796,26 @@ function esc(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+/* ── Restore session on load ── */
+(async () => {
+  const saved = localStorage.getItem('uwuboard_session');
+  if (!saved) return;
+  let parsed;
+  try { parsed = JSON.parse(saved); } catch { localStorage.removeItem('uwuboard_session'); return; }
+  const { session, username } = parsed;
+  S.session = session;
+  try {
+    const data = await api('GET', '/boards/list');
+    setSession(session, username);
+    S.boards = data.boards;
+    renderBoardList();
+    if (S.boards.length) selectBoard(S.boards[0].id);
+  } catch {
+    S.session = null;
+    localStorage.removeItem('uwuboard_session');
+  }
+})();
 
 /* ── PWA service worker ── */
 if ('serviceWorker' in navigator) {
