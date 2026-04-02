@@ -257,7 +257,11 @@
                 </div>
                 <div class="modal-field">
                     <label>Move to Column</label>
-                    <select id="card-modal-col"></select>
+                    <button type="button" class="col-picker-trigger" id="card-modal-col-btn">
+                        <span id="card-modal-col-label">—</span>
+                        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+                    </button>
+                    <input type="hidden" id="card-modal-col" />
                 </div>
                 <div class="modal-field">
                     <label>Labels</label>
@@ -339,6 +343,20 @@
                 <button class="btn-danger small" id="delete-col-btn">Delete Column</button>
                 <button class="btn-primary" id="save-col-name-btn">Save</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Column picker sheet -->
+    <div id="col-picker-sheet" class="modal-backdrop hidden" style="z-index:150">
+        <div class="glass-panel col-picker-panel">
+            <div class="modal-header">
+                <span class="modal-heading">Move to Column</span>
+                <button class="icon-btn modal-close" id="col-picker-close">
+                    <svg width="16" height="16" viewBox="0 0 16 16">
+                        <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                </button>
+            </div>
+            <div id="col-picker-list" class="col-picker-list"></div>
         </div>
     </div>
 

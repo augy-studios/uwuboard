@@ -440,10 +440,8 @@ function openCardModal(cardId, colId) {
   $('card-modal-due').value = card.due || '';
   $('card-modal-priority').value = card.priority || '';
 
-  const colSel = $('card-modal-col');
-  colSel.innerHTML = board.columns.map(c =>
-    `<option value="${esc(c.id)}"${c.id === colId ? ' selected' : ''}>${esc(c.name)}</option>`
-  ).join('');
+  $('card-modal-col').value = colId;
+  $('card-modal-col-label').textContent = col?.name || '—';
 
   renderModalLabels(card.labels || []);
   renderChecklist(card.checklist || []);
@@ -567,6 +565,31 @@ $('delete-card-btn').addEventListener('click', () => {
 
 $('card-modal-close').addEventListener('click', closeCardModal);
 $('card-modal').addEventListener('click', e => { if (e.target === $('card-modal')) closeCardModal(); });
+
+/* ── Column picker ── */
+$('card-modal-col-btn').addEventListener('click', () => {
+  const board = getActiveBoard();
+  if (!board) return;
+  const currentColId = $('card-modal-col').value;
+  const list = $('col-picker-list');
+  list.innerHTML = '';
+  board.columns.forEach(col => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'col-picker-item' + (col.id === currentColId ? ' active' : '');
+    btn.textContent = col.name;
+    btn.addEventListener('click', () => {
+      $('card-modal-col').value = col.id;
+      $('card-modal-col-label').textContent = col.name;
+      $('col-picker-sheet').classList.add('hidden');
+    });
+    list.appendChild(btn);
+  });
+  $('col-picker-sheet').classList.remove('hidden');
+});
+
+$('col-picker-close').addEventListener('click', () => $('col-picker-sheet').classList.add('hidden'));
+$('col-picker-sheet').addEventListener('click', e => { if (e.target === $('col-picker-sheet')) $('col-picker-sheet').classList.add('hidden'); });
 
 function closeCardModal() { $('card-modal').classList.add('hidden'); }
 
@@ -814,6 +837,7 @@ document.addEventListener('keydown', e => {
     closeCardModal();
     $('rename-col-modal').classList.add('hidden');
     $('new-board-modal').classList.add('hidden');
+    $('col-picker-sheet').classList.add('hidden');
   }
 });
 
