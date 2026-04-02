@@ -15,7 +15,7 @@ module.exports = async (req, res) => {
 
   // Check uniqueness
   const { data: existing } = await supabase
-    .from('users')
+    .from('uwu_users')
     .select('id')
     .or(`username.eq.${username},email.eq.${email}`)
     .maybeSingle();
@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
 
   const hash = await bcrypt.hash(password, 12);
   const { data: user, error } = await supabase
-    .from('users')
+    .from('uwu_users')
     .insert({ username, email, password_hash: hash })
     .select('id, username')
     .single();
@@ -34,7 +34,7 @@ module.exports = async (req, res) => {
   const token = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-  await supabase.from('sessions').insert({
+  await supabase.from('uwu_sessions').insert({
     token,
     user_id: user.id,
     expires_at: expires.toISOString(),
