@@ -20,16 +20,16 @@
     <link rel="manifest" href="/manifest.json" />
 
     <meta charset="utf-8">
-    <title>Template | UwU Apps</title>
+    <title>uwuBoard | UwU Apps</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="A simple template app; view live template at a glance!">
+    <meta name="description" content="uwuBoard is a simple visual project manager built on the Kanban method. It turns your to-do list into a clear board where you can drag tasks from "Start" to "Finish"." />
 
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Template | UwU Apps" />
+    <meta property="og:title" content="uwuBoard | UwU Apps" />
     <meta property="og:site_name" content="UwU Apps" />
-    <meta property="og:description" content="A simple template app; view live template at a glance!" />
+    <meta property="og:description" content="uwuBoard is a simple visual project manager built on the Kanban method. It turns your to-do list into a clear board where you can drag tasks from "Start" to "Finish"." />
 
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/style.css">
 
     <!-- Embed Image -->
@@ -45,16 +45,301 @@
 </head>
 
 <body>
-    Template
+    <!-- ─── AUTH OVERLAY ─── -->
+    <div id="auth-overlay" class="overlay hidden">
+        <div class="glass-panel auth-panel">
+            <div class="auth-logo">
+                <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                    <rect width="36" height="36" rx="10" fill="#ccffcc" />
+                    <rect x="7" y="10" width="6" height="16" rx="2" fill="#22a85a" />
+                    <rect x="15" y="7" width="6" height="19" rx="2" fill="#22a85a" opacity="0.7" />
+                    <rect x="23" y="13" width="6" height="13" rx="2" fill="#22a85a" opacity="0.4" />
+                </svg>
+                <span class="logo-text">uwuBoard</span>
+            </div>
+
+            <div id="auth-tabs" class="tab-row">
+                <button class="tab-btn active" data-tab="login">Sign In</button>
+                <button class="tab-btn" data-tab="register">Register</button>
+                <button class="tab-btn" data-tab="guest">Guest</button>
+            </div>
+
+            <!-- Login -->
+            <div id="tab-login" class="tab-pane active">
+                <div class="field">
+                    <label>Username</label>
+                    <input id="login-user" type="text" placeholder="your username" autocomplete="username" />
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+                </div>
+                <div id="login-error" class="form-error hidden"></div>
+                <button class="btn-primary full-width" id="login-btn">Sign In</button>
+            </div>
+
+            <!-- Register -->
+            <div id="tab-register" class="tab-pane hidden">
+                <div class="field">
+                    <label>Username</label>
+                    <input id="reg-user" type="text" placeholder="choose a username" autocomplete="username" />
+                </div>
+                <div class="field">
+                    <label>Email</label>
+                    <input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email" />
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <input id="reg-pass" type="password" placeholder="min 8 characters" autocomplete="new-password" />
+                </div>
+                <div id="reg-error" class="form-error hidden"></div>
+                <button class="btn-primary full-width" id="register-btn">Create Account</button>
+            </div>
+
+            <!-- Guest -->
+            <div id="tab-guest" class="tab-pane hidden">
+                <p class="guest-desc">Continue as a guest. Your boards are saved in this browser. Export JSON to take
+                    them elsewhere.</p>
+                <button class="btn-primary full-width" id="guest-btn">Continue as Guest</button>
+                <div class="import-zone" id="guest-import-zone">
+                    <span>Or drop a board JSON here / <label class="link-btn"
+                            for="guest-import-file">browse</label></span>
+                    <input type="file" id="guest-import-file" accept=".json" style="display:none" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── APP SHELL ─── -->
+    <div id="app" class="hidden">
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <div class="auth-logo">
+                    <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
+                        <rect width="36" height="36" rx="10" fill="#ccffcc" />
+                        <rect x="7" y="10" width="6" height="16" rx="2" fill="#22a85a" />
+                        <rect x="15" y="7" width="6" height="19" rx="2" fill="#22a85a" opacity="0.7" />
+                        <rect x="23" y="13" width="6" height="13" rx="2" fill="#22a85a" opacity="0.4" />
+                    </svg>
+                    <span class="logo-text">uwuBoard</span>
+                </div>
+                <button id="sidebar-toggle" class="icon-btn" title="Collapse sidebar">
+                    <svg width="16" height="16" viewBox="0 0 16 16">
+                        <path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" fill="none"
+                            stroke-linecap="round" /></svg>
+                </button>
+            </div>
+
+            <div class="sidebar-user">
+                <div class="avatar" id="user-avatar">G</div>
+                <div class="user-info">
+                    <div class="user-name" id="user-name">Guest</div>
+                    <div class="user-role" id="user-role">Guest session</div>
+                </div>
+                <button class="icon-btn" id="logout-btn" title="Sign out">
+                    <svg width="16" height="16" viewBox="0 0 16 16">
+                        <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M10 11l3-3-3-3M13 8H6" stroke="currentColor"
+                            stroke-width="1.5" fill="none" stroke-linecap="round" /></svg>
+                </button>
+            </div>
+
+            <div class="sidebar-section-label">Boards</div>
+            <div id="board-list" class="board-list"></div>
+            <button class="btn-ghost sidebar-new-board" id="new-board-btn">
+                <svg width="14" height="14" viewBox="0 0 14 14">
+                    <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                New Board
+            </button>
+        </aside>
+
+        <!-- Main content -->
+        <main id="main" class="main">
+
+            <!-- Top bar -->
+            <header class="topbar glass-topbar">
+                <div class="topbar-left">
+                    <button id="mobile-menu-btn" class="icon-btn mobile-only">
+                        <svg width="18" height="18" viewBox="0 0 18 18">
+                            <path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.5"
+                                stroke-linecap="round" /></svg>
+                    </button>
+                    <h1 class="board-title" id="board-title">Select a board</h1>
+                    <button class="icon-btn edit-board-title-btn hidden" id="edit-board-title-btn" title="Rename board">
+                        <svg width="14" height="14" viewBox="0 0 14 14">
+                            <path d="M9.5 2.5l2 2-7 7H2.5v-2l7-7z" stroke="currentColor" stroke-width="1.2" fill="none"
+                                stroke-linecap="round" /></svg>
+                    </button>
+                </div>
+                <div class="topbar-right">
+                    <button class="btn-ghost small hidden" id="board-export-btn">
+                        <svg width="14" height="14" viewBox="0 0 14 14">
+                            <path d="M7 1v8M4 6l3 3 3-3M1 10v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor"
+                                stroke-width="1.3" fill="none" stroke-linecap="round" /></svg>
+                        Export
+                    </button>
+                    <button class="btn-ghost small hidden" id="board-import-btn">
+                        <svg width="14" height="14" viewBox="0 0 14 14">
+                            <path d="M7 9V1M4 4l3-3 3 3M1 10v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor"
+                                stroke-width="1.3" fill="none" stroke-linecap="round" /></svg>
+                        Import
+                    </button>
+                    <input type="file" id="board-import-file" accept=".json" style="display:none" />
+                    <button class="btn-ghost small hidden" id="add-col-btn">
+                        <svg width="14" height="14" viewBox="0 0 14 14">
+                            <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                            </svg>
+                        Add Column
+                    </button>
+                    <button class="btn-ghost small hidden danger" id="delete-board-btn">Delete Board</button>
+                </div>
+            </header>
+
+            <!-- Board canvas -->
+            <div id="board-canvas" class="board-canvas">
+                <div id="empty-state" class="empty-state">
+                    <svg width="64" height="64" viewBox="0 0 64 64" fill="none" opacity="0.35">
+                        <rect x="4" y="16" width="16" height="32" rx="4" fill="#22a85a" />
+                        <rect x="24" y="10" width="16" height="38" rx="4" fill="#22a85a" opacity="0.65" />
+                        <rect x="44" y="22" width="16" height="26" rx="4" fill="#22a85a" opacity="0.35" />
+                    </svg>
+                    <p>Select or create a board to get started</p>
+                    <button class="btn-primary" id="empty-new-board-btn">Create Board</button>
+                </div>
+                <div id="columns-container" class="columns-container hidden"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ─── MODALS ─── -->
+
+    <!-- Card detail modal -->
+    <div id="card-modal" class="modal-backdrop hidden">
+        <div class="glass-panel modal-panel">
+            <div class="modal-header">
+                <input class="modal-title-input" id="card-modal-title" type="text" placeholder="Card title" />
+                <button class="icon-btn modal-close" id="card-modal-close">
+                    <svg width="16" height="16" viewBox="0 0 16 16">
+                        <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5"
+                            stroke-linecap="round" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-field">
+                    <label>Description</label>
+                    <textarea id="card-modal-desc" rows="4" placeholder="Add a description…"></textarea>
+                </div>
+                <div class="modal-row">
+                    <div class="modal-field half">
+                        <label>Due Date</label>
+                        <input type="date" id="card-modal-due" />
+                    </div>
+                    <div class="modal-field half">
+                        <label>Priority</label>
+                        <select id="card-modal-priority">
+                            <option value="">None</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-field">
+                    <label>Labels</label>
+                    <div id="card-modal-labels" class="label-editor"></div>
+                    <div class="label-add-row">
+                        <input type="text" id="new-label-input" placeholder="Label text" />
+                        <input type="color" id="new-label-color" value="#ccffcc" title="Label colour" />
+                        <button class="btn-ghost small" id="add-label-btn">Add</button>
+                    </div>
+                </div>
+                <div class="modal-field">
+                    <label>Checklist</label>
+                    <div id="card-checklist" class="checklist"></div>
+                    <div class="checklist-add-row">
+                        <input type="text" id="new-check-input" placeholder="Add checklist item" />
+                        <button class="btn-ghost small" id="add-check-btn">Add</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-danger small" id="delete-card-btn">Delete Card</button>
+                <button class="btn-primary" id="save-card-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New board modal -->
+    <div id="new-board-modal" class="modal-backdrop hidden">
+        <div class="glass-panel modal-panel small-modal">
+            <div class="modal-header">
+                <span class="modal-heading">New Board</span>
+                <button class="icon-btn modal-close" id="new-board-modal-close">
+                    <svg width="16" height="16" viewBox="0 0 16 16">
+                        <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5"
+                            stroke-linecap="round" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="field">
+                    <label>Board Name</label>
+                    <input type="text" id="new-board-name" placeholder="e.g. Sprint 12" />
+                </div>
+                <div class="field">
+                    <label>Starting columns</label>
+                    <div id="new-board-cols" class="col-chips">
+                        <span class="col-chip" data-col="To Do">To Do</span>
+                        <span class="col-chip" data-col="In Progress">In Progress</span>
+                        <span class="col-chip" data-col="Done">Done</span>
+                        <button class="btn-ghost small" id="add-default-col-btn">+ Add</button>
+                    </div>
+                    <input type="text" id="new-col-chip-input" placeholder="Column name" class="hidden mt-8" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-ghost" id="new-board-cancel">Cancel</button>
+                <button class="btn-primary" id="create-board-btn">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename column modal -->
+    <div id="rename-col-modal" class="modal-backdrop hidden">
+        <div class="glass-panel modal-panel small-modal">
+            <div class="modal-header">
+                <span class="modal-heading">Rename Column</span>
+                <button class="icon-btn modal-close" id="rename-col-close">
+                    <svg width="16" height="16" viewBox="0 0 16 16">
+                        <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5"
+                            stroke-linecap="round" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="field">
+                    <label>Column Name</label>
+                    <input type="text" id="rename-col-input" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-danger small" id="delete-col-btn">Delete Column</button>
+                <button class="btn-primary" id="save-col-name-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast-container" class="toast-container"></div>
 
     <script src="/script.js"></script>
 
     <script>
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register('/sw.js');
+            navigator.serviceWorker.register('/sw.js');
         }
     </script>
-    
+
 </body>
 
 </html>

@@ -1,4 +1,4 @@
-const CACHE = "template-offline-v1";
+const CACHE = "uwuboard-offline-v1";
 
 const ASSETS = [
   "/",
