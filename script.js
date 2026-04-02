@@ -779,7 +779,11 @@ async function persistBoard(board) {
 
 /* ── Sidebar toggle ── */
 $('sidebar-toggle').addEventListener('click', () => {
-  $('sidebar').classList.toggle('collapsed');
+  if (window.innerWidth <= 720) {
+    $('sidebar').classList.remove('open');
+  } else {
+    $('sidebar').classList.toggle('collapsed');
+  }
 });
 
 $('mobile-menu-btn').addEventListener('click', () => {
