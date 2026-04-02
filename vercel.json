@@ -4,7 +4,32 @@
     "cleanUrls": true,
     "regions": ["sin1"],
     "rewrites": [{
-        "source": "/",
-        "destination": "/"
-    }]
+            "source": "/api/auth/register",
+            "destination": "/api/auth/register.js"
+        },
+        {
+            "source": "/api/auth/login",
+            "destination": "/api/auth/login.js"
+        },
+        {
+            "source": "/api/auth/logout",
+            "destination": "/api/auth/logout.js"
+        },
+        {
+            "source": "/api/boards/list",
+            "destination": "/api/boards/list.js"
+        },
+        {
+            "source": "/api/boards/create",
+            "destination": "/api/boards/create.js"
+        },
+        {
+            "source": "/api/boards/update",
+            "destination": "/api/boards/update.js"
+        },
+        {
+            "source": "/api/boards/delete",
+            "destination": "/api/boards/delete.js"
+        }
+    ]
 }
