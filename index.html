@@ -73,7 +73,13 @@
                 </div>
                 <div class="field">
                     <label>Password</label>
-                    <input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+                    <div class="pass-wrap">
+                        <input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+                        <button type="button" class="pass-eye" data-target="login-pass" title="Show password" tabindex="-1">
+                            <svg class="eye-show" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg>
+                            <svg class="eye-hide" width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/><line x1="2" y1="2" x2="14" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div id="login-error" class="form-error hidden"></div>
                 <button type="submit" class="btn-primary full-width" id="login-btn">Sign In</button>
@@ -93,7 +99,13 @@
                 </div>
                 <div class="field">
                     <label>Password</label>
-                    <input id="reg-pass" type="password" placeholder="min 8 characters" autocomplete="new-password" />
+                    <div class="pass-wrap">
+                        <input id="reg-pass" type="password" placeholder="min 8 characters" autocomplete="new-password" />
+                        <button type="button" class="pass-eye" data-target="reg-pass" title="Show password" tabindex="-1">
+                            <svg class="eye-show" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg>
+                            <svg class="eye-hide" width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/><line x1="2" y1="2" x2="14" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div id="reg-error" class="form-error hidden"></div>
                 <button type="submit" class="btn-primary full-width" id="register-btn">Create Account</button>

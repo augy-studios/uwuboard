@@ -235,6 +235,33 @@ body::before {
   margin-bottom: 1rem;
 }
 
+.pass-wrap {
+  position: relative;
+}
+
+.pass-wrap input {
+  padding-right: 38px;
+}
+
+.pass-eye {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-3);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.pass-eye:hover {
+  color: var(--brand-dark);
+}
+
 .field label {
   display: block;
   font-size: 12px;
@@ -1252,6 +1279,24 @@ textarea {
 
   .sidebar.open {
     transform: translateX(0);
+  }
+
+  .topbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    height: auto;
+    min-height: var(--topbar-h);
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .topbar-left {
+    flex-shrink: 0;
+  }
+
+  .topbar-right {
+    flex-shrink: 0;
   }
 
   .topbar-right .btn-ghost span {

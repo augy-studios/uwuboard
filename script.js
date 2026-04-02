@@ -112,6 +112,17 @@ function logout() {
   renderBoardList();
 }
 
+/* ── Password visibility toggle ── */
+document.querySelectorAll('.pass-eye').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const input = $(btn.dataset.target);
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    btn.querySelector('.eye-show').style.display = showing ? '' : 'none';
+    btn.querySelector('.eye-hide').style.display = showing ? 'none' : '';
+  });
+});
+
 /* ── Tab switching ── */
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
