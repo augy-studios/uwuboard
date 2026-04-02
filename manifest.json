@@ -1,6 +1,6 @@
 {
     "name": "uwuBoard by UwU Apps",
-    "short_name": "UwU uwuBoard",
+    "short_name": "uwuBoard",
     "description": "A ClickUp × Trello-style kanban web app",
     "icons": [{
             "src": "uwuboard-512.png",
