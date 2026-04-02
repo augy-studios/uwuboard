@@ -440,6 +440,11 @@ function openCardModal(cardId, colId) {
   $('card-modal-due').value = card.due || '';
   $('card-modal-priority').value = card.priority || '';
 
+  const colSel = $('card-modal-col');
+  colSel.innerHTML = board.columns.map(c =>
+    `<option value="${esc(c.id)}"${c.id === colId ? ' selected' : ''}>${esc(c.name)}</option>`
+  ).join('');
+
   renderModalLabels(card.labels || []);
   renderChecklist(card.checklist || []);
 
@@ -532,6 +537,15 @@ $('save-card-btn').addEventListener('click', () => {
   card.description = $('card-modal-desc').value;
   card.due = $('card-modal-due').value;
   card.priority = $('card-modal-priority').value;
+
+  const targetColId = $('card-modal-col').value;
+  if (targetColId && targetColId !== S.editingColId) {
+    const targetCol = board.columns.find(c => c.id === targetColId);
+    if (targetCol) {
+      col.cards = col.cards.filter(c => c.id !== S.editingCardId);
+      targetCol.cards.push(card);
+    }
+  }
 
   closeCardModal();
   persistBoard(board);
