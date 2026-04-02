@@ -202,9 +202,10 @@ body::before {
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
+  font-family: 'Jua', sans-serif;
   color: var(--text-2);
   cursor: pointer;
-  transition: all 0.18s;
+  transition: background-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease;
 }
 
 .tab-btn.active {
@@ -214,13 +215,13 @@ body::before {
 }
 
 .tab-pane {
-  animation: fadeIn 0.18s ease;
+  animation: fadeIn 0.22s ease-out;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(5px);
   }
 
   to {
