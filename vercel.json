@@ -20,6 +20,10 @@
             "destination": "/api/boards/list.js"
         },
         {
+            "source": "/api/boards/get",
+            "destination": "/api/boards/get.js"
+        },
+        {
             "source": "/api/boards/create",
             "destination": "/api/boards/create.js"
         },
