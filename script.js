@@ -9,6 +9,7 @@ const S = {
   editingCardId: null,
   editingColId: null,
   dragCard: null,         // { cardId, colId, boardId }
+  dragCol: null,          // colId being dragged
   colChips: ['To Do', 'In Progress', 'Done'],
 };
 
@@ -273,6 +274,7 @@ function selectBoard(id) {
   $('edit-board-title-btn').classList.remove('hidden');
   $('board-export-btn').classList.remove('hidden');
   $('board-import-btn').classList.remove('hidden');
+  $('reorder-cols-btn').classList.remove('hidden');
   $('add-col-btn').classList.remove('hidden');
   $('delete-board-btn').classList.remove('hidden');
   $('empty-state').classList.add('hidden');
@@ -287,10 +289,10 @@ function getActiveBoard() { return S.boards.find(b => b.id === S.activeBoardId);
 function renderBoard(board) {
   const container = $('columns-container');
   container.innerHTML = '';
-  board.columns.forEach(col => container.appendChild(buildColumn(col, board.id)));
+  board.columns.forEach(col => container.appendChild(buildColumn(col)));
 }
 
-function buildColumn(col, boardId) {
+function buildColumn(col) {
   const el = document.createElement('div');
   el.className = 'column';
   el.dataset.colId = col.id;
@@ -315,8 +317,24 @@ function buildColumn(col, boardId) {
   const cardsList = el.querySelector('.cards-list');
   col.cards.forEach(card => cardsList.appendChild(buildCard(card, col.id)));
 
-  el.querySelector('.add-card-btn').addEventListener('click', () => openInlineAdd(col.id, cardsList, el));
+  el.querySelector('.add-card-btn').addEventListener('click', () => openInlineAdd(col.id, el));
   el.querySelector('.col-menu-btn').addEventListener('click', () => openRenameColModal(col));
+
+  // Column header drag (mouse reorder)
+  const header = el.querySelector('.column-header');
+  header.draggable = true;
+  header.addEventListener('dragstart', e => {
+    S.dragCol = col.id;
+    S.dragCard = null;
+    el.classList.add('col-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.stopPropagation();
+  });
+  header.addEventListener('dragend', () => {
+    S.dragCol = null;
+    el.classList.remove('col-dragging');
+    document.querySelectorAll('.col-drag-placeholder').forEach(p => p.remove());
+  });
 
   setupColDrop(cardsList, col.id);
   return el;
@@ -380,7 +398,7 @@ function buildCard(card, colId) {
 }
 
 /* ── Inline add card ── */
-function openInlineAdd(colId, cardsList, colEl) {
+function openInlineAdd(colId, colEl) {
   const existing = colEl.querySelector('.inline-add-card');
   if (existing) { existing.querySelector('textarea').focus(); return; }
 
@@ -430,6 +448,7 @@ async function addCard(colId, title) {
 /* ── Drag & drop ── */
 function setupColDrop(cardsList, colId) {
   cardsList.addEventListener('dragover', e => {
+    if (S.dragCol) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     cardsList.classList.add('drag-over');
@@ -449,6 +468,7 @@ function setupColDrop(cardsList, colId) {
   });
 
   cardsList.addEventListener('drop', e => {
+    if (S.dragCol) return;
     e.preventDefault();
     cardsList.classList.remove('drag-over');
     cardsList.querySelector('.drag-placeholder')?.remove();
@@ -477,6 +497,136 @@ function setupColDrop(cardsList, colId) {
     renderBoard(board);
   });
 }
+
+/* ── Column drag & drop (board level) ── */
+(function setupColumnDragDrop() {
+  const container = $('columns-container');
+
+  container.addEventListener('dragover', e => {
+    if (!S.dragCol) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const after = getColDragAfterEl(container, e.clientX);
+    let ph = container.querySelector('.col-drag-placeholder');
+    if (!ph) { ph = document.createElement('div'); ph.className = 'col-drag-placeholder'; }
+    if (after) container.insertBefore(ph, after);
+    else container.appendChild(ph);
+  });
+
+  container.addEventListener('dragleave', e => {
+    if (!S.dragCol) return;
+    if (!container.contains(e.relatedTarget)) {
+      container.querySelector('.col-drag-placeholder')?.remove();
+    }
+  });
+
+  container.addEventListener('drop', e => {
+    if (!S.dragCol) return;
+    e.preventDefault();
+    const ph = container.querySelector('.col-drag-placeholder');
+    const board = getActiveBoard();
+    const fromIdx = board.columns.findIndex(c => c.id === S.dragCol);
+    if (fromIdx === -1) { ph?.remove(); return; }
+
+    const [col] = board.columns.splice(fromIdx, 1);
+    // Position = where placeholder is among remaining columns
+    const siblings = [...container.querySelectorAll('.column:not(.col-dragging), .col-drag-placeholder')];
+    const phIdx = ph ? siblings.indexOf(ph) : siblings.length;
+    board.columns.splice(Math.min(phIdx, board.columns.length), 0, col);
+
+    ph?.remove();
+    S.dragCol = null;
+    persistBoard(board);
+    renderBoard(board);
+  });
+})();
+
+function getColDragAfterEl(container, x) {
+  const cols = [...container.querySelectorAll('.column:not(.col-dragging)')];
+  return cols.reduce((closest, col) => {
+    const box = col.getBoundingClientRect();
+    const offset = x - (box.left + box.width / 2);
+    if (offset < 0 && offset > closest.offset) return { offset, el: col };
+    return closest;
+  }, { offset: -Infinity }).el;
+}
+
+/* ── Reorder columns modal ── */
+function openReorderColsModal() {
+  const board = getActiveBoard();
+  if (!board) return;
+  const list = $('reorder-col-list');
+  list.innerHTML = '';
+  board.columns.forEach(col => {
+    const row = document.createElement('div');
+    row.className = 'reorder-row';
+    row.dataset.colId = col.id;
+    row.innerHTML = `
+      <div class="reorder-handle" title="Drag to reorder">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M3 5h10M3 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="reorder-name">${esc(col.name)}</span>`;
+    list.appendChild(row);
+    setupReorderRowDrag(row, list);
+  });
+  $('reorder-cols-modal').classList.remove('hidden');
+}
+
+function setupReorderRowDrag(row, list) {
+  const handle = row.querySelector('.reorder-handle');
+  let dragging = false;
+
+  handle.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    startY = e.clientY;
+    dragging = true;
+    row.classList.add('reorder-dragging');
+  });
+
+  handle.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dragY = e.clientY;
+    const siblings = [...list.querySelectorAll('.reorder-row:not(.reorder-dragging)')];
+    let insertBefore = null;
+    for (const sibling of siblings) {
+      const rect = sibling.getBoundingClientRect();
+      if (dragY < rect.top + rect.height / 2) { insertBefore = sibling; break; }
+    }
+    if (insertBefore) list.insertBefore(row, insertBefore);
+    else list.appendChild(row);
+  });
+
+  handle.addEventListener('pointerup', () => {
+    dragging = false;
+    row.classList.remove('reorder-dragging');
+  });
+
+  handle.addEventListener('pointercancel', () => {
+    dragging = false;
+    row.classList.remove('reorder-dragging');
+  });
+}
+
+$('reorder-cols-btn').addEventListener('click', openReorderColsModal);
+$('reorder-cols-close').addEventListener('click', () => $('reorder-cols-modal').classList.add('hidden'));
+$('reorder-cols-cancel').addEventListener('click', () => $('reorder-cols-modal').classList.add('hidden'));
+$('reorder-cols-modal').addEventListener('click', e => { if (e.target === $('reorder-cols-modal')) $('reorder-cols-modal').classList.add('hidden'); });
+
+$('reorder-cols-save').addEventListener('click', () => {
+  const board = getActiveBoard();
+  if (!board) return;
+  const newOrder = [...$('reorder-col-list').querySelectorAll('.reorder-row')]
+    .map(row => board.columns.find(c => c.id === row.dataset.colId))
+    .filter(Boolean);
+  board.columns = newOrder;
+  $('reorder-cols-modal').classList.add('hidden');
+  persistBoard(board);
+  renderBoard(board);
+  toast('Columns reordered');
+});
 
 function getDragAfterEl(container, y) {
   const els = [...container.querySelectorAll('.card:not(.dragging)')];
@@ -859,6 +1009,7 @@ $('delete-board-btn').addEventListener('click', async () => {
   $('edit-board-title-btn').classList.add('hidden');
   $('board-export-btn').classList.add('hidden');
   $('board-import-btn').classList.add('hidden');
+  $('reorder-cols-btn').classList.add('hidden');
   $('add-col-btn').classList.add('hidden');
   $('delete-board-btn').classList.add('hidden');
   toast('Board deleted');
@@ -965,6 +1116,7 @@ document.addEventListener('keydown', e => {
     $('theme-picker').classList.add('hidden');
     $('profile-modal').classList.add('hidden');
     $('delete-account-modal').classList.add('hidden');
+    $('reorder-cols-modal').classList.add('hidden');
   }
 });
 

@@ -195,6 +195,13 @@
                         Import
                     </button>
                     <input type="file" id="board-import-file" accept=".json" style="display:none" />
+                    <button class="btn-ghost small hidden" id="reorder-cols-btn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M2 3h10M2 7h10M2 11h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            <path d="M11 1l2 2-2 2M11 9l2 2-2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Reorder Columns
+                    </button>
                     <button class="btn-ghost small hidden" id="add-col-btn">
                         <svg width="14" height="14" viewBox="0 0 14 14">
                             <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
@@ -389,6 +396,27 @@
                 </button>
             </div>
             <div id="col-picker-list" class="col-picker-list"></div>
+        </div>
+    </div>
+
+    <!-- Reorder columns modal -->
+    <div id="reorder-cols-modal" class="modal-backdrop hidden" style="z-index:150">
+        <div class="glass-panel modal-panel small-modal">
+            <div class="modal-header">
+                <span class="modal-heading">Reorder Columns</span>
+                <button class="icon-btn modal-close" id="reorder-cols-close">
+                    <svg width="16" height="16" viewBox="0 0 16 16">
+                        <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="reorder-hint">Drag the handles to reorder columns</p>
+                <div id="reorder-col-list" class="reorder-col-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-ghost" id="reorder-cols-cancel">Cancel</button>
+                <button class="btn-primary" id="reorder-cols-save">Apply</button>
+            </div>
         </div>
     </div>
 

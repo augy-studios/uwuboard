@@ -1550,6 +1550,90 @@ textarea {
   }
 }
 
+/* ── Column drag (board) ── */
+.column-header {
+  cursor: grab;
+}
+
+.column-header:active {
+  cursor: grabbing;
+}
+
+.column.col-dragging {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.col-drag-placeholder {
+  width: 270px;
+  flex-shrink: 0;
+  min-height: 80px;
+  border-radius: var(--radius-md);
+  border: 2px dashed var(--brand-dark);
+  background: rgba(var(--brand-tint-rgb), 0.25);
+}
+
+/* ── Reorder columns modal ── */
+.reorder-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+.reorder-col-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.reorder-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.65);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.reorder-row.reorder-dragging {
+  background: rgba(var(--brand-tint-rgb), 0.55);
+  border-color: var(--brand-dark);
+  box-shadow: var(--shadow-md);
+  z-index: 10;
+  position: relative;
+}
+
+.reorder-handle {
+  color: var(--text-3);
+  cursor: grab;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: 4px;
+  touch-action: none;
+}
+
+.reorder-handle:hover {
+  color: var(--text-2);
+  background: rgba(var(--brand-tint-rgb), 0.4);
+}
+
+.reorder-handle:active {
+  cursor: grabbing;
+}
+
+.reorder-name {
+  font-size: 13.5px;
+  color: var(--text);
+}
+
 /* ── Profile modal ── */
 #user-avatar {
   cursor: pointer;
