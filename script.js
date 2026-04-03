@@ -9,7 +9,6 @@ const S = {
   editingCardId: null,
   editingColId: null,
   dragCard: null,         // { cardId, colId, boardId }
-  dragCol: null,          // colId being dragged
   colChips: ['To Do', 'In Progress', 'Done'],
 };
 
@@ -320,22 +319,6 @@ function buildColumn(col) {
   el.querySelector('.add-card-btn').addEventListener('click', () => openInlineAdd(col.id, el));
   el.querySelector('.col-menu-btn').addEventListener('click', () => openRenameColModal(col));
 
-  // Column header drag (mouse reorder)
-  const header = el.querySelector('.column-header');
-  header.draggable = true;
-  header.addEventListener('dragstart', e => {
-    S.dragCol = col.id;
-    S.dragCard = null;
-    el.classList.add('col-dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.stopPropagation();
-  });
-  header.addEventListener('dragend', () => {
-    S.dragCol = null;
-    el.classList.remove('col-dragging');
-    document.querySelectorAll('.col-drag-placeholder').forEach(p => p.remove());
-  });
-
   setupColDrop(cardsList, col.id);
   return el;
 }
@@ -448,7 +431,6 @@ async function addCard(colId, title) {
 /* ── Drag & drop ── */
 function setupColDrop(cardsList, colId) {
   cardsList.addEventListener('dragover', e => {
-    if (S.dragCol) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     cardsList.classList.add('drag-over');
@@ -468,7 +450,6 @@ function setupColDrop(cardsList, colId) {
   });
 
   cardsList.addEventListener('drop', e => {
-    if (S.dragCol) return;
     e.preventDefault();
     cardsList.classList.remove('drag-over');
     cardsList.querySelector('.drag-placeholder')?.remove();
@@ -498,115 +479,43 @@ function setupColDrop(cardsList, colId) {
   });
 }
 
-/* ── Column drag & drop (board level) ── */
-(function setupColumnDragDrop() {
-  const container = $('columns-container');
-
-  container.addEventListener('dragover', e => {
-    if (!S.dragCol) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const after = getColDragAfterEl(container, e.clientX);
-    let ph = container.querySelector('.col-drag-placeholder');
-    if (!ph) { ph = document.createElement('div'); ph.className = 'col-drag-placeholder'; }
-    if (after) container.insertBefore(ph, after);
-    else container.appendChild(ph);
-  });
-
-  container.addEventListener('dragleave', e => {
-    if (!S.dragCol) return;
-    if (!container.contains(e.relatedTarget)) {
-      container.querySelector('.col-drag-placeholder')?.remove();
-    }
-  });
-
-  container.addEventListener('drop', e => {
-    if (!S.dragCol) return;
-    e.preventDefault();
-    const ph = container.querySelector('.col-drag-placeholder');
-    const board = getActiveBoard();
-    const fromIdx = board.columns.findIndex(c => c.id === S.dragCol);
-    if (fromIdx === -1) { ph?.remove(); return; }
-
-    const [col] = board.columns.splice(fromIdx, 1);
-    // Position = where placeholder is among remaining columns
-    const siblings = [...container.querySelectorAll('.column:not(.col-dragging), .col-drag-placeholder')];
-    const phIdx = ph ? siblings.indexOf(ph) : siblings.length;
-    board.columns.splice(Math.min(phIdx, board.columns.length), 0, col);
-
-    ph?.remove();
-    S.dragCol = null;
-    persistBoard(board);
-    renderBoard(board);
-  });
-})();
-
-function getColDragAfterEl(container, x) {
-  const cols = [...container.querySelectorAll('.column:not(.col-dragging)')];
-  return cols.reduce((closest, col) => {
-    const box = col.getBoundingClientRect();
-    const offset = x - (box.left + box.width / 2);
-    if (offset < 0 && offset > closest.offset) return { offset, el: col };
-    return closest;
-  }, { offset: -Infinity }).el;
-}
-
 /* ── Reorder columns modal ── */
 function openReorderColsModal() {
   const board = getActiveBoard();
   if (!board) return;
+  renderReorderList(board.columns);
+  $('reorder-cols-modal').classList.remove('hidden');
+}
+
+function renderReorderList(columns) {
   const list = $('reorder-col-list');
   list.innerHTML = '';
-  board.columns.forEach(col => {
+  columns.forEach((col, i) => {
     const row = document.createElement('div');
     row.className = 'reorder-row';
     row.dataset.colId = col.id;
     row.innerHTML = `
-      <div class="reorder-handle" title="Drag to reorder">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M3 5h10M3 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <span class="reorder-name">${esc(col.name)}</span>`;
+      <span class="reorder-name">${esc(col.name)}</span>
+      <div class="reorder-btns">
+        <button class="reorder-btn" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Move up">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 9l5-5 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="reorder-btn" data-dir="1" ${i === columns.length - 1 ? 'disabled' : ''} title="Move down">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 5l5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>`;
+    row.querySelectorAll('.reorder-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const board = getActiveBoard();
+        const idx = board.columns.findIndex(c => c.id === col.id);
+        const newIdx = idx + parseInt(btn.dataset.dir);
+        if (newIdx < 0 || newIdx >= board.columns.length) return;
+        const [moved] = board.columns.splice(idx, 1);
+        board.columns.splice(newIdx, 0, moved);
+        renderReorderList(board.columns);
+      });
+    });
     list.appendChild(row);
-    setupReorderRowDrag(row, list);
-  });
-  $('reorder-cols-modal').classList.remove('hidden');
-}
-
-function setupReorderRowDrag(row, list) {
-  const handle = row.querySelector('.reorder-handle');
-  let dragging = false;
-
-  handle.addEventListener('pointerdown', e => {
-    e.preventDefault();
-    handle.setPointerCapture(e.pointerId);
-    startY = e.clientY;
-    dragging = true;
-    row.classList.add('reorder-dragging');
-  });
-
-  handle.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    const dragY = e.clientY;
-    const siblings = [...list.querySelectorAll('.reorder-row:not(.reorder-dragging)')];
-    let insertBefore = null;
-    for (const sibling of siblings) {
-      const rect = sibling.getBoundingClientRect();
-      if (dragY < rect.top + rect.height / 2) { insertBefore = sibling; break; }
-    }
-    if (insertBefore) list.insertBefore(row, insertBefore);
-    else list.appendChild(row);
-  });
-
-  handle.addEventListener('pointerup', () => {
-    dragging = false;
-    row.classList.remove('reorder-dragging');
-  });
-
-  handle.addEventListener('pointercancel', () => {
-    dragging = false;
-    row.classList.remove('reorder-dragging');
   });
 }
 
@@ -618,10 +527,6 @@ $('reorder-cols-modal').addEventListener('click', e => { if (e.target === $('reo
 $('reorder-cols-save').addEventListener('click', () => {
   const board = getActiveBoard();
   if (!board) return;
-  const newOrder = [...$('reorder-col-list').querySelectorAll('.reorder-row')]
-    .map(row => board.columns.find(c => c.id === row.dataset.colId))
-    .filter(Boolean);
-  board.columns = newOrder;
   $('reorder-cols-modal').classList.add('hidden');
   persistBoard(board);
   renderBoard(board);
