@@ -116,10 +116,8 @@ function loadGuest() {
 function updateSidebarAvatar() {
   const el = $('user-avatar');
   if (!el) return;
-  const key = S.session?.userId;
-  const saved = key && localStorage.getItem('uwuboard_avatar_' + key);
-  if (saved) {
-    el.innerHTML = `<img src="${saved}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`;
+  if (S.avatarUrl) {
+    el.innerHTML = `<img src="${S.avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`;
   } else if (!S.isGuest && S.session) {
     el.textContent = ($('user-name').textContent || 'U')[0].toUpperCase();
   } else {
@@ -127,12 +125,13 @@ function updateSidebarAvatar() {
   }
 }
 
-function setSession(session, username, displayName) {
+function setSession(session, username, displayName, avatarUrl) {
   S.session = session;
   S.username = username;
+  S.avatarUrl = avatarUrl || null;
   S.isGuest = false;
   const shown = displayName || username;
-  localStorage.setItem('uwuboard_session', JSON.stringify({ session, username, displayName: shown }));
+  localStorage.setItem('uwuboard_session', JSON.stringify({ session, username, displayName: shown, avatarUrl: avatarUrl || null }));
   $('user-name').textContent = shown;
   $('user-role').textContent = 'Signed in';
   $('user-avatar').textContent = shown[0].toUpperCase();
@@ -205,7 +204,7 @@ $('login-form').addEventListener('submit', async (e) => {
       const cred = new PasswordCredential({ id: user, password: pass });
       navigator.credentials.store(cred).catch(() => {});
     }
-    setSession(data.session, data.username, data.displayName);
+    setSession(data.session, data.username, data.displayName, data.avatarUrl);
     await loadUserBoards();
   } catch (e) { showError('login-error', e.message); }
 });
@@ -1013,11 +1012,10 @@ function openProfileModal() {
   clearError('profile-error');
   S._pendingAvatarData = null;
   const avatarEl = $('profile-modal-avatar');
-  const saved = S.session?.userId && localStorage.getItem('uwuboard_avatar_' + S.session.userId);
-  if (saved) {
-    avatarEl.innerHTML = `<img src="${saved}" alt="" style="width:100%;height:100%;object-fit:cover;" />`;
+  if (S.avatarUrl) {
+    avatarEl.innerHTML = `<img src="${S.avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;" />`;
   } else {
-    avatarEl.textContent = username[0]?.toUpperCase() || 'U';
+    avatarEl.textContent = ($('user-name').textContent || 'U')[0].toUpperCase();
   }
   $('profile-modal').classList.remove('hidden');
 }
@@ -1033,9 +1031,9 @@ $('profile-pic-input').addEventListener('change', async e => {
   if (!file) return;
   e.target.value = '';
   const dataUrl = await resizeImage(file, 200);
+  // Preview immediately
+  $('profile-modal-avatar').innerHTML = `<img src="${dataUrl}" alt="" style="width:100%;height:100%;object-fit:cover;" />`;
   S._pendingAvatarData = dataUrl;
-  const avatarEl = $('profile-modal-avatar');
-  avatarEl.innerHTML = `<img src="${dataUrl}" alt="" style="width:100%;height:100%;object-fit:cover;" />`;
 });
 
 $('save-profile-btn').addEventListener('click', async () => {
@@ -1065,8 +1063,12 @@ $('save-profile-btn').addEventListener('click', async () => {
       }
     }
     if (S._pendingAvatarData) {
-      localStorage.setItem('uwuboard_avatar_' + S.session.userId, S._pendingAvatarData);
+      const avatarResult = await api('PUT', '/auth/update-avatar', { imageData: S._pendingAvatarData });
+      S.avatarUrl = avatarResult.avatarUrl;
       S._pendingAvatarData = null;
+      const saved = JSON.parse(localStorage.getItem('uwuboard_session') || '{}');
+      saved.avatarUrl = S.avatarUrl;
+      localStorage.setItem('uwuboard_session', JSON.stringify(saved));
       updateSidebarAvatar();
     }
     $('profile-modal').classList.add('hidden');
@@ -1121,11 +1123,11 @@ $('delete-step3-confirm').addEventListener('click', async () => {
   if (!saved) return;
   let parsed;
   try { parsed = JSON.parse(saved); } catch { localStorage.removeItem('uwuboard_session'); return; }
-  const { session, username, displayName } = parsed;
+  const { session, username, displayName, avatarUrl } = parsed;
   S.session = session;
   try {
     const data = await api('GET', '/boards/list');
-    setSession(session, username, displayName);
+    setSession(session, username, displayName, avatarUrl);
     S.boards = data.boards;
     renderBoardList();
     if (S.boards.length) selectBoard(S.boards[0].id);

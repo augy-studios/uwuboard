@@ -50,6 +50,10 @@
         {
             "source": "/api/auth/delete-account",
             "destination": "/api/auth/delete-account.js"
+        },
+        {
+            "source": "/api/auth/update-avatar",
+            "destination": "/api/auth/update-avatar.js"
         }
     ]
 }
