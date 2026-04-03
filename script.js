@@ -273,8 +273,6 @@ function selectBoard(id) {
   $('edit-board-title-btn').classList.remove('hidden');
   $('board-export-btn').classList.remove('hidden');
   $('board-import-btn').classList.remove('hidden');
-  $('reorder-cols-btn').classList.remove('hidden');
-  $('add-col-btn').classList.remove('hidden');
   $('delete-board-btn').classList.remove('hidden');
   $('empty-state').classList.add('hidden');
   $('columns-container').classList.remove('hidden');
@@ -289,6 +287,12 @@ function renderBoard(board) {
   const container = $('columns-container');
   container.innerHTML = '';
   board.columns.forEach(col => container.appendChild(buildColumn(col)));
+  const addColBtn = document.createElement('button');
+  addColBtn.className = 'add-col-circle-btn';
+  addColBtn.title = 'Add Column';
+  addColBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 4v14M4 11h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+  addColBtn.addEventListener('click', addColumn);
+  container.appendChild(addColBtn);
 }
 
 function buildColumn(col) {
@@ -307,16 +311,25 @@ function buildColumn(col) {
       </button>
     </div>
     <div class="cards-list" data-col-id="${col.id}"></div>
-    <button class="add-card-btn">
-      <svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-      Add card
-    </button>
+    <div class="col-bottom-bar">
+      <button class="add-card-btn">
+        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Add card
+      </button>
+      <button class="col-reorder-btn" title="Reorder columns">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M2 3h10M2 7h10M2 11h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          <path d="M11 1l2 2-2 2M11 9l2 2-2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
   `;
 
   const cardsList = el.querySelector('.cards-list');
   col.cards.forEach(card => cardsList.appendChild(buildCard(card, col.id)));
 
   el.querySelector('.add-card-btn').addEventListener('click', () => openInlineAdd(col.id, el));
+  el.querySelector('.col-reorder-btn').addEventListener('click', openReorderColsModal);
   el.querySelector('.col-menu-btn').addEventListener('click', () => openRenameColModal(col));
 
   setupColDrop(cardsList, col.id);
@@ -519,7 +532,6 @@ function renderReorderList(columns) {
   });
 }
 
-$('reorder-cols-btn').addEventListener('click', openReorderColsModal);
 $('reorder-cols-close').addEventListener('click', () => $('reorder-cols-modal').classList.add('hidden'));
 $('reorder-cols-cancel').addEventListener('click', () => $('reorder-cols-modal').classList.add('hidden'));
 $('reorder-cols-modal').addEventListener('click', e => { if (e.target === $('reorder-cols-modal')) $('reorder-cols-modal').classList.add('hidden'); });
@@ -803,14 +815,14 @@ $('rename-col-close').addEventListener('click', () => $('rename-col-modal').clas
 $('rename-col-modal').addEventListener('click', e => { if (e.target === $('rename-col-modal')) $('rename-col-modal').classList.add('hidden'); });
 
 /* ── Add column ── */
-$('add-col-btn').addEventListener('click', () => {
+function addColumn() {
   const name = prompt('Column name:');
   if (!name?.trim()) return;
   const board = getActiveBoard();
   board.columns.push({ id: uid(), name: name.trim(), cards: [] });
   persistBoard(board);
   renderBoard(board);
-});
+}
 
 /* ── New board modal ── */
 $('new-board-btn').addEventListener('click', openNewBoardModal);
@@ -914,8 +926,6 @@ $('delete-board-btn').addEventListener('click', async () => {
   $('edit-board-title-btn').classList.add('hidden');
   $('board-export-btn').classList.add('hidden');
   $('board-import-btn').classList.add('hidden');
-  $('reorder-cols-btn').classList.add('hidden');
-  $('add-col-btn').classList.add('hidden');
   $('delete-board-btn').classList.add('hidden');
   toast('Board deleted');
   if (S.boards.length) selectBoard(S.boards[0].id);

@@ -900,11 +900,19 @@ textarea {
   color: var(--text-3);
 }
 
+.col-bottom-bar {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 .add-card-btn {
-  width: 100%;
+  flex: 1;
   text-align: left;
   padding: 7px 12px;
   border: none;
+  border-right: 1px solid var(--border);
   background: transparent;
   color: var(--text-3);
   font-size: 12.5px;
@@ -920,6 +928,47 @@ textarea {
 
 .add-card-btn:hover {
   background: rgba(var(--brand-tint-rgb), 0.3);
+  color: var(--brand-dark);
+}
+
+.col-reorder-btn {
+  flex-shrink: 0;
+  width: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+}
+
+.col-reorder-btn:hover {
+  background: rgba(var(--brand-tint-rgb), 0.3);
+  color: var(--brand-dark);
+}
+
+.add-col-circle-btn {
+  flex-shrink: 0;
+  align-self: flex-start;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px dashed var(--border-strong);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.add-col-circle-btn:hover {
+  background: rgba(var(--brand-tint-rgb), 0.5);
+  border-color: var(--brand-dark);
   color: var(--brand-dark);
 }
 
