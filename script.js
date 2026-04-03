@@ -113,6 +113,20 @@ function loadGuest() {
 }
 
 /* ── Auth ── */
+function updateSidebarAvatar() {
+  const el = $('user-avatar');
+  if (!el) return;
+  const key = S.session?.userId;
+  const saved = key && localStorage.getItem('uwuboard_avatar_' + key);
+  if (saved) {
+    el.innerHTML = `<img src="${saved}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`;
+  } else if (!S.isGuest && S.session) {
+    el.textContent = ($('user-name').textContent || 'U')[0].toUpperCase();
+  } else {
+    el.textContent = 'G';
+  }
+}
+
 function setSession(session, username) {
   S.session = session;
   S.isGuest = false;
@@ -122,6 +136,7 @@ function setSession(session, username) {
   $('user-avatar').textContent = username[0].toUpperCase();
   $('auth-overlay').classList.add('hidden');
   $('app').classList.remove('hidden');
+  updateSidebarAvatar();
 }
 
 function setGuest() {
@@ -947,6 +962,8 @@ document.addEventListener('keydown', e => {
     $('new-board-modal').classList.add('hidden');
     $('col-picker-sheet').classList.add('hidden');
     $('theme-picker').classList.add('hidden');
+    $('profile-modal').classList.add('hidden');
+    $('delete-account-modal').classList.add('hidden');
   }
 });
 
@@ -983,6 +1000,117 @@ function openThemePicker() {
 $('theme-btn').addEventListener('click', openThemePicker);
 $('theme-picker-close').addEventListener('click', () => $('theme-picker').classList.add('hidden'));
 $('theme-picker').addEventListener('click', e => { if (e.target === $('theme-picker')) $('theme-picker').classList.add('hidden'); });
+
+/* ── Profile Modal ── */
+function openProfileModal() {
+  if (S.isGuest) { toast('Sign in to edit your profile', 'error'); return; }
+  const username = $('user-name').textContent;
+  $('profile-display-name').value = username;
+  $('profile-new-pass').value = '';
+  $('profile-confirm-pass').value = '';
+  clearError('profile-error');
+  S._pendingAvatarData = null;
+  const avatarEl = $('profile-modal-avatar');
+  const saved = S.session?.userId && localStorage.getItem('uwuboard_avatar_' + S.session.userId);
+  if (saved) {
+    avatarEl.innerHTML = `<img src="${saved}" alt="" style="width:100%;height:100%;object-fit:cover;" />`;
+  } else {
+    avatarEl.textContent = username[0]?.toUpperCase() || 'U';
+  }
+  $('profile-modal').classList.remove('hidden');
+}
+
+$('user-avatar').addEventListener('click', openProfileModal);
+$('profile-modal-close').addEventListener('click', () => $('profile-modal').classList.add('hidden'));
+$('profile-modal').addEventListener('click', e => { if (e.target === $('profile-modal')) $('profile-modal').classList.add('hidden'); });
+
+$('profile-avatar-wrap').addEventListener('click', () => $('profile-pic-input').click());
+
+$('profile-pic-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  const dataUrl = await resizeImage(file, 200);
+  S._pendingAvatarData = dataUrl;
+  const avatarEl = $('profile-modal-avatar');
+  avatarEl.innerHTML = `<img src="${dataUrl}" alt="" style="width:100%;height:100%;object-fit:cover;" />`;
+});
+
+$('save-profile-btn').addEventListener('click', async () => {
+  const displayName = $('profile-display-name').value.trim();
+  const newPass = $('profile-new-pass').value;
+  const confirmPass = $('profile-confirm-pass').value;
+  clearError('profile-error');
+  if (!displayName) return showError('profile-error', 'Display name cannot be empty.');
+  if (!/^[a-zA-Z0-9_]{3,24}$/.test(displayName)) return showError('profile-error', 'Name must be 3–24 characters (letters, numbers, underscore).');
+  if (newPass && newPass.length < 8) return showError('profile-error', 'Password must be at least 8 characters.');
+  if (newPass && newPass !== confirmPass) return showError('profile-error', 'Passwords do not match.');
+
+  const currentName = $('user-name').textContent;
+  const payload = {};
+  if (displayName !== currentName) payload.displayName = displayName;
+  if (newPass) payload.newPassword = newPass;
+
+  try {
+    $('save-profile-btn').disabled = true;
+    if (Object.keys(payload).length > 0) {
+      const result = await api('PUT', '/auth/update-profile', payload);
+      const newName = result.username || displayName;
+      $('user-name').textContent = newName;
+      const saved = JSON.parse(localStorage.getItem('uwuboard_session') || '{}');
+      saved.username = newName;
+      localStorage.setItem('uwuboard_session', JSON.stringify(saved));
+    }
+    if (S._pendingAvatarData) {
+      localStorage.setItem('uwuboard_avatar_' + S.session.userId, S._pendingAvatarData);
+      S._pendingAvatarData = null;
+      updateSidebarAvatar();
+    }
+    $('profile-modal').classList.add('hidden');
+    toast('Profile updated');
+  } catch (e) {
+    showError('profile-error', e.message);
+  } finally {
+    $('save-profile-btn').disabled = false;
+  }
+});
+
+/* ── Delete Account ── */
+function showDeleteStep(n) {
+  [1, 2, 3].forEach(i => $(`delete-step-${i}`).classList.toggle('hidden', i !== n));
+}
+
+$('delete-account-btn').addEventListener('click', () => {
+  $('profile-modal').classList.add('hidden');
+  showDeleteStep(1);
+  $('delete-account-modal').classList.remove('hidden');
+});
+
+$('delete-step1-cancel').addEventListener('click', () => $('delete-account-modal').classList.add('hidden'));
+$('delete-step1-confirm').addEventListener('click', () => showDeleteStep(2));
+$('delete-step2-cancel').addEventListener('click', () => $('delete-account-modal').classList.add('hidden'));
+$('delete-step2-confirm').addEventListener('click', () => {
+  $('delete-confirm-pass').value = '';
+  clearError('delete-error');
+  showDeleteStep(3);
+});
+$('delete-step3-cancel').addEventListener('click', () => $('delete-account-modal').classList.add('hidden'));
+$('delete-step3-confirm').addEventListener('click', async () => {
+  const pass = $('delete-confirm-pass').value;
+  clearError('delete-error');
+  if (!pass) return showError('delete-error', 'Please enter your password.');
+  try {
+    $('delete-step3-confirm').disabled = true;
+    await api('DELETE', '/auth/delete-account', { password: pass });
+    localStorage.removeItem('uwuboard_avatar_' + S.session.userId);
+    $('delete-account-modal').classList.add('hidden');
+    logout();
+    toast('Account deleted');
+  } catch (e) {
+    showError('delete-error', e.message);
+    $('delete-step3-confirm').disabled = false;
+  }
+});
 
 /* ── Restore session on load ── */
 (async () => {

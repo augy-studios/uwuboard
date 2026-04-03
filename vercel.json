@@ -42,6 +42,14 @@
         {
             "source": "/api/images/delete",
             "destination": "/api/images/delete.js"
+        },
+        {
+            "source": "/api/auth/update-profile",
+            "destination": "/api/auth/update-profile.js"
+        },
+        {
+            "source": "/api/auth/delete-account",
+            "destination": "/api/auth/delete-account.js"
         }
     ]
 }

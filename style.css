@@ -1549,3 +1549,71 @@ textarea {
     max-width: 160px;
   }
 }
+
+/* ── Profile modal ── */
+#user-avatar {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+#user-avatar:hover {
+  opacity: 0.75;
+}
+
+.profile-avatar-section {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.profile-avatar-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  font-size: 28px;
+  border-width: 2px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--brand-dark);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--brand-dark);
+  overflow: hidden;
+}
+
+.profile-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  border-radius: 50%;
+}
+
+.profile-avatar-wrap:hover .profile-avatar-overlay {
+  opacity: 1;
+}
+
+/* ── Delete account steps ── */
+.delete-step .modal-body {
+  padding-top: 4px;
+}
+
+.delete-warn-text {
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.5;
+}
