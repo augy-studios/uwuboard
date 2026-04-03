@@ -34,6 +34,14 @@
         {
             "source": "/api/boards/delete",
             "destination": "/api/boards/delete.js"
+        },
+        {
+            "source": "/api/images/upload",
+            "destination": "/api/images/upload.js"
+        },
+        {
+            "source": "/api/images/delete",
+            "destination": "/api/images/delete.js"
         }
     ]
 }

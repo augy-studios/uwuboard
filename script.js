@@ -40,6 +40,25 @@ function hexToRgb(hex) {
   return `${r},${g},${b}`;
 }
 
+function resizeImage(file, maxW = 1920) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxW) { height = Math.round(height * maxW / width); width = maxW; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      // Prefer WebP (25-35% smaller than JPEG at same visual quality); fall back to PNG for lossless
+      const useWebP = canvas.toDataURL('image/webp').startsWith('data:image/webp');
+      resolve(useWebP ? canvas.toDataURL('image/webp', 0.92) : canvas.toDataURL('image/png'));
+    };
+    img.src = url;
+  });
+}
+
 function isDark(hex) {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -305,7 +324,12 @@ function buildCard(card, colId) {
     </div>`;
   }
 
-  el.innerHTML = `${labelsHtml}<div class="card-title">${esc(card.title)}</div>${metaHtml}${checkHtml}`;
+  let thumbnailHtml = '';
+  if (card.images?.length) {
+    const thumb = card.images.find(i => i.id === card.thumbnailId) || card.images[0];
+    thumbnailHtml = `<div class="card-thumb"><img src="${thumb.url || thumb.data}" alt="" /></div>`;
+  }
+  el.innerHTML = `${thumbnailHtml}${labelsHtml}<div class="card-title">${esc(card.title)}</div>${metaHtml}${checkHtml}`;
   el.addEventListener('click', () => openCardModal(card.id, colId));
   el.addEventListener('dragstart', e => {
     S.dragCard = { cardId: card.id, colId };
@@ -353,7 +377,7 @@ async function addCard(colId, title) {
   if (!board) return;
   const col = board.columns.find(c => c.id === colId);
   if (!col) return;
-  const card = { id: uid(), title, description: '', labels: [], checklist: [], due: '', priority: '' };
+  const card = { id: uid(), title, description: '', labels: [], checklist: [], due: '', priority: '', images: [], thumbnailId: null };
   col.cards.push(card);
 
   if (!S.isGuest) {
@@ -443,6 +467,7 @@ function openCardModal(cardId, colId) {
   $('card-modal-col').value = colId;
   $('card-modal-col-label').textContent = col?.name || '—';
 
+  renderCardImages(card);
   renderModalLabels(card.labels || []);
   renderChecklist(card.checklist || []);
 
@@ -592,6 +617,66 @@ $('col-picker-close').addEventListener('click', () => $('col-picker-sheet').clas
 $('col-picker-sheet').addEventListener('click', e => { if (e.target === $('col-picker-sheet')) $('col-picker-sheet').classList.add('hidden'); });
 
 function closeCardModal() { $('card-modal').classList.add('hidden'); }
+
+/* ── Card images ── */
+function renderCardImages(card) {
+  if (!card.images) card.images = [];
+  const grid = $('card-images-grid');
+  grid.innerHTML = '';
+  card.images.forEach(img => {
+    const thumbId = card.thumbnailId || card.images[0]?.id;
+    const isThumb = img.id === thumbId;
+    const src = img.url || img.data;
+    const item = document.createElement('div');
+    item.className = 'card-img-item' + (isThumb ? ' is-thumb' : '');
+    item.innerHTML = `
+      <img src="${src}" alt="${esc(img.name)}" />
+      <div class="img-actions">
+        <button type="button" class="img-action-btn${isThumb ? ' active' : ''}" title="${isThumb ? 'Thumbnail' : 'Set as thumbnail'}">
+          <svg width="11" height="11" viewBox="0 0 11 11"><path d="M5.5 1l1.2 2.4 2.8.4-2 2 .5 2.7-2.5-1.4L3 8.5l.5-2.7-2-2 2.8-.4z" fill="currentColor"/></svg>
+          ${isThumb ? 'Thumbnail' : 'Set thumb'}
+        </button>
+        <button type="button" class="img-action-btn del-img-btn" title="Delete">✕ Delete</button>
+      </div>`;
+    item.querySelector('.img-action-btn:not(.del-img-btn)').addEventListener('click', () => {
+      card.thumbnailId = img.id;
+      renderCardImages(card);
+    });
+    item.querySelector('.del-img-btn').addEventListener('click', async () => {
+      if (!S.isGuest && img.path) {
+        try { await api('DELETE', '/images/delete', { path: img.path }); } catch { toast('Could not delete image from storage', 'error'); }
+      }
+      card.images = card.images.filter(i => i.id !== img.id);
+      if (card.thumbnailId === img.id) card.thumbnailId = card.images[0]?.id ?? null;
+      renderCardImages(card);
+    });
+    grid.appendChild(item);
+  });
+}
+
+$('card-img-input').addEventListener('change', async e => {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  const board = getActiveBoard();
+  const col = board?.columns.find(c => c.id === S.editingColId);
+  const card = col?.cards.find(c => c.id === S.editingCardId);
+  if (!card) return;
+  if (!card.images) card.images = [];
+  for (const file of files) {
+    const imageData = await resizeImage(file);
+    if (S.isGuest) {
+      card.images.push({ id: uid(), data: imageData, name: file.name });
+    } else {
+      try {
+        const result = await api('POST', '/images/upload', { imageData, fileName: file.name });
+        card.images.push({ id: uid(), url: result.url, path: result.path, name: file.name });
+      } catch { toast('Image upload failed', 'error'); }
+    }
+  }
+  if (!card.thumbnailId && card.images.length) card.thumbnailId = card.images[0].id;
+  renderCardImages(card);
+  e.target.value = '';
+});
 
 /* ── Rename/delete column modal ── */
 function openRenameColModal(col) {

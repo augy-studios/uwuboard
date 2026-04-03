@@ -264,6 +264,15 @@
                     <input type="hidden" id="card-modal-col" />
                 </div>
                 <div class="modal-field">
+                    <label>Images</label>
+                    <div id="card-images-grid" class="card-images-grid"></div>
+                    <label class="btn-ghost small img-upload-label" for="card-img-input">
+                        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 9V1M3 4l3-3 3 3M1 10h10" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+                        Add Image
+                    </label>
+                    <input type="file" id="card-img-input" accept="image/*" multiple style="display:none" />
+                </div>
+                <div class="modal-field">
                     <label>Labels</label>
                     <div id="card-modal-labels" class="label-editor"></div>
                     <div class="label-add-row">
