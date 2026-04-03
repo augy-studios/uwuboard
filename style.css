@@ -43,15 +43,17 @@
   --bg: #f5fdf7;
   --bg-panel: rgba(255, 255, 255, 0.72);
   --bg-card: rgba(255, 255, 255, 0.82);
-  --bg-col: rgba(204, 255, 204, 0.28);
+  --bg-col: rgba(var(--brand-tint-rgb), 0.28);
   --text: #1a2e22;
   --text-2: #4a6855;
   --text-3: #7a9e84;
   --border: rgba(34, 168, 90, 0.18);
   --border-strong: rgba(34, 168, 90, 0.32);
-  --shadow-sm: 0 2px 8px rgba(34, 168, 90, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 8px 28px rgba(34, 168, 90, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 20px 60px rgba(34, 168, 90, 0.14), 0 4px 12px rgba(0, 0, 0, 0.08);
+  --brand-rgb: 34, 168, 90;
+  --brand-tint-rgb: 204, 255, 204;
+  --shadow-sm: 0 2px 8px rgba(var(--brand-rgb), 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 8px 28px rgba(var(--brand-rgb), 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 20px 60px rgba(var(--brand-rgb), 0.14), 0 4px 12px rgba(0, 0, 0, 0.08);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
@@ -136,7 +138,7 @@ body {
   background: linear-gradient(135deg,
       rgba(255, 255, 255, 0.38) 0%,
       rgba(255, 255, 255, 0.10) 40%,
-      rgba(204, 255, 204, 0.08) 60%,
+      rgba(var(--brand-tint-rgb), 0.08) 60%,
       rgba(255, 255, 255, 0.16) 100%);
 }
 
@@ -146,10 +148,10 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 10% 0%, rgba(204, 255, 204, 0.6) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 90% 100%, rgba(168, 240, 184, 0.4) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 70% at 50% 50%, rgba(240, 255, 240, 0.3) 0%, transparent 70%),
-    #f5fdf7;
+    radial-gradient(ellipse 80% 60% at 10% 0%, rgba(var(--brand-tint-rgb), 0.6) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 90% 100%, rgba(var(--brand-tint-rgb), 0.4) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 70% at 50% 50%, rgba(var(--brand-tint-rgb), 0.3) 0%, transparent 70%),
+    var(--bg);
   z-index: -1;
 }
 
@@ -330,12 +332,12 @@ textarea {
   font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
-  box-shadow: 0 2px 8px rgba(34, 168, 90, 0.3);
+  box-shadow: 0 2px 8px rgba(var(--brand-rgb), 0.3);
 }
 
 .btn-primary:hover {
   background: #1a8f4a;
-  box-shadow: 0 4px 14px rgba(34, 168, 90, 0.4);
+  box-shadow: 0 4px 14px rgba(var(--brand-rgb), 0.4);
   transform: translateY(-1px);
 }
 
@@ -361,7 +363,7 @@ textarea {
 }
 
 .btn-ghost:hover {
-  background: rgba(204, 255, 204, 0.55);
+  background: rgba(var(--brand-tint-rgb), 0.55);
   border-color: var(--brand-dark);
   color: var(--brand-dark);
 }
@@ -421,7 +423,7 @@ textarea {
 }
 
 .icon-btn:hover {
-  background: rgba(204, 255, 204, 0.5);
+  background: rgba(var(--brand-tint-rgb), 0.5);
   color: var(--brand-dark);
 }
 
@@ -446,7 +448,7 @@ textarea {
 
 .import-zone.drag-over {
   border-color: var(--brand-dark);
-  background: rgba(204, 255, 204, 0.2);
+  background: rgba(var(--brand-tint-rgb), 0.2);
 }
 
 .link-btn {
@@ -470,7 +472,7 @@ textarea {
   flex-direction: column;
   padding: 14px 10px;
   border-right: 1px solid var(--border);
-  background: rgba(240, 255, 240, 0.55);
+  background: rgba(var(--brand-tint-rgb), 0.42);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   overflow: hidden;
@@ -578,12 +580,12 @@ textarea {
 }
 
 .board-item:hover {
-  background: rgba(204, 255, 204, 0.45);
+  background: rgba(var(--brand-tint-rgb), 0.45);
   color: var(--text);
 }
 
 .board-item.active {
-  background: rgba(204, 255, 204, 0.65);
+  background: rgba(var(--brand-tint-rgb), 0.65);
   color: var(--brand-dark);
   font-weight: 500;
 }
@@ -730,7 +732,7 @@ textarea {
 .col-count {
   font-size: 11px;
   font-weight: 500;
-  background: rgba(34, 168, 90, 0.15);
+  background: rgba(var(--brand-rgb), 0.15);
   color: var(--brand-dark);
   padding: 1px 6px;
   border-radius: 99px;
@@ -757,7 +759,7 @@ textarea {
 }
 
 .cards-list.drag-over {
-  background: rgba(204, 255, 204, 0.25);
+  background: rgba(var(--brand-tint-rgb), 0.25);
   border-radius: 8px;
 }
 
@@ -881,7 +883,7 @@ textarea {
 .check-progress {
   flex: 1;
   height: 3px;
-  background: rgba(34, 168, 90, 0.15);
+  background: rgba(var(--brand-rgb), 0.15);
   border-radius: 99px;
   overflow: hidden;
 }
@@ -917,7 +919,7 @@ textarea {
 }
 
 .add-card-btn:hover {
-  background: rgba(204, 255, 204, 0.3);
+  background: rgba(var(--brand-tint-rgb), 0.3);
   color: var(--brand-dark);
 }
 
@@ -1144,7 +1146,7 @@ textarea {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: rgba(204, 255, 204, 0.45);
+  background: rgba(var(--brand-tint-rgb), 0.45);
   border: 1px solid var(--brand-border);
   border-radius: 99px;
   font-size: 12px;
@@ -1261,7 +1263,7 @@ textarea {
   height: 60px;
   border: 2px dashed var(--brand-border);
   border-radius: var(--radius-sm);
-  background: rgba(204, 255, 204, 0.15);
+  background: rgba(var(--brand-tint-rgb), 0.15);
   pointer-events: none;
 }
 
@@ -1365,6 +1367,65 @@ textarea {
   cursor: pointer;
 }
 
+/* ── Theme picker ── */
+.theme-picker-panel {
+  width: 100%;
+  max-width: 280px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.theme-picker-list {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.theme-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.theme-option:hover {
+  background: rgba(var(--brand-tint-rgb), 0.45);
+  border-color: var(--brand-dark);
+}
+
+.theme-option.active {
+  background: rgba(var(--brand-tint-rgb), 0.65);
+  border-color: var(--brand-dark);
+  font-weight: 500;
+}
+
+.theme-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 0, 0, 0.18);
+  flex-shrink: 0;
+}
+
+.theme-check {
+  margin-left: auto;
+  color: var(--brand-dark);
+  flex-shrink: 0;
+}
+
 /* ── Column picker ── */
 .col-picker-trigger {
   width: 100%;
@@ -1421,13 +1482,13 @@ textarea {
 }
 
 .col-picker-item:hover {
-  background: rgba(204, 255, 204, 0.55);
+  background: rgba(var(--brand-tint-rgb), 0.55);
   border-color: var(--brand-dark);
   color: var(--brand-dark);
 }
 
 .col-picker-item.active {
-  background: rgba(204, 255, 204, 0.7);
+  background: rgba(var(--brand-tint-rgb), 0.7);
   border-color: var(--brand-dark);
   color: var(--brand-dark);
   font-weight: 500;
