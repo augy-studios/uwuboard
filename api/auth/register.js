@@ -42,6 +42,7 @@ module.exports = async (req, res) => {
 
   return res.status(200).json({
     username: user.username,
+    displayName: user.username,
     session: { token, userId: user.id },
   });
 };

@@ -127,13 +127,15 @@ function updateSidebarAvatar() {
   }
 }
 
-function setSession(session, username) {
+function setSession(session, username, displayName) {
   S.session = session;
+  S.username = username;
   S.isGuest = false;
-  localStorage.setItem('uwuboard_session', JSON.stringify({ session, username }));
-  $('user-name').textContent = username;
+  const shown = displayName || username;
+  localStorage.setItem('uwuboard_session', JSON.stringify({ session, username, displayName: shown }));
+  $('user-name').textContent = shown;
   $('user-role').textContent = 'Signed in';
-  $('user-avatar').textContent = username[0].toUpperCase();
+  $('user-avatar').textContent = shown[0].toUpperCase();
   $('auth-overlay').classList.add('hidden');
   $('app').classList.remove('hidden');
   updateSidebarAvatar();
@@ -203,7 +205,7 @@ $('login-form').addEventListener('submit', async (e) => {
       const cred = new PasswordCredential({ id: user, password: pass });
       navigator.credentials.store(cred).catch(() => {});
     }
-    setSession(data.session, data.username);
+    setSession(data.session, data.username, data.displayName);
     await loadUserBoards();
   } catch (e) { showError('login-error', e.message); }
 });
@@ -223,7 +225,7 @@ $('register-form').addEventListener('submit', async (e) => {
       const cred = new PasswordCredential({ id: user, password: pass });
       navigator.credentials.store(cred).catch(() => {});
     }
-    setSession(data.session, data.username);
+    setSession(data.session, data.username, data.displayName);
     await loadUserBoards();
   } catch (e) { showError('reg-error', e.message); }
 });
@@ -1004,8 +1006,8 @@ $('theme-picker').addEventListener('click', e => { if (e.target === $('theme-pic
 /* ── Profile Modal ── */
 function openProfileModal() {
   if (S.isGuest) { toast('Sign in to edit your profile', 'error'); return; }
-  const username = $('user-name').textContent;
-  $('profile-display-name').value = username;
+  $('profile-username-display').textContent = S.username || '';
+  $('profile-display-name').value = $('user-name').textContent;
   $('profile-new-pass').value = '';
   $('profile-confirm-pass').value = '';
   clearError('profile-error');
@@ -1055,11 +1057,12 @@ $('save-profile-btn').addEventListener('click', async () => {
     $('save-profile-btn').disabled = true;
     if (Object.keys(payload).length > 0) {
       const result = await api('PUT', '/auth/update-profile', payload);
-      const newName = result.username || displayName;
-      $('user-name').textContent = newName;
-      const saved = JSON.parse(localStorage.getItem('uwuboard_session') || '{}');
-      saved.username = newName;
-      localStorage.setItem('uwuboard_session', JSON.stringify(saved));
+      if (result.displayName) {
+        $('user-name').textContent = result.displayName;
+        const saved = JSON.parse(localStorage.getItem('uwuboard_session') || '{}');
+        saved.displayName = result.displayName;
+        localStorage.setItem('uwuboard_session', JSON.stringify(saved));
+      }
     }
     if (S._pendingAvatarData) {
       localStorage.setItem('uwuboard_avatar_' + S.session.userId, S._pendingAvatarData);
@@ -1118,11 +1121,11 @@ $('delete-step3-confirm').addEventListener('click', async () => {
   if (!saved) return;
   let parsed;
   try { parsed = JSON.parse(saved); } catch { localStorage.removeItem('uwuboard_session'); return; }
-  const { session, username } = parsed;
+  const { session, username, displayName } = parsed;
   S.session = session;
   try {
     const data = await api('GET', '/boards/list');
-    setSession(session, username);
+    setSession(session, username, displayName);
     S.boards = data.boards;
     renderBoardList();
     if (S.boards.length) selectBoard(S.boards[0].id);

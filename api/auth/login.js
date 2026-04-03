@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
 
   const { data: user, error } = await supabase
     .from('uwu_users')
-    .select('id, username, password_hash')
+    .select('id, username, password_hash, display_name')
     .eq('username', username)
     .maybeSingle();
 
@@ -31,6 +31,7 @@ module.exports = async (req, res) => {
 
   return res.status(200).json({
     username: user.username,
+    displayName: user.display_name || user.username,
     session: { token, userId: user.id },
   });
 };

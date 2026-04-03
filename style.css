@@ -1612,6 +1612,23 @@ textarea {
   padding-top: 4px;
 }
 
+.field-note {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+.profile-username-readonly {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-2);
+  font-size: 13.5px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .delete-warn-text {
   font-size: 13.5px;
   color: var(--text);
