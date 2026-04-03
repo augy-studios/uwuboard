@@ -420,7 +420,7 @@ function openInlineAdd(colId, colEl) {
     if (e.key === 'Escape') zone.remove();
   });
 
-  colEl.insertBefore(zone, colEl.querySelector('.add-card-btn'));
+  colEl.insertBefore(zone, colEl.querySelector('.col-bottom-bar'));
   ta.focus();
 }
 
