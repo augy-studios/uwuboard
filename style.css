@@ -1367,6 +1367,11 @@ textarea {
   cursor: pointer;
 }
 
+/* ── Rainbow theme background override ── */
+body.theme-rainbow::before {
+  background: linear-gradient(135deg, #ffcccc 0%, #ccccff 33%, #ffffcc 66%, #ccffcc 100%);
+}
+
 /* ── Theme picker ── */
 .theme-picker-panel {
   width: 100%;

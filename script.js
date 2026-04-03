@@ -21,12 +21,14 @@ const THEMES = {
   magenta:  { name: 'Not green 4 (#ffccff)',  swatch: '#ffccff', vars: { '--brand': '#ffccff', '--brand-dark': '#aa33aa', '--brand-mid': '#f0a8f0', '--brand-border': 'rgba(170,51,170,0.25)', '--bg': '#fdf5fd', '--bg-col': 'rgba(255,204,255,0.28)', '--border': 'rgba(170,51,170,0.18)','--border-strong': 'rgba(170,51,170,0.32)','--text': '#2e1a2e', '--text-2': '#684a68', '--text-3': '#9e7a9e', '--brand-rgb': '170,51,170',  '--brand-tint-rgb': '255,204,255' } },
   cyan:     { name: 'Not green 5 (#ccffff)',  swatch: '#ccffff', vars: { '--brand': '#ccffff', '--brand-dark': '#0099aa', '--brand-mid': '#a8f0f0', '--brand-border': 'rgba(0,153,170,0.25)',  '--bg': '#f5fdfd', '--bg-col': 'rgba(204,255,255,0.28)', '--border': 'rgba(0,153,170,0.18)', '--border-strong': 'rgba(0,153,170,0.32)', '--text': '#1a2a2e', '--text-2': '#4a6268', '--text-3': '#7a989e', '--brand-rgb': '0,153,170',   '--brand-tint-rgb': '204,255,255' } },
   white:    { name: 'Really really light green (#ffffff)', swatch: '#f0f0f0', vars: { '--brand': '#f0f0f0', '--brand-dark': '#666666', '--brand-mid': '#e0e0e0', '--brand-border': 'rgba(100,100,100,0.25)', '--bg': '#f8f8f8', '--bg-col': 'rgba(235,235,235,0.28)', '--border': 'rgba(100,100,100,0.18)', '--border-strong': 'rgba(100,100,100,0.32)', '--text': '#2a2a2a', '--text-2': '#555555', '--text-3': '#888888', '--brand-rgb': '100,100,100', '--brand-tint-rgb': '235,235,235' } },
+  rainbow:  { name: 'Green with friends', swatch: 'linear-gradient(135deg, #ffcccc 0%, #ccccff 33%, #ffffcc 66%, #ccffcc 100%)', vars: { '--brand': '#e8d4ff', '--brand-dark': '#7744bb', '--brand-mid': '#d4b8f4', '--brand-border': 'rgba(119,68,187,0.25)', '--bg': '#fdfafb', '--bg-col': 'rgba(220,204,255,0.25)', '--border': 'rgba(119,68,187,0.18)', '--border-strong': 'rgba(119,68,187,0.32)', '--text': '#1e1a2e', '--text-2': '#5a4a6e', '--text-3': '#8a7a9e', '--brand-rgb': '119,68,187', '--brand-tint-rgb': '220,204,255' } },
 };
 
 function applyTheme(key) {
   const theme = THEMES[key] || THEMES.classic;
   const root = document.documentElement;
   Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  document.body.classList.toggle('theme-rainbow', key === 'rainbow');
   localStorage.setItem('uwuboard_theme', key);
   S.theme = key;
 }
