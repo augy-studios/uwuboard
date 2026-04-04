@@ -613,7 +613,8 @@ textarea {
 }
 
 .sidebar-coffee-btn {
-  margin-top: 8px;
+  margin-top: 6px;
+  margin-bottom: 6px;
   color: var(--accent);
   border-color: var(--accent);
   opacity: 0.8;
