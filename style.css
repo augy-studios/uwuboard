@@ -556,6 +556,7 @@ textarea {
   letter-spacing: 0.6px;
   color: var(--text-3);
   padding: 0 8px;
+  margin-top: 12px;
   margin-bottom: 4px;
 }
 
