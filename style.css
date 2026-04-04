@@ -612,6 +612,19 @@ textarea {
   white-space: nowrap;
 }
 
+.sidebar-coffee-btn {
+  margin-top: 6px;
+  color: var(--accent);
+  border-color: var(--accent);
+  opacity: 0.8;
+  text-decoration: none;
+  display: flex;
+}
+.sidebar-coffee-btn:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 /* ── Main ── */
 .main {
   flex: 1;
