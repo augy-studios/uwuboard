@@ -1,7 +1,7 @@
 {
     "name": "uwuBoard by UwU Apps",
     "short_name": "uwuBoard",
-    "description": "A ClickUp × Trello-style kanban web app",
+    "description": "Turn your to-do list into a clear board where you can drag tasks from To Do to Done.",
     "icons": [{
             "src": "uwuboard-512.png",
             "type": "image/png",
