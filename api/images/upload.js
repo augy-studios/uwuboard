@@ -1,8 +1,14 @@
+const { verifySignedRequest } = require('../../lib/uwu-request-signing-server');
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const { requireAuth } = require('../lib/auth');
     const supabase = require('../lib/supabase');
+
+    const verification = await verifySignedRequest(req, supabase);
+    if (!verification.valid) return res.status(401).json({ error: verification.reason });
+
     const { userId } = await requireAuth(req);
     const { imageData, fileName } = req.body || {};
     if (!imageData) return res.status(400).json({ error: 'No image data' });

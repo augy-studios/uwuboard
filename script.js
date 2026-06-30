@@ -97,6 +97,19 @@ async function api(method, path, body) {
   };
   if (S.session?.token) opts.headers['Authorization'] = `Bearer ${S.session.token}`;
   if (body) opts.body = JSON.stringify(body);
+  const res = await signedFetch(`/api${path}`, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// Login/register are key-issuance endpoints — no signing key exists yet, so they stay unsigned.
+async function apiUnsigned(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`/api${path}`, opts);
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Request failed');
@@ -155,8 +168,9 @@ function setGuest() {
 
 function logout() {
   if (!S.isGuest && S.session) {
-    fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${S.session.token}` } }).catch(() => {});
+    signedFetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${S.session.token}` } }).catch(() => {});
   }
+  clearSigningKey();
   localStorage.removeItem('uwuboard_session');
   S.session = null;
   S.isGuest = false;
@@ -199,11 +213,12 @@ $('login-form').addEventListener('submit', async (e) => {
   clearError('login-error');
   if (!user || !pass) return showError('login-error', 'Please fill in all fields.');
   try {
-    const data = await api('POST', '/auth/login', { username: user, password: pass });
+    const data = await apiUnsigned('POST', '/auth/login', { username: user, password: pass });
     if (window.PasswordCredential) {
       const cred = new PasswordCredential({ id: user, password: pass });
       navigator.credentials.store(cred).catch(() => {});
     }
+    storeSigningKey(data.signing_key, data.key_id);
     setSession(data.session, data.username, data.displayName, data.avatarUrl);
     await loadUserBoards();
   } catch (e) { showError('login-error', e.message); }
@@ -219,11 +234,12 @@ $('register-form').addEventListener('submit', async (e) => {
   if (!user || !email || !pass) return showError('reg-error', 'Please fill in all fields.');
   if (pass.length < 8) return showError('reg-error', 'Password must be at least 8 characters.');
   try {
-    const data = await api('POST', '/auth/register', { username: user, email, password: pass });
+    const data = await apiUnsigned('POST', '/auth/register', { username: user, email, password: pass });
     if (window.PasswordCredential) {
       const cred = new PasswordCredential({ id: user, password: pass });
       navigator.credentials.store(cred).catch(() => {});
     }
+    storeSigningKey(data.signing_key, data.key_id);
     setSession(data.session, data.username, data.displayName);
     await loadUserBoards();
   } catch (e) { showError('reg-error', e.message); }
@@ -1193,6 +1209,7 @@ $('delete-step3-confirm').addEventListener('click', async () => {
   const { session, username, displayName, avatarUrl } = parsed;
   S.session = session;
   try {
+    await restoreSigningKeyForSession(session.token);
     const data = await api('GET', '/boards/list');
     setSession(session, username, displayName, avatarUrl);
     S.boards = data.boards;

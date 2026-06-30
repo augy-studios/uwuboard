@@ -2,6 +2,8 @@ const supabase = require('../lib/supabase');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
+const SIGNING_KEY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // matches session expiry
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -40,9 +42,20 @@ module.exports = async (req, res) => {
     expires_at: expires.toISOString(),
   });
 
+  const signingKey = crypto.randomBytes(32).toString('hex');
+  await supabase.from('uwu_signing_keys').insert({
+    session_token: token,
+    signing_key: signingKey,
+    is_guest: false,
+    app_id: 'uwuboard',
+    expires_at: new Date(Date.now() + SIGNING_KEY_TTL_MS).toISOString(),
+  });
+
   return res.status(200).json({
     username: user.username,
     displayName: user.username,
     session: { token, userId: user.id },
+    signing_key: signingKey,
+    key_id: token,
   });
 };

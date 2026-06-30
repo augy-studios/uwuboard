@@ -1,4 +1,4 @@
-const CACHE = "uwuboard-offline-v1";
+const CACHE = "uwuboard-v1";
 
 const ASSETS = [
   "/",
