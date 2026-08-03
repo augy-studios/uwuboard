@@ -1,13 +1,9 @@
 const supabase = require('../lib/supabase');
 const bcrypt = require('bcryptjs');
-const { verifySignedRequest } = require('../../lib/uwu-request-signing-server');
 
 module.exports = async (req, res) => {
   if (req.method !== 'PUT') return res.status(405).json({ error: 'Method not allowed' });
   try {
-    const verification = await verifySignedRequest(req, supabase);
-    if (!verification.valid) return res.status(401).json({ error: verification.reason });
-
     const { requireAuth } = require('../lib/auth');
     const { userId } = await requireAuth(req);
     const { displayName, newPassword } = req.body || {};

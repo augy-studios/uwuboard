@@ -1,14 +1,8 @@
-const { verifySignedRequest } = require('../../lib/uwu-request-signing-server');
-
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const { requireAuth } = require('../lib/auth');
     const supabase2 = require('../lib/supabase');
-
-    const verification = await verifySignedRequest(req, supabase2);
-    if (!verification.valid) return res.status(401).json({ error: verification.reason });
-
     const { userId } = await requireAuth(req);
     const { board } = req.body || {};
     if (!board?.id || !board?.name) return res.status(400).json({ error: 'Invalid board' });

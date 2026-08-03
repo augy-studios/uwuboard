@@ -2,7 +2,6 @@ const supabase = require('../lib/supabase');
 const {
     requireAuth
 } = require('../lib/auth');
-const { verifySignedRequest } = require('../../lib/uwu-request-signing-server');
 
 module.exports = async (req, res) => {
     if (req.method !== 'GET') return res.status(405).json({
@@ -10,11 +9,6 @@ module.exports = async (req, res) => {
     });
 
     try {
-        const verification = await verifySignedRequest(req, supabase);
-        if (!verification.valid) return res.status(401).json({
-            error: verification.reason
-        });
-
         const {
             userId
         } = await requireAuth(req);
