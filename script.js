@@ -12,28 +12,7 @@ const S = {
   colChips: ['To Do', 'In Progress', 'Done'],
 };
 
-/* ── Themes ── */
-const THEMES = {
-  classic:  { name: 'Classic',                swatch: '#ccffcc', vars: { '--brand': '#ccffcc', '--brand-dark': '#22a85a', '--brand-mid': '#a8f0b8', '--brand-border': 'rgba(34,168,90,0.25)',   '--bg': '#f5fdf7', '--bg-col': 'rgba(204,255,204,0.28)', '--border': 'rgba(34,168,90,0.18)',  '--border-strong': 'rgba(34,168,90,0.32)',  '--text': '#1a2e22', '--text-2': '#4a6855', '--text-3': '#7a9e84', '--brand-rgb': '34,168,90',   '--brand-tint-rgb': '204,255,204' } },
-  pink:     { name: 'Not green 1 (#ffcccc)',  swatch: '#ffcccc', vars: { '--brand': '#ffcccc', '--brand-dark': '#cc3344', '--brand-mid': '#f0a8b0', '--brand-border': 'rgba(204,51,68,0.25)',  '--bg': '#fdf5f5', '--bg-col': 'rgba(255,204,204,0.28)', '--border': 'rgba(204,51,68,0.18)', '--border-strong': 'rgba(204,51,68,0.32)', '--text': '#2e1a1a', '--text-2': '#684a4a', '--text-3': '#9e7a7a', '--brand-rgb': '204,51,68',   '--brand-tint-rgb': '255,204,204' } },
-  blue:     { name: 'Not green 2 (#ccccff)',  swatch: '#ccccff', vars: { '--brand': '#ccccff', '--brand-dark': '#5544cc', '--brand-mid': '#a8a8f0', '--brand-border': 'rgba(85,68,204,0.25)',  '--bg': '#f5f5fd', '--bg-col': 'rgba(204,204,255,0.28)', '--border': 'rgba(85,68,204,0.18)', '--border-strong': 'rgba(85,68,204,0.32)', '--text': '#1a1a2e', '--text-2': '#4a4a68', '--text-3': '#7a7a9e', '--brand-rgb': '85,68,204',   '--brand-tint-rgb': '204,204,255' } },
-  yellow:   { name: 'Not green 3 (#ffffcc)',  swatch: '#ffffcc', vars: { '--brand': '#ffffcc', '--brand-dark': '#aa8800', '--brand-mid': '#f0f0a8', '--brand-border': 'rgba(170,136,0,0.25)', '--bg': '#fdfdf5', '--bg-col': 'rgba(255,255,204,0.28)', '--border': 'rgba(170,136,0,0.18)','--border-strong': 'rgba(170,136,0,0.32)','--text': '#2e2a1a', '--text-2': '#68624a', '--text-3': '#9e987a', '--brand-rgb': '170,136,0',   '--brand-tint-rgb': '255,255,204' } },
-  magenta:  { name: 'Not green 4 (#ffccff)',  swatch: '#ffccff', vars: { '--brand': '#ffccff', '--brand-dark': '#aa33aa', '--brand-mid': '#f0a8f0', '--brand-border': 'rgba(170,51,170,0.25)', '--bg': '#fdf5fd', '--bg-col': 'rgba(255,204,255,0.28)', '--border': 'rgba(170,51,170,0.18)','--border-strong': 'rgba(170,51,170,0.32)','--text': '#2e1a2e', '--text-2': '#684a68', '--text-3': '#9e7a9e', '--brand-rgb': '170,51,170',  '--brand-tint-rgb': '255,204,255' } },
-  cyan:     { name: 'Not green 5 (#ccffff)',  swatch: '#ccffff', vars: { '--brand': '#ccffff', '--brand-dark': '#0099aa', '--brand-mid': '#a8f0f0', '--brand-border': 'rgba(0,153,170,0.25)',  '--bg': '#f5fdfd', '--bg-col': 'rgba(204,255,255,0.28)', '--border': 'rgba(0,153,170,0.18)', '--border-strong': 'rgba(0,153,170,0.32)', '--text': '#1a2a2e', '--text-2': '#4a6268', '--text-3': '#7a989e', '--brand-rgb': '0,153,170',   '--brand-tint-rgb': '204,255,255' } },
-  white:    { name: 'Really really light green (#ffffff)', swatch: '#f0f0f0', vars: { '--brand': '#f0f0f0', '--brand-dark': '#666666', '--brand-mid': '#e0e0e0', '--brand-border': 'rgba(100,100,100,0.25)', '--bg': '#f8f8f8', '--bg-col': 'rgba(235,235,235,0.28)', '--border': 'rgba(100,100,100,0.18)', '--border-strong': 'rgba(100,100,100,0.32)', '--text': '#2a2a2a', '--text-2': '#555555', '--text-3': '#888888', '--brand-rgb': '100,100,100', '--brand-tint-rgb': '235,235,235' } },
-};
-
-function applyTheme(key) {
-  const theme = THEMES[key] || THEMES.classic;
-  const root = document.documentElement;
-  Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
-
-  localStorage.setItem('uwuboard_theme', key);
-  S.theme = key;
-}
-
-/* ── Apply saved theme immediately ── */
-applyTheme(localStorage.getItem('uwuboard_theme') || 'classic');
+/* Theme lives in js/theme.js. */
 
 /* ── Utils ── */
 const $ = id => document.getElementById(id);
@@ -306,7 +285,7 @@ function buildColumn(col) {
         <span class="col-title">${esc(col.name)}</span>
         <span class="col-count">${col.cards.length}</span>
       </div>
-      <button class="icon-btn col-menu-btn" title="Column options">
+      <button class="mini-btn col-menu-btn" title="Column options">
         <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="2" r="1.2" fill="currentColor"/><circle cx="7" cy="7" r="1.2" fill="currentColor"/><circle cx="7" cy="12" r="1.2" fill="currentColor"/></svg>
       </button>
     </div>
@@ -346,8 +325,10 @@ function buildCard(card, colId) {
   if (card.labels?.length) {
     labelsHtml = `<div class="card-labels">${card.labels.map(l => {
       const rgb = hexToRgb(l.color);
-      const textClr = isDark(l.color) ? '#fff' : '#1a2e22';
-      return `<span class="card-label" style="background:rgba(${rgb},0.2);border-color:rgba(${rgb},0.4);color:${textClr}">${esc(l.text)}</span>`;
+      // The label colour is user data, so the chip carries it opaquely and the
+      // text flips with it. A tint would drop under AA in dark mode.
+      const textClr = isDark(l.color) ? '#ffffff' : '#121815';
+      return `<span class="card-label" style="background:${l.color};border-color:rgba(${rgb},0.6);color:${textClr}">${esc(l.text)}</span>`;
     }).join('')}</div>`;
   }
 
@@ -571,7 +552,7 @@ function openCardModal(cardId, colId) {
   $('card-modal-priority').value = card.priority || '';
 
   $('card-modal-col').value = colId;
-  $('card-modal-col-label').textContent = col?.name || '—';
+  $('card-modal-col-label').textContent = col?.name || 'None';
 
   renderCardImages(card);
   renderModalLabels(card.labels || []);
@@ -587,9 +568,9 @@ function renderModalLabels(labels) {
     const chip = document.createElement('div');
     chip.className = 'label-chip';
     const rgb = hexToRgb(l.color);
-    const textClr = isDark(l.color) ? '#fff' : '#1a2e22';
-    chip.style.cssText = `background:rgba(${rgb},0.2);border-color:rgba(${rgb},0.4);color:${textClr}`;
-    chip.innerHTML = `${esc(l.text)}<button data-i="${i}" title="Remove">×</button>`;
+    const textClr = isDark(l.color) ? '#ffffff' : '#121815';
+    chip.style.cssText = `background:${l.color};border-color:rgba(${rgb},0.6);color:${textClr}`;
+    chip.innerHTML = `${esc(l.text)}<button data-i="${i}" title="Remove"><span data-icon="close"></span></button>`;
     chip.querySelector('button').addEventListener('click', () => {
       const board = getActiveBoard();
       const col = board.columns.find(c => c.id === S.editingColId);
@@ -598,6 +579,7 @@ function renderModalLabels(labels) {
     });
     c.appendChild(chip);
   });
+  hydrateIcons(c);
 }
 
 function renderChecklist(items) {
@@ -609,7 +591,7 @@ function renderChecklist(items) {
     row.innerHTML = `
       <input type="checkbox" ${item.done ? 'checked' : ''} data-i="${i}" />
       <span class="${item.done ? 'done' : ''}">${esc(item.text)}</span>
-      <button class="del-check" data-i="${i}" title="Remove">×</button>`;
+      <button class="del-check" data-i="${i}" title="Remove"><span data-icon="close"></span></button>`;
     row.querySelector('input').addEventListener('change', e => {
       const board = getActiveBoard();
       const col = board.columns.find(c => c.id === S.editingColId);
@@ -624,6 +606,7 @@ function renderChecklist(items) {
     });
     c.appendChild(row);
   });
+  hydrateIcons(c);
 }
 
 $('add-label-btn').addEventListener('click', () => {
@@ -742,7 +725,7 @@ function renderCardImages(card) {
           <svg width="11" height="11" viewBox="0 0 11 11"><path d="M5.5 1l1.2 2.4 2.8.4-2 2 .5 2.7-2.5-1.4L3 8.5l.5-2.7-2-2 2.8-.4z" fill="currentColor"/></svg>
           ${isThumb ? 'Thumbnail' : 'Set thumb'}
         </button>
-        <button type="button" class="img-action-btn del-img-btn" title="Delete">✕ Delete</button>
+        <button type="button" class="img-action-btn del-img-btn" title="Delete"><span data-icon="close"></span> Delete</button>
       </div>`;
     item.querySelector('.img-action-btn:not(.del-img-btn)').addEventListener('click', () => {
       card.thumbnailId = img.id;
@@ -758,6 +741,7 @@ function renderCardImages(card) {
     });
     grid.appendChild(item);
   });
+  hydrateIcons(grid);
 }
 
 $('card-img-input').addEventListener('change', async e => {
@@ -842,13 +826,14 @@ function renderColChips() {
   S.colChips.forEach((name, i) => {
     const chip = document.createElement('span');
     chip.className = 'col-chip removable';
-    chip.textContent = name;
+    chip.innerHTML = `${esc(name)}<span class="chip-x" data-icon="close"></span>`;
     chip.addEventListener('click', () => {
       S.colChips.splice(i, 1);
       renderColChips();
     });
     container.appendChild(chip);
   });
+  hydrateIcons(container);
   const addBtn = document.createElement('button');
   addBtn.className = 'btn-ghost small';
   addBtn.id = 'add-default-col-btn';
@@ -1028,7 +1013,7 @@ document.addEventListener('keydown', e => {
     $('rename-col-modal').classList.add('hidden');
     $('new-board-modal').classList.add('hidden');
     $('col-picker-sheet').classList.add('hidden');
-    $('theme-picker').classList.add('hidden');
+    closeModal('themeModal');
     $('profile-modal').classList.add('hidden');
     $('delete-account-modal').classList.add('hidden');
     $('reorder-cols-modal').classList.add('hidden');
@@ -1043,31 +1028,6 @@ function esc(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
-
-/* ── Theme picker ── */
-function openThemePicker() {
-  const list = $('theme-picker-list');
-  list.innerHTML = '';
-  Object.entries(THEMES).forEach(([key, theme]) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'theme-option' + (key === (S.theme || 'classic') ? ' active' : '');
-    btn.innerHTML = `
-      <span class="theme-swatch" style="background:${theme.swatch}"></span>
-      <span>${theme.name}</span>
-      ${key === (S.theme || 'classic') ? '<svg class="theme-check" width="14" height="14" viewBox="0 0 14 14"><path d="M2 7l4 4 6-6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}`;
-    btn.addEventListener('click', () => {
-      applyTheme(key);
-      openThemePicker();
-    });
-    list.appendChild(btn);
-  });
-  $('theme-picker').classList.remove('hidden');
-}
-
-$('theme-btn').addEventListener('click', openThemePicker);
-$('theme-picker-close').addEventListener('click', () => $('theme-picker').classList.add('hidden'));
-$('theme-picker').addEventListener('click', e => { if (e.target === $('theme-picker')) $('theme-picker').classList.add('hidden'); });
 
 /* ── Profile Modal ── */
 function openProfileModal() {

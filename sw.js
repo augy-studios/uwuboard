@@ -1,10 +1,13 @@
-const CACHE = "uwuboard-v1";
+const CACHE = "uwuboard-v2";
 
 const ASSETS = [
   "/",
   "/index.html",
   "/style.css",
   "/script.js",
+  "/js/icons.js",
+  "/js/ui.js",
+  "/js/theme.js",
   "/uwuboard-main.png",
   "/favicon.ico",
   "/manifest.json"

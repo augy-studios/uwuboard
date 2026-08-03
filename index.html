@@ -31,6 +31,16 @@
     <meta property="og:description"
         content="Turn your to-do list into a clear board where you can drag tasks from To Do to Done." />
 
+    <script>
+        (function () {
+            var k = "uwuboard";
+            var m = localStorage.getItem(k + ".mode") || "light";
+            var c = localStorage.getItem(k + ".colorTheme") || "classic";
+            document.documentElement.setAttribute("data-mode", m);
+            document.documentElement.setAttribute("data-color-theme", c);
+        })();
+    </script>
+
     <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/style.css">
     <meta name="theme-color" content="#ccffcc" />
@@ -42,9 +52,6 @@
     <meta name="twitter:card" content="summary">
     <meta name="twitter:image:src" content="/uwuboard-main.png">
     <meta property="og:image" content="/uwuboard-main.png" />
-
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <script defer="" src="https://use.fontawesome.com/releases/v6.5.2/js/all.js"></script>
 </head>
 
 <body>
@@ -132,7 +139,7 @@
                     <img src="/uwuboard-main.png" width="28" height="28" alt="uwuBoard logo" style="border-radius:8px;display:block;" />
                     <span class="logo-text">uwuBoard</span>
                 </div>
-                <button id="sidebar-toggle" class="icon-btn" title="Collapse sidebar">
+                <button id="sidebar-toggle" class="mini-btn" title="Collapse sidebar">
                     <svg width="16" height="16" viewBox="0 0 16 16">
                         <path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" fill="none"
                             stroke-linecap="round" /></svg>
@@ -145,7 +152,7 @@
                     <div class="user-name" id="user-name">Guest</div>
                     <div class="user-role" id="user-role">Guest session</div>
                 </div>
-                <button class="icon-btn" id="logout-btn" title="Sign out">
+                <button class="mini-btn" id="logout-btn" title="Sign out">
                     <svg width="16" height="16" viewBox="0 0 16 16">
                         <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M10 11l3-3-3-3M13 8H6" stroke="currentColor"
                             stroke-width="1.5" fill="none" stroke-linecap="round" /></svg>
@@ -174,13 +181,13 @@
             <!-- Top bar -->
             <header class="topbar glass-topbar">
                 <div class="topbar-left">
-                    <button id="mobile-menu-btn" class="icon-btn">
+                    <button id="mobile-menu-btn" class="mini-btn">
                         <svg width="18" height="18" viewBox="0 0 18 18">
                             <path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.5"
                                 stroke-linecap="round" /></svg>
                     </button>
                     <h1 class="board-title" id="board-title">Select a board</h1>
-                    <button class="icon-btn edit-board-title-btn hidden" id="edit-board-title-btn" title="Rename board">
+                    <button class="mini-btn edit-board-title-btn hidden" id="edit-board-title-btn" title="Rename board">
                         <svg width="14" height="14" viewBox="0 0 14 14">
                             <path d="M9.5 2.5l2 2-7 7H2.5v-2l7-7z" stroke="currentColor" stroke-width="1.2" fill="none"
                                 stroke-linecap="round" /></svg>
@@ -201,14 +208,8 @@
                     </button>
                     <input type="file" id="board-import-file" accept=".json" style="display:none" />
                     <button class="btn-ghost small hidden danger" id="delete-board-btn">Delete Board</button>
-                    <button class="btn-ghost small" id="theme-btn">
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <path d="M7 1.5C4 1.5 1.5 4 1.5 7s2.5 5.5 5.5 5.5a2 2 0 000-4 2 2 0 110-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                            <circle cx="4.5" cy="4.5" r="1" fill="currentColor"/>
-                            <circle cx="9.5" cy="4.5" r="1" fill="currentColor"/>
-                            <circle cx="7" cy="2.5" r="1" fill="currentColor"/>
-                        </svg>
-                        Theme
+                    <button class="icon-btn" id="themeBtn" type="button" aria-label="Theme">
+                        <span data-icon="sun"></span>
                     </button>
                 </div>
             </header>
@@ -236,7 +237,7 @@
         <div class="glass-panel modal-panel">
             <div class="modal-header">
                 <input class="modal-title-input" id="card-modal-title" type="text" placeholder="Card title" />
-                <button class="icon-btn modal-close" id="card-modal-close">
+                <button class="mini-btn modal-close" id="card-modal-close">
                     <svg width="16" height="16" viewBox="0 0 16 16">
                         <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5"
                             stroke-linecap="round" /></svg>
@@ -266,7 +267,7 @@
                 <div class="modal-field">
                     <label>Move to Column</label>
                     <button type="button" class="col-picker-trigger" id="card-modal-col-btn">
-                        <span id="card-modal-col-label">—</span>
+                        <span id="card-modal-col-label">None</span>
                         <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
                     </button>
                     <input type="hidden" id="card-modal-col" />
@@ -310,7 +311,7 @@
         <div class="glass-panel modal-panel small-modal">
             <div class="modal-header">
                 <span class="modal-heading">New Board</span>
-                <button class="icon-btn modal-close" id="new-board-modal-close">
+                <button class="mini-btn modal-close" id="new-board-modal-close">
                     <svg width="16" height="16" viewBox="0 0 16 16">
                         <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5"
                             stroke-linecap="round" /></svg>
@@ -344,7 +345,7 @@
         <div class="glass-panel modal-panel small-modal">
             <div class="modal-header">
                 <span class="modal-heading">Rename Column</span>
-                <button class="icon-btn modal-close" id="rename-col-close">
+                <button class="mini-btn modal-close" id="rename-col-close">
                     <svg width="16" height="16" viewBox="0 0 16 16">
                         <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5"
                             stroke-linecap="round" /></svg>
@@ -363,26 +364,12 @@
         </div>
     </div>
 
-    <!-- Theme picker -->
-    <div id="theme-picker" class="modal-backdrop hidden" style="z-index:150">
-        <div class="glass-panel theme-picker-panel">
-            <div class="modal-header">
-                <span class="modal-heading">Theme</span>
-                <button class="icon-btn modal-close" id="theme-picker-close">
-                    <svg width="16" height="16" viewBox="0 0 16 16">
-                        <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
-                </button>
-            </div>
-            <div id="theme-picker-list" class="theme-picker-list"></div>
-        </div>
-    </div>
-
     <!-- Column picker sheet -->
     <div id="col-picker-sheet" class="modal-backdrop hidden" style="z-index:150">
         <div class="glass-panel col-picker-panel">
             <div class="modal-header">
                 <span class="modal-heading">Move to Column</span>
-                <button class="icon-btn modal-close" id="col-picker-close">
+                <button class="mini-btn modal-close" id="col-picker-close">
                     <svg width="16" height="16" viewBox="0 0 16 16">
                         <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
                 </button>
@@ -396,7 +383,7 @@
         <div class="glass-panel modal-panel small-modal">
             <div class="modal-header">
                 <span class="modal-heading">Reorder Columns</span>
-                <button class="icon-btn modal-close" id="reorder-cols-close">
+                <button class="mini-btn modal-close" id="reorder-cols-close">
                     <svg width="16" height="16" viewBox="0 0 16 16">
                         <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
                 </button>
@@ -417,7 +404,7 @@
         <div class="glass-panel modal-panel">
             <div class="modal-header">
                 <span class="modal-heading">Profile</span>
-                <button class="icon-btn modal-close" id="profile-modal-close">
+                <button class="mini-btn modal-close" id="profile-modal-close">
                     <svg width="16" height="16" viewBox="0 0 16 16">
                         <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
                 </button>
@@ -528,6 +515,28 @@
     <!-- Toast notifications -->
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Theme modal -->
+    <div class="modal-backdrop hidden" id="themeModal" style="z-index:170">
+        <div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="themeModalTitle">
+            <div class="modal-head">
+                <h2 id="themeModalTitle">Theme</h2>
+                <button class="icon-btn small" type="button" data-close-modal="themeModal" aria-label="Close">
+                    <span data-icon="close"></span>
+                </button>
+            </div>
+            <p class="modal-section-label">Mode</p>
+            <div class="mode-toggle" id="modeToggle">
+                <button class="mode-btn" type="button" data-mode="light" aria-pressed="false"><span data-icon="sun"></span>Light</button>
+                <button class="mode-btn" type="button" data-mode="dark" aria-pressed="false"><span data-icon="moon"></span>Dark</button>
+            </div>
+            <p class="modal-section-label">Brand colour</p>
+            <div class="swatch-grid" id="swatchGrid"></div>
+        </div>
+    </div>
+
+    <script src="/js/icons.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/theme.js"></script>
     <script src="/script.js"></script>
 
     <script>
