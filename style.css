@@ -126,6 +126,10 @@ body {
   background-color: color-mix(in srgb, var(--brand) 10%, var(--bg));
   color: var(--ink);
   transition: background-color 0.25s ease, color 0.25s ease;
+  /* Column, so the update bar can sit in flow above #app and #app takes
+     the height that is left. */
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Scrollbars ── */
@@ -293,7 +297,8 @@ body.modal-open {
 
 /* ── mode toggle ── */
 .mode-toggle {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
   padding: 4px;
   border-radius: 14px;
@@ -321,6 +326,20 @@ body.modal-open {
 .mode-btn.active {
   background: var(--brand-fill);
   color: var(--on-brand);
+}
+
+/* Time based mode. Light and dark stay side by side and the third spans the
+   row beneath them: two equal columns would put the longer label in a box
+   too narrow to read at 320px, and the full width row also signals this is a
+   different kind of choice, a rule for picking a mode rather than a mode. */
+.mode-btn-wide {
+  grid-column: 1 / -1;
+}
+
+.mode-note {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 /* ── swatch grid ── */
@@ -360,6 +379,46 @@ body.modal-open {
   background: var(--swatch-color);
   border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
   flex-shrink: 0;
+}
+
+/* ── Update bar (js/sw-update.js) ── */
+/* Above the auth overlay and the modals so it is reachable from any screen,
+   below the toasts. Quieter than the topbar, tinted enough to read as a
+   notice rather than as part of the layout. */
+.update-notice {
+  flex: none;
+  position: relative;
+  z-index: 250;
+  background: color-mix(in srgb, var(--brand-ink) 12%, var(--bg));
+  border-bottom: 1px solid var(--surface-border);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.update-notice-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 6px 14px;
+  /* Under the notch on a phone, where the bar is the topmost thing on screen. */
+  padding-top: max(6px, env(safe-area-inset-top));
+}
+
+.update-notice p {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.update-notice button {
+  flex: none;
+}
+
+.update-notice .btn-primary {
+  padding: 5px 12px;
+  font-size: 12px;
+  box-shadow: none;
 }
 
 /* ── Overlay ── */
@@ -656,7 +715,8 @@ textarea {
 /* ── App shell ── */
 #app {
   display: flex;
-  height: 100vh;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 

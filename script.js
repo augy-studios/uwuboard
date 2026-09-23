@@ -1164,9 +1164,4 @@ $('delete-step3-confirm').addEventListener('click', async () => {
   }
 })();
 
-/* ── PWA service worker ── */
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
-}
+/* Service worker registration and the update bar live in js/sw-update.js. */

@@ -1,4 +1,8 @@
-const CACHE = "uwuboard-v3";
+// Bump on every change to anything this worker serves. The browser only sees
+// an update when this file changes byte for byte, so a deploy that leaves this
+// alone never reaches anyone who already has the site cached.
+const VERSION = "v4";
+const CACHE = `uwuboard-${VERSION}`;
 
 const ASSETS = [
   "/",
@@ -8,18 +12,21 @@ const ASSETS = [
   "/js/icons.js",
   "/js/ui.js",
   "/js/theme.js",
+  "/js/sw-update.js",
   "/uwuboard-main.png",
   "/favicon.ico",
   "/manifest.json"
 ];
 
+// No skipWaiting() here: a new version installs and then waits until somebody
+// presses Reload in the update bar (js/sw-update.js).
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
 });
 
+// No clients.claim() here either, for the same reason.
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -28,7 +35,15 @@ self.addEventListener("activate", (event) => {
       )
     )
   );
-  self.clients.claim();
+});
+
+self.addEventListener("message", (event) => {
+  const type = typeof event.data === "string" ? event.data : event.data?.type;
+
+  // The only place either of these is ever called.
+  if (type === "skip-waiting") {
+    event.waitUntil(self.skipWaiting().then(() => self.clients.claim()));
+  }
 });
 
 self.addEventListener("fetch", (event) => {
