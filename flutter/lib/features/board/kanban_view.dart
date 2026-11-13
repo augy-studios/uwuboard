@@ -410,7 +410,11 @@ class CardTile extends StatelessWidget {
                             children: [
                               AppIcon('clock', size: 11, color: dueColor),
                               const SizedBox(width: 4),
-                              Text(start.isNotEmpty && start != due ? '$start → $due' : due, style: TextStyle(fontSize: 11, color: dueColor)),
+                              Text(
+                                // Said in words too, not by colour alone (WCAG 1.4.1).
+                                '${start.isNotEmpty && start != due ? '$start → $due' : due}${dueCls == 'overdue' ? ' · overdue' : (dueCls == 'soon' ? ' · due soon' : '')}',
+                                style: TextStyle(fontSize: 11, color: dueColor, fontWeight: dueCls == 'overdue' ? FontWeight.w700 : null),
+                              ),
                             ],
                           ),
                         if (priority.isNotEmpty) _Priority(priority),

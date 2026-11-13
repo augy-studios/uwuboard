@@ -274,7 +274,9 @@ UwuColors uwuAppsColors(Color brand, Brightness brightness, {Color? accent}) {
     bg: bg,
     surface: surface,
     surfaceStrong: surfaceStrong,
-    border: dark ? over(0.14) : over(0.65).withValues(alpha: 1),
+    // Component edges at 3:1 or more against every surface, for all seven brand colours (WCAG
+    // 1.4.11): the site's white-on-white glass edges vanish in light mode.
+    border: dark ? const Color(0xFF84938A) : const Color(0xFF6F7E75),
     ink: dark ? const Color(0xFFEEF2EF) : _ink,
     muted: dark ? const Color(0xFFB4BEB8) : const Color(0xFF4A554E),
     brand: tint,
@@ -299,7 +301,8 @@ UwuColors materialColors(ColorScheme s) {
     bg: s.surface,
     surface: s.surfaceContainerLow,
     surfaceStrong: s.surfaceContainerHigh,
-    border: s.outlineVariant,
+    // outline, not outlineVariant: Material's outline is the one made for 3:1 edges (WCAG 1.4.11).
+    border: s.outline,
     ink: s.onSurface,
     muted: s.onSurfaceVariant,
     brand: s.primaryContainer,

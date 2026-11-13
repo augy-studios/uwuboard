@@ -223,7 +223,8 @@
           `<span class="tl-diamond" style="background:${r.colour}"></span><span class="tl-label">${esc(r.card.title)}</span></div></div>`;
       }
       // The title just past the bar's end, where it reads whatever the bar's colour.
-      const label = `<span class="tl-label" style="left:${x2 + 8}px">${esc(r.card.title)}</span>`;
+      // A late task says so in words, not only with its red edge (WCAG 1.4.1).
+      const label = `<span class="tl-label${late ? ' late' : ''}" style="left:${x2 + 8}px">${esc(r.card.title)}${late ? ' (late)' : ''}</span>`;
       const pct = Math.round(progress(r.card) * 100);
       return `<div class="tl-row tl-row-task" style="top:${r.y}px;height:${r.h}px">` +
         `<div class="tl-bar${late ? ' late' : ''}" style="left:${x1}px;width:${x2 - x1}px;--bar:${r.colour}" data-card="${id}" data-col="${esc(r.col.id)}" tabindex="0" role="button" ` +

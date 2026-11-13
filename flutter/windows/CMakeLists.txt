@@ -57,6 +57,16 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# flutter_local_notifications compiles C++/WinRT as C++17, which reaches for
+# <experimental/coroutine>: Visual Studio 2026's compiler (on GitHub's runners) has removed it.
+# As C++20, C++/WinRT uses the standard coroutines instead.
+if(TARGET flutter_local_notifications_windows)
+  target_compile_features(flutter_local_notifications_windows PRIVATE cxx_std_20)
+  # C++20 makes MSVC strict (/permissive-), which its ATL string conversions (CW2A) don't build
+  # under: lenient again, for this one target.
+  target_compile_options(flutter_local_notifications_windows PRIVATE /permissive)
+endif()
+
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can

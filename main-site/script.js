@@ -478,7 +478,7 @@ function buildCard(card, colId) {
       const cls = diff < 0 ? 'overdue' : diff < 2 ? 'soon' : '';
       dueHtml = `<span class="card-due ${cls}">
         <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" stroke="currentColor" fill="none" stroke-width="1.2"/><path d="M5 3v2.5l1.5 1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-        ${card.start && card.start !== card.due ? `${card.start} → ${card.due}` : card.due}
+        ${card.start && card.start !== card.due ? `${card.start} → ${card.due}` : card.due}${cls === 'overdue' ? ' · overdue' : cls === 'soon' ? ' · due soon' : ''}
       </span>`;
     }
     let prioHtml = card.priority ? `<span class="card-priority priority-${card.priority}">${card.priority}</span>` : '';

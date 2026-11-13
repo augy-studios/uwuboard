@@ -770,7 +770,8 @@ class _BarState extends State<_Bar> {
           ),
           const SizedBox(width: 8),
           IgnorePointer(
-            child: Text('${card['title']}', maxLines: 1, style: TextStyle(fontSize: 12, color: c.ink)),
+            // A late task says so in words, not only with its red edge (WCAG 1.4.1).
+            child: Text('${card['title']}${late ? ' (late)' : ''}', maxLines: 1, style: TextStyle(fontSize: 12, color: late ? c.error : c.ink)),
           ),
         ],
       ),
@@ -830,7 +831,16 @@ class _ArrowPainter extends CustomPainter {
         ..lineTo(to.left - 10, midY)
         ..lineTo(to.left - 10, to.top)
         ..lineTo(to.left - 3, to.top);
-      canvas.drawPath(path, paint);
+      if (a.clash) {
+        // Clashing dates: dashed as well as red, so it shows without telling red from grey.
+        for (final metric in path.computeMetrics()) {
+          for (var d = 0.0; d < metric.length; d += 9) {
+            canvas.drawPath(metric.extractPath(d, (d + 5).clamp(0, metric.length)), paint);
+          }
+        }
+      } else {
+        canvas.drawPath(path, paint);
+      }
       final head = Path()
         ..moveTo(to.left - 2, to.top)
         ..lineTo(to.left - 9, to.top - 4)

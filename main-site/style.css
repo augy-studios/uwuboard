@@ -68,7 +68,9 @@ button:disabled {
   --bg: #eef2f0;
   --surface: rgba(255, 255, 255, 0.55);
   --surface-strong: rgba(255, 255, 255, 0.78);
-  --surface-border: rgba(255, 255, 255, 0.65);
+  /* Component edges (columns, cards, fields, buttons) at 3:1 or more against every surface,
+     for all seven brand colours (WCAG 1.4.11). The old white edge vanished on the light page. */
+  --surface-border: #6f7e75;
   --ink: #121815;
   --muted: #5b665f;
   --shadow: 0 10px 30px rgba(20, 40, 30, 0.10);
@@ -88,7 +90,8 @@ button:disabled {
   --bg: #0c100e;
   --surface: rgba(255, 255, 255, 0.06);
   --surface-strong: rgba(255, 255, 255, 0.11);
-  --surface-border: rgba(255, 255, 255, 0.14);
+  /* The same 3:1 for the dark page. */
+  --surface-border: #84938a;
   --ink: #eef2ef;
   --muted: #9aa7a0;
   --shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
@@ -3099,6 +3102,8 @@ body.touring {
 .tl-dep.clash {
   stroke: var(--error);
   stroke-width: 2;
+  /* Dashed as well as red, so a clash shows without telling red from grey (WCAG 1.4.1). */
+  stroke-dasharray: 5 4;
 }
 
 .tl-arrowhead {
