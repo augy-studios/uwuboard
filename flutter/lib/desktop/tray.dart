@@ -111,7 +111,10 @@ class DeskTray with TrayListener {
   void onTrayIconRightMouseDown() {
     Desktop.startsAtLogin().then((on) {
       _login = on;
-      rebuild().then((_) => trayManager.popUpContextMenu());
+      // On Windows a tray menu only closes on a click elsewhere if the app is the foreground
+      // window as it opens (TrackPopupMenu's rule); this doesn't show a hidden window.
+      // ignore: deprecated_member_use
+      rebuild().then((_) => trayManager.popUpContextMenu(bringAppToFront: Platform.isWindows));
     });
   }
 }

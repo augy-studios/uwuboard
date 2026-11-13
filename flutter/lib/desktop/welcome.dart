@@ -312,6 +312,11 @@ class _WelcomeAppState extends State<WelcomeApp> with WindowListener {
 
 /// The window set up as the welcome window: about 940 × 660, at least 620 × 560.
 Future<void> welcomeWindow() async {
+  // From the tray's menu it's the main window, which may be maximised or full screen: resized
+  // like that, Windows keeps the maximised frame and the app draws at the wrong size and place,
+  // here and again when the boards come back.
+  if (await windowManager.isFullScreen()) await windowManager.setFullScreen(false);
+  if (await windowManager.isMaximized()) await windowManager.unmaximize();
   await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
   await windowManager.setResizable(true);
   await windowManager.setMinimumSize(const Size(620, 560));

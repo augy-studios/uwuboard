@@ -417,7 +417,8 @@ class Desktop {
 class _WindowEvents with WindowListener {
   @override
   void onWindowClose() {
-    if (Desktop.quitting) return;
+    // Not while the window is Make it yours or the update window: they handle their own close.
+    if (Desktop.quitting || !Desktop.shown) return;
     Desktop.hide();
   }
 

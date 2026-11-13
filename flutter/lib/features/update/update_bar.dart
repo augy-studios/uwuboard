@@ -28,6 +28,8 @@ import '../../data/store.dart';
 import '../../native/bridge.dart';
 import '../../theme/icons.dart';
 import '../../theme/theme.dart';
+import '../../widgets/wavy_progress.dart';
+import 'release_notes.dart';
 
 const _releasesKey = 'app.releaseNotices';
 const playListing = 'https://play.google.com/store/apps/details?id=org.uwuapps.board';
@@ -325,8 +327,8 @@ class _UpdatesBody extends StatelessWidget {
                       const SizedBox(height: 8),
                       if (history.isEmpty && u.loading)
                         const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Center(child: CircularProgressIndicator()),
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 24),
+                          child: WavyProgress(label: 'Loading the versions'),
                         ),
                       if (history.isEmpty && !u.loading)
                         Padding(
@@ -341,10 +343,7 @@ class _UpdatesBody extends StatelessWidget {
                 ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                  sliver: SliverList.builder(
-                    itemCount: history.length,
-                    itemBuilder: (context, i) => _VersionCard(release: history[i], mine: u.mine),
-                  ),
+                  sliver: SliverToBoxAdapter(child: _Timeline(history: history, mine: u.mine)),
                 ),
               ],
             ),
@@ -387,8 +386,8 @@ class _UpdatesBody extends StatelessWidget {
             if (!up) ...[
               const SizedBox(height: 16),
               if (u.progress != null) ...[
-                LinearProgressIndicator(value: u.progress, minHeight: 6, borderRadius: BorderRadius.circular(3)),
-                const SizedBox(height: 6),
+                WavyProgress(value: u.progress, label: 'Downloading'),
+                const SizedBox(height: 8),
                 Text('Downloading… ${((u.progress ?? 0) * 100).round()}%', style: t.bodySmall?.copyWith(color: s.onPrimaryContainer)),
               ] else if (u.play)
                 FilledButton.icon(
@@ -409,13 +408,16 @@ class _UpdatesBody extends StatelessWidget {
                 ),
             ] else ...[
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: u.loading ? null : () => u.check(fresh: true),
-                icon: u.loading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : AppIcon('refresh', size: 16, color: s.primary),
-                label: const Text('Check for updates'),
-              ),
+              if (u.loading) ...[
+                const WavyProgress(label: 'Checking for updates'),
+                const SizedBox(height: 8),
+                Text('Checking for updates…', style: t.bodySmall?.copyWith(color: s.onSurfaceVariant)),
+              ] else
+                OutlinedButton.icon(
+                  onPressed: () => u.check(fresh: true),
+                  icon: AppIcon('refresh', size: 16, color: s.primary),
+                  label: const Text('Check for updates'),
+                ),
             ],
           ],
         ),
@@ -426,103 +428,374 @@ class _UpdatesBody extends StatelessWidget {
   static String _size(Object? bytes) => bytes is num && bytes > 0 ? '${(bytes / 1e6).toStringAsFixed(1)} MB' : '';
 }
 
-class _VersionCard extends StatelessWidget {
-  const _VersionCard({required this.release, required this.mine});
-  final Map<String, dynamic> release;
+/// Every release on a timeline, newest first, as sgbus-timings' updater has them: the ones newer
+/// than this copy marked New, this one Installed, and "Earlier releases" before the rest. The one
+/// you'd get opens by itself, or this one when there's nothing newer.
+class _Timeline extends StatelessWidget {
+  const _Timeline({required this.history, required this.mine});
+  final List<Map<String, dynamic>> history;
   final String mine;
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
-    final v = '${release['version']}';
-    final installed = v == mine;
-    final isNew = newerVersion(v, mine);
-    final date = DateTime.tryParse('${release['date'] ?? ''}')?.toLocal();
-    final notes = '${release['notes'] ?? ''}'.trim();
-    return Card.outlined(
-      margin: const EdgeInsets.only(bottom: 10),
-      color: installed ? s.secondaryContainer.withValues(alpha: 0.5) : s.surfaceContainerLow,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(v, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                const SizedBox(width: 8),
-                if (installed) _chip(context, 'Installed', s.secondary, s.onSecondary),
-                if (isNew) _chip(context, 'New', s.primary, s.onPrimary),
-                const Spacer(),
-                if (date != null) Text(_date(date), style: t.bodySmall?.copyWith(color: s.onSurfaceVariant)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _Notes(notes.isEmpty ? 'Fixes and improvements.' : notes),
-            if (release['page'] is String)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => launchUrl(Uri.parse(release['page'] as String), mode: LaunchMode.externalApplication),
-                  child: const Text('On GitHub'),
-                ),
-              ),
-          ],
+    var open = -1;
+    if (history.isNotEmpty && newerVersion('${history.first['version']}', mine)) {
+      open = 0;
+    } else {
+      open = history.indexWhere((r) => !newerVersion('${r['version']}', mine));
+    }
+    final children = <Widget>[];
+    var labelled = false;
+    for (var i = 0; i < history.length; i++) {
+      final v = '${history[i]['version']}';
+      final isNew = newerVersion(v, mine);
+      final installed = v == mine;
+      if (!isNew && !installed && !labelled) {
+        labelled = true;
+        children.add(const _EarlierLabel());
+      }
+      children.add(
+        _Release(
+          key: ValueKey(v),
+          release: history[i],
+          isNew: isNew,
+          installed: installed,
+          openAtFirst: i == open,
+          last: i == history.length - 1,
         ),
-      ),
-    );
+      );
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
   }
-
-  Widget _chip(BuildContext context, String text, Color bg, Color fg) => Container(
-    margin: const EdgeInsets.only(right: 6),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-    child: Text(
-      text,
-      style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w600),
-    ),
-  );
-
-  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  static String _date(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
 }
 
-/// A release's notes as written on GitHub: headings bold, "- " lines as bullets, the rest as it is.
-class _Notes extends StatelessWidget {
-  const _Notes(this.text);
-  final String text;
+class _EarlierLabel extends StatelessWidget {
+  const _EarlierLabel();
 
   @override
   Widget build(BuildContext context) {
     final s = Theme.of(context).colorScheme;
     final t = Theme.of(context).textTheme;
-    final lines = text.split('\n');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final raw in lines)
-          if (raw.trim().isEmpty)
-            const SizedBox(height: 6)
-          else if (raw.trimLeft().startsWith('#'))
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 24,
+            child: Center(child: Container(width: 2, color: s.outlineVariant)),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 0, 24),
+              child: Text('Earlier releases', style: t.titleSmall?.copyWith(color: s.onSurfaceVariant)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Release extends StatefulWidget {
+  const _Release({super.key, required this.release, required this.isNew, required this.installed, required this.openAtFirst, required this.last});
+  final Map<String, dynamic> release;
+  final bool isNew;
+  final bool installed;
+  final bool openAtFirst;
+  final bool last;
+
+  @override
+  State<_Release> createState() => _ReleaseState();
+}
+
+class _ReleaseState extends State<_Release> {
+  late bool _open = widget.openAtFirst;
+
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  /// Today, Yesterday, 3 days ago, or 23 Oct 2026.
+  static String? _when(Object? iso) {
+    final d = DateTime.tryParse('${iso ?? ''}')?.toLocal();
+    if (d == null) return null;
+    final now = DateTime.now();
+    final days = DateTime(now.year, now.month, now.day).difference(DateTime(d.year, d.month, d.day)).inDays;
+    if (days <= 0) return 'Today';
+    if (days == 1) return 'Yesterday';
+    if (days < 7) return '$days days ago';
+    return '${d.day} ${_months[d.month - 1]} ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Theme.of(context).colorScheme;
+    final t = Theme.of(context).textTheme;
+    final r = widget.release;
+    final v = '${r['version']}';
+    final notes = ReleaseNotes.parse(r['notes'] as String?);
+    final count = notes.count;
+    final when = _when(r['date']);
+    final much = count == 0 ? null : '$count ${count == 1 ? 'change' : 'changes'}';
+    final meta = [?when, ?much].join(' · ');
+    final anything = notes.groups.isNotEmpty || notes.summary.isNotEmpty;
+    final ring = widget.isNew || widget.installed;
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final page = r['page'];
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // The timeline: a ring for the release you'd get or have, a dot for the rest.
+          SizedBox(
+            width: 24,
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                if (!widget.last)
+                  Positioned(top: 10, bottom: 0, child: Container(width: 2, color: s.outlineVariant)),
+                Padding(
+                  padding: EdgeInsets.only(top: ring ? 7 : 10),
+                  child: Container(
+                    width: ring ? 16 : 10,
+                    height: ring ? 16 : 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: ring ? s.surface : s.outline,
+                      border: ring ? Border.all(color: s.primary, width: 3) : null,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Semantics(
+                    button: anything,
+                    expanded: anything ? _open : null,
+                    label: 'Version $v',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: anything ? () => setState(() => _open = !_open) : null,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 4, 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Wrap(
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    spacing: 10,
+                                    children: [
+                                      Text('v$v', style: t.titleLarge?.copyWith(color: s.onSurface, fontWeight: FontWeight.bold)),
+                                      if (ring)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: widget.isNew ? s.primary : s.primaryContainer,
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: Text(
+                                            widget.isNew ? 'New' : 'Installed',
+                                            style: t.labelLarge?.copyWith(color: widget.isNew ? s.onPrimary : s.onPrimaryContainer),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  if (meta.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(meta, style: t.bodyMedium?.copyWith(color: s.onSurfaceVariant)),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            if (anything)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: AnimatedRotation(
+                                  turns: _open ? 0.5 : 0,
+                                  duration: reduce ? Duration.zero : const Duration(milliseconds: 200),
+                                  child: AppIcon('chevron-down', size: 24, color: s.onSurfaceVariant),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  AnimatedSize(
+                    duration: reduce ? Duration.zero : const Duration(milliseconds: 200),
+                    alignment: Alignment.topCenter,
+                    child: !_open
+                        ? const SizedBox(width: double.infinity)
+                        : Padding(
+                            padding: const EdgeInsets.only(left: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (notes.summary.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Text(notes.summary, style: t.bodyMedium?.copyWith(color: s.onSurfaceVariant)),
+                                  ),
+                                for (var g = 0; g < notes.groups.length; g++) _GroupCard(group: notes.groups[g], index: g),
+                                if (page is String && page.isNotEmpty)
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: TextButton.icon(
+                                        onPressed: () => launchUrl(Uri.parse(page), mode: LaunchMode.externalApplication),
+                                        icon: AppIcon('link', size: 16, color: s.primary),
+                                        label: const Text('On GitHub'),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A group of what's new in a release (a "###" heading in its notes): its icon on a tile of its
+/// colour, its name and how many, then its items, the first few with Show all for the rest.
+class _GroupCard extends StatefulWidget {
+  const _GroupCard({required this.group, required this.index});
+  final ReleaseGroup group;
+  final int index;
+
+  @override
+  State<_GroupCard> createState() => _GroupCardState();
+}
+
+class _GroupCardState extends State<_GroupCard> {
+  static const _first = 4;
+  bool _all = false;
+
+  static String _icon(String title) {
+    final t = title.toLowerCase();
+    if (t.contains('android') || t.contains('phone')) return 'phone';
+    if (t.contains('windows') || t.contains('mac') || t.contains('linux') || t.contains('desktop')) return 'monitor';
+    if (t.contains('everywhere') || t.contains('website')) return 'globe';
+    if (t.contains('timeline')) return 'timeline';
+    if (t.contains('board') || t.contains('kanban')) return 'kanban';
+    if (t.contains('sync')) return 'sync';
+    if (t.contains('look') || t.contains('theme')) return 'sun';
+    if (t.contains('fix') || t.contains('easier')) return 'check';
+    return 'star';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Theme.of(context).colorScheme;
+    final t = Theme.of(context).textTheme;
+    final g = widget.group;
+    // Its colours by its place: primary, tertiary, then secondary, round again.
+    final tones = [
+      (s.primaryContainer, s.onPrimaryContainer, s.primary),
+      (s.tertiaryContainer, s.onTertiaryContainer, s.tertiary),
+      (s.secondaryContainer, s.onSecondaryContainer, s.secondary),
+    ];
+    final (tile, onTile, accent) = tones[widget.index % tones.length];
+    final shown = _all ? g.items : g.items.take(_first).toList();
+    return Card.outlined(
+      margin: const EdgeInsets.only(top: 12),
+      color: s.surfaceContainerLow,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: s.outlineVariant)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: s.surfaceContainerHigh,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(color: tile, borderRadius: BorderRadius.circular(10)),
+                  child: Center(child: AppIcon(_icon(g.title), size: 20, color: onTile)),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(g.title, style: t.titleMedium?.copyWith(color: s.onSurface, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: s.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
+                  child: Text('${g.items.length}', textAlign: TextAlign.center, style: t.labelLarge?.copyWith(color: s.onSurfaceVariant)),
+                ),
+              ],
+            ),
+          ),
+          for (final item in shown) ...[
+            Divider(height: 1, thickness: 1, color: s.outlineVariant),
             Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 2),
-              child: Text(raw.replaceFirst(RegExp(r'^\s*#+\s*'), ''), style: t.titleSmall?.copyWith(color: s.primary)),
-            )
-          else if (RegExp(r'^\s*[-*]\s+').hasMatch(raw))
-            Padding(
-              padding: EdgeInsets.only(left: raw.startsWith(' ') ? 18 : 4, bottom: 3),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('•  ', style: t.bodyMedium?.copyWith(color: s.primary)),
-                  Expanded(child: Text(raw.replaceFirst(RegExp(r'^\s*[-*]\s+'), ''), style: t.bodyMedium)),
+                  Container(
+                    margin: const EdgeInsets.only(top: 7),
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_capital(item.title.isEmpty ? item.text : item.title), style: t.titleSmall?.copyWith(color: s.onSurface)),
+                        if (item.title.isNotEmpty && item.text.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(_capital(item.text), style: t.bodyMedium?.copyWith(color: s.onSurfaceVariant)),
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            )
-          else
-            Text(raw.trim(), style: t.bodyMedium),
-      ],
+            ),
+          ],
+          if (!_all && g.items.length > _first) ...[
+            Divider(height: 1, thickness: 1, color: s.outlineVariant),
+            InkWell(
+              onTap: () => setState(() => _all = true),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(child: Text('Show all (${g.items.length})', style: t.labelLarge?.copyWith(color: s.primary))),
+                    AppIcon('chevron-down', size: 20, color: s.primary),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
+
+  static String _capital(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 }

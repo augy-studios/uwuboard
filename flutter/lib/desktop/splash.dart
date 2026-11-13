@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../widgets/wavy_progress.dart';
 import 'updater.dart';
 
 class SplashApp extends StatelessWidget {
@@ -72,11 +73,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   ),
                   if (st.detail.isNotEmpty) ...[const SizedBox(height: 4), Text(st.detail, style: TextStyle(fontSize: 13, color: s.onSurfaceVariant))],
                   const SizedBox(height: 16),
-                  if (st.percent != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: LinearProgressIndicator(value: st.percent! < 0 ? null : st.percent! / 100, minHeight: 5),
-                    ),
+                  // Material You's wavy bar, as the Android Updates page has it.
+                  if (st.percent != null) WavyProgress(value: st.percent! < 0 ? null : st.percent! / 100, label: st.text),
                   if (st.later) ...[const SizedBox(height: 14), TextButton(onPressed: Updater.later, child: const Text('Later'))],
                 ],
               ),

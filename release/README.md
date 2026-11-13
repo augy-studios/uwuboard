@@ -48,7 +48,9 @@ tag, such as `android-v1.0.1`: they land on a draft release of that tag, ready f
    it: it's how the Android app's updater finds its releases (`main-site/api/lib/releases.js`).
 4. **Release title**: `uwuBoard 1.0.0`.
 5. **Describe this release**: paste `announcements/release-notes-<version>.md`. The Android app's
-   Updates page shows it, headings and bullets as they are.
+   Updates page reads it: the first paragraph as the summary, and under `## What's new` (or
+   `What's fixed`) a card for each `###` heading, each `- **Title**: text` line as one change.
+   The download table and install steps stay on GitHub.
 6. Drag in the APK from `release\<version>\`. Wait for it to finish uploading. (Not the `.aab`,
    the mapping or the symbols.)
 7. Tick **Set as the latest release**, then **Publish release**.

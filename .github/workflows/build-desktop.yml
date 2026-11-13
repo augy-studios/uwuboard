@@ -199,6 +199,8 @@ jobs:
           dotnet tool install --global wix --version 5.0.2
           wix build flutter/installers/windows/uwuboard.wxs -arch x64 -d Version="$v" \
             -d Source="$(cygpath -w "$PWD/parts/windows-x64/windows-x64")" -o "out/uwuboard-$v.msi"
+          # WiX's debug file stays behind: only the installers go on the release.
+          rm -f out/*.wixpdb
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installers

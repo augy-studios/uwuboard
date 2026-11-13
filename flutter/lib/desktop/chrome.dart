@@ -371,7 +371,10 @@ class _DesktopChromeState extends State<DesktopChrome> {
     );
     Widget app = CallbackShortcuts(
       bindings: _shortcuts,
-      child: Focus(autofocus: true, child: body),
+      // The title bar sits above the navigator, so its tooltips and the command bar's text menus
+      // need an overlay of their own. Without one, showing a tooltip throws, and the error box
+      // fills the title bar.
+      child: Focus(autofocus: true, child: Overlay.wrap(child: body)),
     );
     if (Env.macOS) app = _MacMenus(chrome: this, child: app);
     return app;

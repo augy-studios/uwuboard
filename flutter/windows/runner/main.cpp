@@ -22,6 +22,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // on it, and it stays the same forever (the installers set it on the shortcuts too).
   ::SetCurrentProcessExplicitAppUserModelID(L"AugyStudios.uwuBoard");
 
+  // Menus (the tray icon's) dark when Windows is in dark mode, light otherwise, as Electron and
+  // Windows' own apps have them. SetPreferredAppMode is uxtheme.dll's ordinal 135, there since
+  // Windows 10 1903 and not exported by name; looked up so an older Windows just skips it.
+  if (HMODULE uxtheme = ::LoadLibraryExW(L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32)) {
+    using SetPreferredAppMode = int(WINAPI*)(int);
+    auto set_mode = reinterpret_cast<SetPreferredAppMode>(
+        ::GetProcAddress(uxtheme, MAKEINTRESOURCEA(135)));
+    if (set_mode) set_mode(1);  // 1: follow Windows' light or dark setting.
+  }
+
   flutter::DartProject project(L"data");
 
   std::vector<std::string> command_line_arguments =

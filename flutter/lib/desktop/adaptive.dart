@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../app/env.dart';
+import '../app/nav.dart';
 import '../theme/icons.dart';
 import '../theme/theme.dart';
 import '../widgets/sheet.dart';
@@ -92,11 +93,14 @@ class MenuAction {
 Future<void> showContextMenu(BuildContext context, Offset position, List<MenuAction> actions) async {
   if (actions.isEmpty) return;
   final c = UwuColors.of(context);
-  final overlay = Overlay.of(context, rootOverlay: true).context.findRenderObject() as RenderBox;
+  // The menu opens in the navigator's overlay, which starts below the desktop's title bar, so the
+  // pointer's place in the window is turned into a place in that overlay.
+  final overlay = (AppNav.navigatorKey.currentState?.overlay ?? Overlay.of(context)).context.findRenderObject() as RenderBox;
+  final at = overlay.globalToLocal(position);
   final picked = await showMenu<int>(
     context: context,
     useRootNavigator: true,
-    position: RelativeRect.fromRect(position & const Size(1, 1), Offset.zero & overlay.size),
+    position: RelativeRect.fromRect(at & const Size(1, 1), Offset.zero & overlay.size),
     color: Color.alphaBlend(c.surfaceStrong, c.bg),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(10),

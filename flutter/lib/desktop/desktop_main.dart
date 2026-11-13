@@ -111,6 +111,9 @@ Future<void> desktopAfterApp(List<String> args) async {
   };
   DeskTray.openWelcome = () async {
     await Desktop.hide();
+    // Not the boards' window for now: its size and place stay as they were kept, not the
+    // welcome window's, and it comes back maximised if it was.
+    Desktop.shown = false;
     final done = Completer<WelcomeChoices?>();
     await welcomeWindow();
     runApp(

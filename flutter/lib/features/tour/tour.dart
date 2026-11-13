@@ -28,11 +28,15 @@ class TourTargets {
   static final Map<String, GlobalKey> _keys = {};
   static GlobalKey key(String id) => _keys.putIfAbsent(id, () => GlobalKey(debugLabel: 'tour:$id'));
 
+  /// Where the thing is, measured from the top left of the navigator's overlay, which is where the
+  /// tour draws. That isn't the window's top left on the desktop, whose title bar sits above it.
   static Rect? rectOf(String id) {
     final ctx = _keys[id]?.currentContext;
     final box = ctx?.findRenderObject();
     if (box is! RenderBox || !box.attached || !box.hasSize) return null;
-    final r = box.localToGlobal(Offset.zero) & box.size;
+    final layer = AppNav.navigatorKey.currentState?.overlay?.context.findRenderObject();
+    final origin = layer is RenderBox && layer.attached ? layer.localToGlobal(Offset.zero) : Offset.zero;
+    final r = (box.localToGlobal(Offset.zero) - origin) & box.size;
     return r.width > 0 && r.height > 0 ? r : null;
   }
 }
@@ -137,7 +141,7 @@ class Tour {
 
   static OverlayEntry? _entry;
   static bool _starting = false;
-  static List<({Rect Function() rect, String text})> _steps = [];
+  static List<({String target, String text})> _steps = [];
   static List<String> _marks = [];
   static final ValueNotifier<int> _at = ValueNotifier(0);
   static Timer? _waiting;
@@ -222,7 +226,7 @@ class Tour {
       return;
     }
     final list = [...?tour?.steps, if (withWelcome && id != 'welcome') ...tours['welcome']!.steps];
-    final steps = <({Rect Function() rect, String text})>[];
+    final steps = <({String target, String text})>[];
     String? lastTarget;
     for (final s in list) {
       if (s.when != null && !s.when!()) continue;
@@ -230,7 +234,7 @@ class Tour {
       // Two steps can land on the same thing, such as the collapsed tray's tab.
       if (target == null || target == lastTarget) continue;
       lastTarget = target;
-      steps.add((rect: () => TourTargets.rectOf(target) ?? Rect.zero, text: s.text));
+      steps.add((target: target, text: s.text));
     }
     final done = [if (withWelcome) 'welcome', if (tour != null) id];
     if (steps.isEmpty) {
@@ -290,17 +294,37 @@ class _TourLayer extends StatefulWidget {
 
 class _TourLayerState extends State<_TourLayer> {
   final _focus = FocusNode();
+  final _placed = _Placement();
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
+    Tour._at.addListener(_reveal);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focus.requestFocus();
+      _reveal();
+    });
   }
 
   @override
   void dispose() {
+    Tour._at.removeListener(_reveal);
     _focus.dispose();
     super.dispose();
+  }
+
+  /// The step's target scrolled into view if it's off the edge of what scrolls it (a column past
+  /// the right of the board, a field below the fold of a window), then the spotlight moved to it.
+  Future<void> _reveal() async {
+    if (Tour._steps.isEmpty) return;
+    final ctx = TourTargets._keys[Tour._steps[Tour._at.value].target]?.currentContext;
+    if (ctx == null) return;
+    const d = Duration(milliseconds: 220);
+    for (final policy in [ScrollPositionAlignmentPolicy.keepVisibleAtEnd, ScrollPositionAlignmentPolicy.keepVisibleAtStart]) {
+      if (!ctx.mounted) return;
+      await Scrollable.ensureVisible(ctx, duration: d, alignmentPolicy: policy);
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -311,12 +335,15 @@ class _TourLayerState extends State<_TourLayer> {
         final c = UwuColors.of(context);
         final step = Tour._steps[at];
         final size = MediaQuery.sizeOf(context);
-        final hole = step.rect().inflate(8);
-        const margin = 12.0;
-        final cardW = math.min(340.0, size.width - margin * 2);
-        final below = size.height - hole.bottom;
-        final placeBelow = below >= hole.top;
-        final left = (hole.center.dx - cardW / 2).clamp(margin, size.width - cardW - margin);
+        final pad = MediaQuery.paddingOf(context);
+        final screen = Offset.zero & size;
+        // Lit up to the screen's edge, never past it.
+        final target = TourTargets.rectOf(step.target);
+        final lit = target?.inflate(8).intersect(screen.deflate(2));
+        final hole = lit != null && lit.width > 0 && lit.height > 0 ? lit : null;
+        // Where the card may go: inside the screen and its safe area, and clear of Skip.
+        final bounds = Rect.fromLTRB(pad.left + 12, pad.top + 60, size.width - pad.right - 12, size.height - pad.bottom - 12);
+        final cardW = math.min(340.0, bounds.width);
         final last = at == Tour._steps.length - 1;
         return Focus(
           focusNode: _focus,
@@ -340,56 +367,62 @@ class _TourLayerState extends State<_TourLayer> {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () {},
-                    child: CustomPaint(painter: _DimPainter(hole, c.scrim.withValues(alpha: 0.62), placeBelow, left + cardW / 2, c.brand)),
+                    child: CustomPaint(painter: _DimPainter(hole, c.scrim.withValues(alpha: 0.62), _placed, c.brand)),
                   ),
                 ),
-                Positioned(
-                  top: MediaQuery.paddingOf(context).top + 10,
-                  right: 14,
-                  child: OutlinedButton(onPressed: Tour.end, child: const Text('Skip')),
-                ),
-                Positioned(
-                  left: left,
-                  width: cardW,
-                  top: placeBelow ? math.min(hole.bottom + 56, size.height - 170) : null,
-                  bottom: placeBelow ? null : math.min(size.height - hole.top + 56, size.height - 170),
-                  child: Semantics(
-                    scopesRoute: true,
-                    namesRoute: true,
-                    label: 'Tour',
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
-                      decoration: BoxDecoration(
-                        color: Color.alphaBlend(c.surfaceStrong, c.bg),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: c.border),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Semantics(
-                            liveRegion: true,
-                            child: Text(step.text, style: TextStyle(color: c.ink, fontSize: 15, height: 1.35)),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              for (var i = 0; i < Tour._steps.length; i++)
-                                Container(
-                                  margin: const EdgeInsets.only(right: 5),
-                                  width: 7,
-                                  height: 7,
-                                  decoration: BoxDecoration(shape: BoxShape.circle, color: i == at ? c.brandInk : c.border),
+                Positioned.fill(
+                  child: CustomSingleChildLayout(
+                    delegate: _CardLayout(hole, bounds, cardW, _placed),
+                    child: Semantics(
+                      scopesRoute: true,
+                      namesRoute: true,
+                      label: 'Tour',
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+                        decoration: BoxDecoration(
+                          color: Color.alphaBlend(c.surfaceStrong, c.bg),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: c.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Scrolls inside the card, rather than off the screen, with very
+                            // large text on a small screen.
+                            Flexible(
+                              child: SingleChildScrollView(
+                                child: Semantics(
+                                  liveRegion: true,
+                                  child: Text(step.text, style: TextStyle(color: c.ink, fontSize: 15, height: 1.35)),
                                 ),
-                              const Spacer(),
-                              FilledButton(onPressed: Tour.next, child: Text(last ? 'Done' : 'Next')),
-                            ],
-                          ),
-                        ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                for (var i = 0; i < Tour._steps.length; i++)
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 5),
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(shape: BoxShape.circle, color: i == at ? c.brandInk : c.border),
+                                  ),
+                                const Spacer(),
+                                FilledButton(onPressed: Tour.next, child: Text(last ? 'Done' : 'Next')),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
+                ),
+                // Top left, as on the site: the top right is the tray's, which steps point at.
+                Positioned(
+                  top: pad.top + 10,
+                  left: pad.left + 14,
+                  child: OutlinedButton(onPressed: Tour.end, child: const Text('Skip')),
                 ),
               ],
             ),
@@ -400,30 +433,105 @@ class _TourLayerState extends State<_TourLayer> {
   }
 }
 
+/// Where the card went and where its arrow runs, worked out as the card is laid out (when its
+/// height is known) and read as the arrow is painted, later in the same frame.
+class _Placement {
+  Offset? from;
+  Offset? tip;
+}
+
+/// The card beside the lit thing: below it if it fits, else above, else to its right or left,
+/// and if none fits (a target nearly the screen's size), over it at the bottom, without an arrow.
+/// Always inside [bounds].
+class _CardLayout extends SingleChildLayoutDelegate {
+  _CardLayout(this.hole, this.bounds, this.width, this.placed);
+  final Rect? hole;
+  final Rect bounds;
+  final double width;
+  final _Placement placed;
+
+  static const gap = 56.0;
+  static const sideGap = 48.0;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints(minWidth: width, maxWidth: width, maxHeight: math.max(0, bounds.height));
+
+  @override
+  Offset getPositionForChild(Size size, Size card) {
+    final w = card.width, h = card.height;
+    double x(double v) => v.clamp(bounds.left, math.max(bounds.left, bounds.right - w));
+    double y(double v) => v.clamp(bounds.top, math.max(bounds.top, bounds.bottom - h));
+    placed.from = null;
+    placed.tip = null;
+    final r = hole;
+    if (r == null) return Offset(x(bounds.center.dx - w / 2), y(bounds.center.dy - h / 2));
+
+    // The arrow meets the lit box near its middle, but not at a rounded corner.
+    double alongX(Rect a) => a.width > 24 ? a.center.dx.clamp(a.left + 12, a.right - 12) : a.center.dx;
+    double alongY(Rect a) => a.height > 24 ? a.center.dy.clamp(a.top + 12, a.bottom - 12) : a.center.dy;
+
+    if (bounds.bottom - r.bottom >= h + gap) {
+      final at = Offset(x(r.center.dx - w / 2), r.bottom + gap);
+      placed.tip = Offset(alongX(r), r.bottom + 4);
+      placed.from = Offset(placed.tip!.dx.clamp(at.dx + 24, at.dx + w - 24), at.dy - 4);
+      return at;
+    }
+    if (r.top - bounds.top >= h + gap) {
+      final at = Offset(x(r.center.dx - w / 2), r.top - gap - h);
+      placed.tip = Offset(alongX(r), r.top - 4);
+      placed.from = Offset(placed.tip!.dx.clamp(at.dx + 24, at.dx + w - 24), at.dy + h + 4);
+      return at;
+    }
+    if (bounds.right - r.right >= w + sideGap) {
+      final at = Offset(r.right + sideGap, y(r.center.dy - h / 2));
+      placed.tip = Offset(r.right + 4, alongY(r));
+      placed.from = Offset(at.dx - 4, placed.tip!.dy.clamp(at.dy + 20, at.dy + h - 20));
+      return at;
+    }
+    if (r.left - bounds.left >= w + sideGap) {
+      final at = Offset(r.left - sideGap - w, y(r.center.dy - h / 2));
+      placed.tip = Offset(r.left - 4, alongY(r));
+      placed.from = Offset(at.dx + w + 4, placed.tip!.dy.clamp(at.dy + 20, at.dy + h - 20));
+      return at;
+    }
+    return Offset(x(r.center.dx - w / 2), y(bounds.bottom - h));
+  }
+
+  @override
+  bool shouldRelayout(_CardLayout old) => old.hole != hole || old.bounds != bounds || old.width != width;
+}
+
 class _DimPainter extends CustomPainter {
-  _DimPainter(this.hole, this.dim, this.below, this.cardX, this.chalk);
-  final Rect hole;
+  _DimPainter(this.hole, this.dim, this.placed, this.chalk);
+  final Rect? hole;
   final Color dim;
-  final bool below;
-  final double cardX;
+  final _Placement placed;
   final Color chalk;
 
   @override
   void paint(Canvas canvas, Size size) {
     final outer = Path()..addRect(Offset.zero & size);
-    final cut = Path()..addRRect(RRect.fromRectAndRadius(hole, const Radius.circular(12)));
+    final r = hole;
+    if (r == null) {
+      canvas.drawPath(outer, Paint()..color = dim);
+      return;
+    }
+    final cut = Path()..addRRect(RRect.fromRectAndRadius(r, const Radius.circular(12)));
     canvas.drawPath(Path.combine(PathOperation.difference, outer, cut), Paint()..color = dim);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(hole, const Radius.circular(12)),
+      RRect.fromRectAndRadius(r, const Radius.circular(12)),
       Paint()
         ..color = chalk
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
-    // The chalk arrow, from the card to the thing it's about.
-    final tip = Offset((hole.width > 24 ? hole.center.dx.clamp(hole.left + 12, hole.right - 12) : hole.center.dx), below ? hole.bottom + 4 : hole.top - 4);
-    final start = Offset(cardX, below ? hole.bottom + 52 : hole.top - 52);
-    final ctrl = Offset((start.dx + tip.dx) / 2 + (below ? 30 : -30), (start.dy + tip.dy) / 2);
+    // The chalk arrow, from the card to the thing it's about, with a slight bow.
+    final start = placed.from, tip = placed.tip;
+    if (start == null || tip == null || (tip - start).distance < 8) return;
+    final along = tip - start;
+    final bow = Offset(-along.dy, along.dx) / along.distance * 24;
+    final ctrl = Offset((start.dx + tip.dx) / 2, (start.dy + tip.dy) / 2) + bow;
     final line = Paint()
       ..color = chalk
       ..strokeWidth = 3
@@ -441,8 +549,9 @@ class _DimPainter extends CustomPainter {
     }
   }
 
+  // The card's place is only known once it's laid out, in the same frame, so always repaint.
   @override
-  bool shouldRepaint(_DimPainter old) => old.hole != hole || old.dim != dim;
+  bool shouldRepaint(_DimPainter old) => true;
 }
 
 /// "Show me around": a button per tour, each only while there's something for it to show.
