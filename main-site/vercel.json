@@ -62,6 +62,14 @@
         {
             "source": "/api/auth/update-avatar",
             "destination": "/api/auth/update-avatar.js"
+        },
+        {
+            "source": "/api/app-release",
+            "destination": "/api/app-release.js"
+        },
+        {
+            "source": "/api/push/release",
+            "destination": "/api/push/release.js"
         }
     ]
 }

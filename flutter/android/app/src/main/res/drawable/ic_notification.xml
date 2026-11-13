@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The status bar's icon: the app icon's three kanban columns, in white for Android to tint. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4.5,3h3.5a1.5,1.5 0,0 1,1.5 1.5v14a1.5,1.5 0,0 1,-1.5 1.5h-3.5a1.5,1.5 0,0 1,-1.5 -1.5v-14a1.5,1.5 0,0 1,1.5 -1.5z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12.25,3h3.5a1.5,1.5 0,0 1,1.5 1.5v9.5a1.5,1.5 0,0 1,-1.5 1.5h-3.5a1.5,1.5 0,0 1,-1.5 -1.5v-9.5a1.5,1.5 0,0 1,1.5 -1.5z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M20,3h0.5a0.5,0.5 0,0 1,0.5 0.5v6a1.5,1.5 0,0 1,-1.5 1.5h-1a1.5,1.5 0,0 1,-1.5 -1.5" />
+</vector>

@@ -1,0 +1,554 @@
+{
+  "timeline": {
+    "spans": [
+      {
+        "id": "a",
+        "span": {
+          "start": 20513,
+          "end": 20517
+        }
+      },
+      {
+        "id": "b",
+        "span": {
+          "start": 20519,
+          "end": 20519
+        }
+      },
+      {
+        "id": "c",
+        "span": {
+          "start": 20511,
+          "end": 20511
+        }
+      },
+      {
+        "id": "d",
+        "span": {
+          "start": 20514,
+          "end": 20521
+        }
+      },
+      {
+        "id": "e",
+        "span": {
+          "start": 20522,
+          "end": 20522
+        }
+      },
+      {
+        "id": "f",
+        "span": null
+      },
+      {
+        "id": "g",
+        "span": null
+      }
+    ],
+    "clashes": [
+      {
+        "pred": "a",
+        "card": "b",
+        "clash": false
+      },
+      {
+        "pred": "b",
+        "card": "c",
+        "clash": true
+      },
+      {
+        "pred": "a",
+        "card": "f",
+        "clash": false
+      }
+    ],
+    "waitingOn": [
+      {
+        "id": "a",
+        "waiting": [
+          "b",
+          "c"
+        ]
+      },
+      {
+        "id": "b",
+        "waiting": [
+          "c"
+        ]
+      },
+      {
+        "id": "c",
+        "waiting": []
+      }
+    ],
+    "pruned": [
+      {
+        "id": "b",
+        "dependsOn": []
+      },
+      {
+        "id": "c",
+        "dependsOn": [
+          "b"
+        ]
+      },
+      {
+        "id": "d",
+        "dependsOn": null
+      },
+      {
+        "id": "e",
+        "dependsOn": null
+      },
+      {
+        "id": "f",
+        "dependsOn": null
+      }
+    ]
+  },
+  "sync": {
+    "raw": [
+      {
+        "id": "b1",
+        "name": "  Home  ",
+        "view": "timeline",
+        "updatedAt": 5,
+        "columns": [
+          {
+            "id": "c1",
+            "name": " To Do ",
+            "updatedAt": 2,
+            "cards": [
+              {
+                "id": "k1",
+                "title": "",
+                "description": "",
+                "labels": [
+                  {
+                    "text": " x ",
+                    "color": "#ABCDEF"
+                  },
+                  {
+                    "text": "",
+                    "color": "#000000"
+                  },
+                  {
+                    "text": "bad",
+                    "color": "red"
+                  }
+                ],
+                "checklist": [
+                  {
+                    "text": "a",
+                    "done": 1
+                  },
+                  {
+                    "text": " ",
+                    "done": true
+                  }
+                ],
+                "due": "2026-1-1",
+                "priority": "urgent",
+                "images": [
+                  {
+                    "id": "i1",
+                    "name": "one"
+                  },
+                  {
+                    "id": "bad id!"
+                  }
+                ],
+                "thumbnailId": "nope",
+                "updatedAt": 10,
+                "start": "2026-01-01",
+                "milestone": "yes",
+                "dependsOn": [
+                  "k2",
+                  "k1",
+                  "k2",
+                  "no way"
+                ]
+              },
+              {
+                "id": "k1",
+                "title": "duplicate",
+                "description": "",
+                "labels": [],
+                "checklist": [],
+                "due": "",
+                "priority": "",
+                "images": [],
+                "thumbnailId": null,
+                "updatedAt": 10
+              },
+              {
+                "title": "no id"
+              }
+            ]
+          },
+          {
+            "id": "c1",
+            "name": "dup column",
+            "cards": []
+          },
+          {
+            "id": "c2",
+            "name": "   ",
+            "cards": [
+              {
+                "id": "k2",
+                "title": "Two",
+                "description": "",
+                "labels": [],
+                "checklist": [],
+                "due": "",
+                "priority": "",
+                "images": [],
+                "thumbnailId": null,
+                "updatedAt": -3
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "b1",
+        "name": "Duplicate board",
+        "columns": []
+      },
+      {
+        "id": "b2",
+        "name": "   ",
+        "columns": []
+      },
+      {
+        "id": "b3",
+        "name": "Plain",
+        "columns": "not a list"
+      }
+    ],
+    "cleaned": [
+      {
+        "id": "b1",
+        "name": "Home",
+        "view": "timeline",
+        "updatedAt": 5,
+        "columns": [
+          {
+            "id": "c1",
+            "name": "To Do",
+            "updatedAt": 2,
+            "cards": [
+              {
+                "id": "k1",
+                "title": "Untitled",
+                "description": "",
+                "due": "",
+                "priority": "urgent",
+                "labels": [
+                  {
+                    "text": "x",
+                    "color": "#ABCDEF"
+                  }
+                ],
+                "checklist": [
+                  {
+                    "text": "a",
+                    "done": false
+                  }
+                ],
+                "images": [
+                  {
+                    "id": "i1",
+                    "name": "one"
+                  }
+                ],
+                "thumbnailId": "i1",
+                "start": "2026-01-01",
+                "dependsOn": [
+                  "k2"
+                ],
+                "updatedAt": 10
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "name": "Column",
+            "updatedAt": 0,
+            "cards": [
+              {
+                "id": "k2",
+                "title": "Two",
+                "description": "",
+                "due": "",
+                "priority": "",
+                "labels": [],
+                "checklist": [],
+                "images": [],
+                "thumbnailId": null,
+                "updatedAt": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "b3",
+        "name": "Plain",
+        "view": "kanban",
+        "updatedAt": 0,
+        "columns": []
+      }
+    ],
+    "dest": {
+      "id": "m1",
+      "name": "Mine",
+      "view": "kanban",
+      "updatedAt": 100,
+      "columns": [
+        {
+          "id": "c1",
+          "name": "To Do",
+          "updatedAt": 100,
+          "cards": [
+            {
+              "id": "x1",
+              "title": "Old copy",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 5
+            },
+            {
+              "id": "x2",
+              "title": "Newer here",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 50
+            },
+            {
+              "id": "x3",
+              "title": "Same",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 5
+            }
+          ]
+        },
+        {
+          "id": "c2",
+          "name": "Done",
+          "updatedAt": 1,
+          "cards": [
+            {
+              "id": "x4",
+              "title": "Moving",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 5
+            }
+          ]
+        }
+      ]
+    },
+    "src": {
+      "id": "m1",
+      "name": "Theirs",
+      "view": "timeline",
+      "updatedAt": 200,
+      "columns": [
+        {
+          "id": "c1",
+          "name": "To Do",
+          "updatedAt": 1,
+          "cards": [
+            {
+              "id": "x1",
+              "title": "New copy",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 9
+            },
+            {
+              "id": "x2",
+              "title": "Older there",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 20
+            },
+            {
+              "id": "x3",
+              "title": "Same",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 9
+            },
+            {
+              "id": "x4",
+              "title": "Moving",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 9
+            }
+          ]
+        },
+        {
+          "id": "c2",
+          "name": "Finished",
+          "updatedAt": 2,
+          "cards": []
+        },
+        {
+          "id": "c3",
+          "name": "New column",
+          "updatedAt": 3,
+          "cards": [
+            {
+              "id": "x5",
+              "title": "Brand new",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 10
+            }
+          ]
+        }
+      ]
+    },
+    "merged": {
+      "id": "m1",
+      "name": "Theirs",
+      "view": "timeline",
+      "updatedAt": 200,
+      "columns": [
+        {
+          "id": "c1",
+          "name": "To Do",
+          "updatedAt": 100,
+          "cards": [
+            {
+              "id": "x1",
+              "title": "New copy",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 9
+            },
+            {
+              "id": "x2",
+              "title": "Newer here",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 50
+            },
+            {
+              "id": "x3",
+              "title": "Same",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 9
+            },
+            {
+              "id": "x4",
+              "title": "Moving",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 9
+            }
+          ]
+        },
+        {
+          "id": "c2",
+          "name": "Finished",
+          "updatedAt": 2,
+          "cards": []
+        },
+        {
+          "id": "c3",
+          "name": "New column",
+          "updatedAt": 3,
+          "cards": [
+            {
+              "id": "x5",
+              "title": "Brand new",
+              "description": "",
+              "labels": [],
+              "checklist": [],
+              "due": "",
+              "priority": "",
+              "images": [],
+              "thumbnailId": null,
+              "updatedAt": 10
+            }
+          ]
+        }
+      ]
+    },
+    "changes": 7,
+    "wouldChangeSame": false,
+    "wouldChangeNew": true
+  }
+}

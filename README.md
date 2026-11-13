@@ -2,8 +2,11 @@
 
 The Kanban way: turn your to-do list into a clear board where you drag tasks from To Do to Done.
 
-uwuBoard is an installable web app (PWA) by Augy Studios. Use it as a guest with everything kept in
-your browser, or sign up and your boards follow you to any device.
+uwuBoard is a web app (PWA) by Augy Studios, and an app for Android, Windows, macOS and Linux. Use
+it as a guest with everything kept on your device, or sign up and your boards follow you to any
+device.
+
+**Download the apps:** <https://github.com/augy-studios/uwuboard/releases/latest>
 
 | Phone | Desktop |
 | --- | --- |
@@ -30,6 +33,20 @@ your browser, or sign up and your boards follow you to any device.
 - **PWA:** installable and works offline. When a new version is ready, a bar at the top offers to
   reload.
 
+## The apps
+
+One Flutter project (`flutter/`) builds Android and the three desktop apps, with every feature the
+website has, under the same storage keys and API:
+
+- **Android**: Material You by default, with the site's UwU Apps look a switch away in Theme; an
+  Updates page listing every version, updating itself from GitHub Releases; notifications of new
+  versions through Firebase (`flutter/FIREBASE-SETUP.md`). Also on Google Play (`GOOGLE-PLAY.md`).
+- **Windows, macOS and Linux**: their own title bar and command bar (`Ctrl+K`), the boards beside
+  the open one, the tray with due-card notifications and a tray countdown, desktop widgets, the
+  Jump List and Dock, screenshots, and self-updating installers built by GitHub Actions.
+
+`flutter/README.md` says how to build them; `release/README.md` how to publish a version.
+
 ## Repository layout
 
 ```
@@ -44,9 +61,16 @@ main-site/          The web app, deployed to Vercel
     boards/         list, get, create, update, delete
     images/         upload, delete (card images)
     lib/            Supabase client and session check
-docs/               Specs for features and for the planned Android and desktop apps
+    app-release.js  The newest Android release, for the app's updater
+    push/           release.js: GitHub's webhook, pushing "a new version is out" through FCM
+flutter/            The Android, Windows, macOS and Linux apps (flutter/README.md)
+release/            The built APK and App Bundle, each version in a folder (release/README.md)
+announcements/      Release notes for GitHub and Google Play, and Telegram announcements
+docs/               Specs for features and for the apps, and the store's screenshots
   assets/           The app icon's SVG source
+  phone-assets/, tablet-assets/, desktop-assets/, feature-graphic.png   Google Play's images
 migrations/         SQL for the Supabase SQL editor, run in number order
+.github/workflows/  Build desktop apps: the installers, on every release
 ```
 
 ## Tech stack
@@ -77,6 +101,7 @@ Set these in the Vercel project, or in `main-site/.env.local` for `vercel dev`.
 | --- | --- |
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_SERVICE_KEY` | The service role key. It is only used server side, so never expose it to the browser. |
+| `FIREBASE_SERVICE_ACCOUNT`, `GITHUB_WEBHOOK_SECRET`, `GITHUB_TOKEN` | Optional: notifications of new app versions (`flutter/FIREBASE-SETUP.md`) |
 
 ### Supabase
 
@@ -104,7 +129,7 @@ won't get the update.
 
 [docs/](docs/) holds specs that don't depend on any one framework. Some cover features in this app
 (the update bar, page tours, the edge tray, hiding image locations, time-based theme mode). Others
-cover the planned Flutter apps for Android and desktop, and peer-to-peer pairing over STUN.
+cover the Flutter apps for Android and desktop, and peer-to-peer pairing over STUN.
 
 ## Contributing
 

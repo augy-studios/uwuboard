@@ -8,3 +8,17 @@
 
 # Dependencies.
 node_modules/
+
+# Secrets, wherever one lands by mistake. flutter/.gitignore has the full list for the app.
+*.keystore
+*.jks
+keystore.properties
+google-services.json
+*firebase-adminsdk*.json
+
+# Built installers, each version in a folder of its own (release/README.md). The APK and App
+# Bundle are committed; any file over GitHub's 100 MB limit is listed here by name and goes only
+# on the GitHub release. The mapping and Dart symbols read obfuscated crashes back: kept beside
+# them on this computer, never shared.
+release/*/*-mapping.txt
+release/*/*-symbols.zip
