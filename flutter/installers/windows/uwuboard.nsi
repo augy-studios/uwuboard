@@ -9,7 +9,7 @@
 ; --force-run (open the app when done), as the app's updater passes them (lib/desktop/updater.dart).
 ;
 ; Built by .github/workflows/build-desktop.yml:
-;   makensis /DVERSION=1.0.0 /DX64=<x64 Release folder> [/DARM64=<arm64 Release folder>] /DOUT=<file> uwuboard.nsi
+;   makensis -DVERSION=1.0.0 -DX64=<x64 Release folder> [-DARM64=<arm64 Release folder>] -DOUT=<file> uwuboard.nsi
 
 Unicode true
 !include "MUI2.nsh"

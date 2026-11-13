@@ -176,6 +176,9 @@ jobs:
       - id: v
         run: echo "version=$(grep -E '^version:' flutter/pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')" >> "$GITHUB_OUTPUT"
       - name: Installer (.exe)
+        env:
+          # Git Bash would otherwise take /D… and /X… options for paths and rewrite them.
+          MSYS2_ARG_CONV_EXCL: "*"
         run: |
           v="${{ steps.v.outputs.version }}"
           test -d parts/windows-x64/windows-x64 || { echo "The x64 build failed"; exit 1; }
@@ -183,9 +186,9 @@ jobs:
           export PATH="$PATH:/c/Program Files (x86)/NSIS"
           mkdir -p out
           x64="$(cygpath -w "$PWD/parts/windows-x64/windows-x64")"
-          args=(/DVERSION="$v" /DX64="$x64" /DOUT="$(cygpath -w "$PWD/out/uwuboard-$v-setup.exe")")
+          args=(-DVERSION="$v" -DX64="$x64" -DOUT="$(cygpath -w "$PWD/out/uwuboard-$v-setup.exe")")
           if [ -d parts/windows-arm64/windows-arm64 ]; then
-            args+=(/DARM64="$(cygpath -w "$PWD/parts/windows-arm64/windows-arm64")")
+            args+=(-DARM64="$(cygpath -w "$PWD/parts/windows-arm64/windows-arm64")")
           else
             echo "::warning::No Arm64 build: the installer carries the x64 app only."
           fi
