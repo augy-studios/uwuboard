@@ -131,6 +131,13 @@
         .map((c) => ({ text: c.text.slice(0, 500), done: c.done === true })),
       images,
       thumbnailId: images.some((img) => img.id === raw.thumbnailId) ? raw.thumbnailId : (images[0]?.id ?? null),
+      // A timeline's (js/timeline.js): when it starts, whether it's a milestone, and the cards
+      // it waits for, by id. Only there when set, as on the board they came from.
+      ...(/^\d{4}-\d{2}-\d{2}$/.test(raw.start) && { start: raw.start }),
+      ...(raw.milestone === true && { milestone: true }),
+      ...(Array.isArray(raw.dependsOn) && raw.dependsOn.length && {
+        dependsOn: [...new Set(raw.dependsOn.filter((d) => isId(d) && d !== raw.id))].slice(0, 50),
+      }),
       updatedAt: stamp(raw.updatedAt),
     };
   }
@@ -144,6 +151,8 @@
       .map((b) => ({
         id: b.id,
         name: b.name.trim().slice(0, 120),
+        // Shown as columns or as a timeline; a board from before there was a choice is columns.
+        view: b.view === 'timeline' ? 'timeline' : 'kanban',
         updatedAt: stamp(b.updatedAt),
         columns: list(b.columns, MAX_COLUMNS)
           .filter((c) => c && isId(c.id) && typeof c.name === 'string' && once(`col:${b.id}/${c.id}`))
@@ -168,6 +177,7 @@
   const cardSig = (c) => JSON.stringify([
     c.title, c.description || '', c.due || '', c.priority || '', c.labels || [], c.checklist || [],
     (c.images || []).map((img) => img.id), c.thumbnailId || null,
+    c.start || '', !!c.milestone, [...(c.dependsOn || [])].sort(),
   ]);
 
   // Merges `src` into `dest` in place and says how many things that changed. Adds what `dest`
@@ -176,6 +186,8 @@
     let changes = 0;
     if (stamp(src.updatedAt) > stamp(dest.updatedAt)) {
       if (src.name !== dest.name) { dest.name = src.name; changes++; }
+      // How it's shown goes with the name: whichever was changed last.
+      if ((src.view || 'kanban') !== (dest.view || 'kanban')) { dest.view = src.view; changes++; }
       dest.updatedAt = src.updatedAt;
     }
 
@@ -291,7 +303,7 @@
     for (const src of boards) {
       let dest = S.boards.find((b) => b.id === src.id);
       if (!dest) {
-        dest = { id: src.id, name: src.name, updatedAt: stamp(src.updatedAt), columns: [] };
+        dest = { id: src.id, name: src.name, view: src.view, updatedAt: stamp(src.updatedAt), columns: [] };
         mergeBoardInto(dest, src);
         S.boards.push(dest);
         changed.push(dest);

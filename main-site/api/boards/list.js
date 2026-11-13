@@ -7,7 +7,7 @@ module.exports = async (req, res) => {
   try {
     const { userId } = await requireAuth(req);
     const { data, error } = await supabase
-      .from('uwu_boards')
+      .from('uwuboard_boards')
       .select('id, name, data')
       .eq('user_id', userId)
       .order('created_at', { ascending: true });

@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
             data,
             error
         } = await supabase
-            .from('uwu_boards')
+            .from('uwuboard_boards')
             .select('id, name, data, created_at, updated_at')
             .eq('id', boardId)
             .eq('user_id', userId) // ensures users can only fetch their own boards

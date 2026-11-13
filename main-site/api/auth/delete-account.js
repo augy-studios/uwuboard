@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Incorrect password' });
 
     await supabase.from('uwu_sessions').delete().eq('user_id', userId);
-    await supabase.from('uwu_boards').delete().eq('user_id', userId);
+    await supabase.from('uwuboard_boards').delete().eq('user_id', userId);
     await supabase.from('uwu_users').delete().eq('id', userId);
 
     return res.status(200).json({ ok: true });

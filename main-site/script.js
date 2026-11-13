@@ -189,7 +189,7 @@ function logout() {
   $('auth-overlay').classList.remove('hidden');
   $('board-title').textContent = 'Select a board';
   $('edit-board-title-btn').classList.add('hidden');
-  $('columns-container').classList.add('hidden');
+  hideBoardViews();
   $('empty-state').classList.remove('hidden');
   renderBoardList();
 }
@@ -299,18 +299,49 @@ function selectBoard(id) {
   $('edit-board-title-btn').classList.remove('hidden');
   setBoardActions(true);
   $('empty-state').classList.add('hidden');
-  $('columns-container').classList.remove('hidden');
   renderBoardList();
   renderBoard(board);
+}
+
+// No board open: neither view on show.
+function hideBoardViews() {
+  $('columns-container').classList.add('hidden');
+  $('timeline-container').classList.add('hidden');
+  $('timeline-container').innerHTML = '';
+  $('board-canvas').classList.remove('is-timeline');
 }
 
 function getActiveBoard() { return S.boards.find(b => b.id === S.activeBoardId); }
 
 // The open board's actions in the edge tray, and the rule above them: there only with a board open.
 function setBoardActions(on) {
-  ['trayBoardRule', 'board-export-btn', 'board-import-btn', 'delete-board-btn']
+  ['trayBoardRule', 'board-view-btn', 'board-export-btn', 'board-import-btn', 'delete-board-btn']
     .forEach(id => $(id).classList.toggle('hidden', !on));
 }
+
+/* ── Kanban or Timeline ── */
+// The same board either way: its columns are a timeline's phases and its cards the tasks.
+const isTimeline = board => board?.view === 'timeline';
+
+// The tray button offers the other view.
+function updateViewButton(board) {
+  const btn = $('board-view-btn');
+  const label = isTimeline(board) ? 'Show as Kanban' : 'Show as Timeline';
+  btn.setAttribute('aria-label', label);
+  btn.title = label;
+  btn.querySelector('[data-icon]').setAttribute('data-icon', isTimeline(board) ? 'kanban' : 'timeline');
+  hydrateIcons(btn);
+}
+
+$('board-view-btn').addEventListener('click', () => {
+  const board = getActiveBoard();
+  if (!board) return;
+  board.view = isTimeline(board) ? 'kanban' : 'timeline';
+  touch(board);
+  persistBoard(board);
+  renderBoard(board);
+  toast(isTimeline(board) ? 'Showing as a timeline' : 'Showing as a kanban board');
+});
 
 // Boards that came in from another device (js/sync.js): the list and the board on show follow.
 function boardsChanged(changed) {
@@ -338,6 +369,18 @@ function openFirstCard() {
 
 /* ── Render board ── */
 function renderBoard(board) {
+  const timeline = isTimeline(board);
+  $('columns-container').classList.toggle('hidden', timeline);
+  $('timeline-container').classList.toggle('hidden', !timeline);
+  $('board-canvas').classList.toggle('is-timeline', timeline);
+  updateViewButton(board);
+  if (timeline) {
+    $('columns-container').innerHTML = '';
+    Timeline.render(board);
+    return;
+  }
+  $('timeline-container').innerHTML = '';
+
   const container = $('columns-container');
   container.innerHTML = '';
   board.columns.forEach(col => container.appendChild(buildColumn(col)));
@@ -416,7 +459,7 @@ function buildCard(card, colId) {
       const cls = diff < 0 ? 'overdue' : diff < 2 ? 'soon' : '';
       dueHtml = `<span class="card-due ${cls}">
         <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" stroke="currentColor" fill="none" stroke-width="1.2"/><path d="M5 3v2.5l1.5 1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-        ${card.due}
+        ${card.start && card.start !== card.due ? `${card.start} → ${card.due}` : card.due}
       </span>`;
     }
     let prioHtml = card.priority ? `<span class="card-priority priority-${card.priority}">${card.priority}</span>` : '';
@@ -634,9 +677,64 @@ function openCardModal(cardId, colId) {
   renderModalLabels(card.labels || []);
   renderChecklist(card.checklist || []);
 
+  // A timeline's own fields: a start date, whether it's a milestone, and what it waits for.
+  $('card-tl-fields').classList.toggle('hidden', !isTimeline(board));
+  $('card-modal-start').value = card.start || '';
+  $('card-modal-milestone').checked = !!card.milestone;
+  $('card-modal-start').disabled = !!card.milestone;
+  renderDeps(card);
+
   $('card-modal').classList.remove('hidden');
   pageChanged();
 }
+
+/* ── What a task waits for (Timeline) ── */
+function editingCard() {
+  const board = getActiveBoard();
+  const col = board?.columns.find(c => c.id === S.editingColId);
+  return col?.cards.find(c => c.id === S.editingCardId) || null;
+}
+
+// The tasks this one waits for as chips, and a list of the others it could: never itself, nor
+// anything already waiting for it, which would make the chain go round in a circle.
+function renderDeps(card) {
+  const board = getActiveBoard();
+  const all = board.columns.flatMap(c => c.cards);
+  const deps = (card.dependsOn || []).filter(id => all.some(k => k.id === id));
+  const chips = $('card-deps');
+  chips.innerHTML = deps.map(id => {
+    const other = all.find(k => k.id === id);
+    const clash = Timeline.clashes(other, card);
+    return `<span class="dep-chip${clash ? ' clash' : ''}" title="${clash ? 'Its dates clash with this task' : ''}">${esc(other.title)}` +
+      `<button type="button" data-dep="${esc(id)}" aria-label="Stop waiting for ${esc(other.title)}"><span data-icon="close"></span></button></span>`;
+  }).join('') || '<span class="dep-none">Doesn’t wait for anything</span>';
+  hydrateIcons(chips);
+  const blocked = Timeline.waitingOn(board, card.id);
+  const choices = all.filter(k => k.id !== card.id && !deps.includes(k.id) && !blocked.has(k.id));
+  $('card-dep-add').innerHTML = `<option value="">${choices.length ? 'Add a task this one waits for…' : 'No other tasks to wait for'}</option>` +
+    choices.map(k => `<option value="${esc(k.id)}">${esc(k.title)}</option>`).join('');
+  $('card-dep-add').disabled = !choices.length;
+}
+
+$('card-deps').addEventListener('click', e => {
+  const btn = e.target.closest('[data-dep]');
+  const card = editingCard();
+  if (!btn || !card) return;
+  card.dependsOn = (card.dependsOn || []).filter(id => id !== btn.dataset.dep);
+  renderDeps(card);
+});
+
+$('card-dep-add').addEventListener('change', e => {
+  const card = editingCard();
+  if (!card || !e.target.value) return;
+  card.dependsOn = [...(card.dependsOn || []), e.target.value];
+  renderDeps(card);
+});
+
+// A milestone is one day, its due date: the start date goes with it.
+$('card-modal-milestone').addEventListener('change', e => {
+  $('card-modal-start').disabled = e.target.checked;
+});
 
 function renderModalLabels(labels) {
   const c = $('card-modal-labels');
@@ -722,10 +820,23 @@ $('save-card-btn').addEventListener('click', () => {
   const card = col?.cards.find(c => c.id === S.editingCardId);
   if (!card) return;
 
+  // Timeline dates: a start after the due date is a mistake to fix, not to guess at.
+  const timeline = isTimeline(board);
+  const due = $('card-modal-due').value;
+  const milestone = timeline ? $('card-modal-milestone').checked : !!card.milestone;
+  let start = timeline ? $('card-modal-start').value : (card.start || '');
+  if (milestone) start = due || start;
+  if (start && due && start > due) {
+    toast('The start date is after the due date', 'error');
+    return;
+  }
+
   card.title = $('card-modal-title').value.trim() || card.title;
   card.description = $('card-modal-desc').value;
-  card.due = $('card-modal-due').value;
+  card.due = milestone ? (due || start) : due;
   card.priority = $('card-modal-priority').value;
+  if (start) card.start = start; else delete card.start;
+  if (milestone) card.milestone = true; else delete card.milestone;
   touch(card);
 
   const targetColId = $('card-modal-col').value;
@@ -749,6 +860,7 @@ $('delete-card-btn').addEventListener('click', () => {
   const col = board.columns.find(c => c.id === S.editingColId);
   if (!col) return;
   col.cards = col.cards.filter(c => c.id !== S.editingCardId);
+  Timeline.pruneDeps(board);
   closeCardModal();
   persistBoard(board);
   renderBoard(board);
@@ -867,6 +979,11 @@ $('card-img-input').addEventListener('change', async e => {
 /* ── Rename/delete column modal ── */
 function openRenameColModal(col) {
   S.editingColId = col.id;
+  // On a timeline, a column is a phase.
+  const word = isTimeline(getActiveBoard()) ? 'Phase' : 'Column';
+  $('rename-col-heading').textContent = `Rename ${word}`;
+  $('rename-col-label').textContent = `${word} Name`;
+  $('delete-col-btn').textContent = `Delete ${word}`;
   $('rename-col-input').value = col.name;
   $('rename-col-modal').classList.remove('hidden');
 }
@@ -883,13 +1000,14 @@ $('save-col-name-btn').addEventListener('click', () => {
 });
 
 $('delete-col-btn').addEventListener('click', () => {
-  if (!confirm('Delete this column and all its cards?')) return;
+  if (!confirm(isTimeline(getActiveBoard()) ? 'Delete this phase and all its tasks?' : 'Delete this column and all its cards?')) return;
   const board = getActiveBoard();
   board.columns = board.columns.filter(c => c.id !== S.editingColId);
+  Timeline.pruneDeps(board);
   $('rename-col-modal').classList.add('hidden');
   persistBoard(board);
   renderBoard(board);
-  toast('Column deleted');
+  toast(isTimeline(board) ? 'Phase deleted' : 'Column deleted');
 });
 
 $('rename-col-close').addEventListener('click', () => $('rename-col-modal').classList.add('hidden'));
@@ -897,9 +1015,9 @@ $('rename-col-modal').addEventListener('click', e => { if (e.target === $('renam
 
 /* ── Add column ── */
 function addColumn() {
-  const name = prompt('Column name:');
-  if (!name?.trim()) return;
   const board = getActiveBoard();
+  const name = prompt(isTimeline(board) ? 'Phase name:' : 'Column name:');
+  if (!name?.trim()) return;
   board.columns.push(touch({ id: uid(), name: name.trim(), cards: [] }));
   persistBoard(board);
   renderBoard(board);
@@ -909,13 +1027,48 @@ function addColumn() {
 $('new-board-btn').addEventListener('click', openNewBoardModal);
 $('empty-new-board-btn').addEventListener('click', openNewBoardModal);
 
+// What each type of board starts with: a kanban's columns, a timeline's waterfall phases.
+const STARTING = {
+  kanban: ['To Do', 'In Progress', 'Done'],
+  timeline: ['Requirements', 'Design', 'Build', 'Test', 'Release'],
+};
+
 function openNewBoardModal() {
-  S.colChips = ['To Do', 'In Progress', 'Done'];
-  renderColChips();
+  // A fresh start each time: Kanban, with its usual columns.
+  S.newBoardType = null;
+  setNewBoardType('kanban');
   $('new-board-name').value = '';
   $('new-board-modal').classList.remove('hidden');
   setTimeout(() => $('new-board-name').focus(), 50);
 }
+
+// Kanban or Timeline. The starting columns follow, unless they've been changed by hand.
+function setNewBoardType(type) {
+  const was = S.newBoardType;
+  S.newBoardType = type;
+  document.querySelectorAll('#new-board-type [data-type]').forEach(btn => {
+    const on = btn.dataset.type === type;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-checked', String(on));
+  });
+  $('new-board-cols-label').textContent = type === 'timeline' ? 'Starting phases' : 'Starting columns';
+  const untouched = !was || JSON.stringify(S.colChips) === JSON.stringify(STARTING[was]);
+  if (untouched) S.colChips = [...STARTING[type]];
+  renderColChips();
+}
+
+$('new-board-type').addEventListener('click', e => {
+  const btn = e.target.closest('[data-type]');
+  if (btn) setNewBoardType(btn.dataset.type);
+});
+
+// Arrow keys move between the two, as in any radio group.
+$('new-board-type').addEventListener('keydown', e => {
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+  e.preventDefault();
+  setNewBoardType(S.newBoardType === 'kanban' ? 'timeline' : 'kanban');
+  document.querySelector(`#new-board-type [data-type="${S.newBoardType}"]`).focus();
+});
 
 function renderColChips() {
   const container = $('new-board-cols');
@@ -957,6 +1110,7 @@ $('create-board-btn').addEventListener('click', async () => {
   const board = touch({
     id: uid(),
     name,
+    view: S.newBoardType === 'timeline' ? 'timeline' : 'kanban',
     columns: S.colChips.map(n => touch({ id: uid(), name: n, cards: [] })),
   });
   S.boards.push(board);
@@ -1006,7 +1160,7 @@ $('delete-board-btn').addEventListener('click', async () => {
   if (!S.isGuest) window.Sync?.changed();
   renderBoardList();
   $('board-title').textContent = 'Select a board';
-  $('columns-container').classList.add('hidden');
+  hideBoardViews();
   $('empty-state').classList.remove('hidden');
   $('edit-board-title-btn').classList.add('hidden');
   setBoardActions(false);

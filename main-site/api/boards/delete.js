@@ -7,7 +7,7 @@ module.exports = async (req, res) => {
     const { boardId } = req.body || {};
     if (!boardId) return res.status(400).json({ error: 'boardId required' });
 
-    const { error } = await supabase4.from('uwu_boards')
+    const { error } = await supabase4.from('uwuboard_boards')
       .delete()
       .eq('id', boardId)
       .eq('user_id', userId);

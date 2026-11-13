@@ -25,9 +25,12 @@
         { el: '#empty-new-board-btn', text: 'Start here: make a board, with the columns you want.' },
         { el: '.column .add-card-btn', text: 'Add a card to a column. Drag cards from one column to the next as work moves along.' },
         { el: '.columns-container .card', text: 'Open a card for its details: due date, priority, labels, a checklist and images.' },
+        // A Timeline board (js/timeline.js) instead: its bars, and how far it zooms.
+        { el: '.tl-bar, .tl-row-task.undated', text: 'Each task is a bar across its dates. Drag it to move them, or drag an end to change how long it takes.' },
+        { el: '.tl-zoom', text: 'See weeks in detail, or months and quarters at once.' },
         { el: '#board-list', text: 'All your boards are listed here, with New Board to start another.', when: () => !narrow() },
         { el: '#mobile-menu-btn', text: 'Your boards are in here, with New Board to start another.', when: narrow },
-        { el: '#trayButtons, #trayTab', text: 'Theme, Show me around and the open board’s Export, Import and Delete live here. The arrow tucks them away.' },
+        { el: '#trayButtons, #trayTab', text: 'Theme, Show me around, and the open board’s view (Kanban or Timeline), Export, Import and Delete live here. The arrow tucks them away.' },
         { el: '#syncBtn, #trayTab', text: 'Sync copies boards straight to your other phone or computer, no account needed.' },
       ],
     },

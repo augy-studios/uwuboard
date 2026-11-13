@@ -100,6 +100,10 @@
 
                 <!-- The open board's actions, shown while a board is open. -->
                 <span class="tray-rule hidden" id="trayBoardRule" aria-hidden="true"></span>
+                <button class="glass-btn hidden" id="board-view-btn" type="button" aria-label="Show as Timeline"
+                    title="Show as Timeline">
+                    <span data-icon="timeline"></span>
+                </button>
                 <button class="glass-btn hidden" id="board-export-btn" type="button" aria-label="Export board"
                     title="Export board">
                     <span data-icon="download"></span>
@@ -273,6 +277,7 @@
                     <button class="btn-primary" id="empty-new-board-btn">Create Board</button>
                 </div>
                 <div id="columns-container" class="columns-container hidden"></div>
+                <div id="timeline-container" class="timeline hidden" aria-label="Timeline"></div>
             </div>
         </main>
     </div>
@@ -309,6 +314,25 @@
                             <option value="high">High</option>
                             <option value="urgent">Urgent</option>
                         </select>
+                    </div>
+                </div>
+                <!-- A timeline's own fields (js/timeline.js), shown on a Timeline board. -->
+                <div id="card-tl-fields" class="tl-fields hidden">
+                    <div class="modal-row">
+                        <div class="modal-field half">
+                            <label for="card-modal-start">Start Date</label>
+                            <input type="date" id="card-modal-start" />
+                        </div>
+                        <div class="modal-field half">
+                            <label for="card-modal-milestone">Milestone</label>
+                            <span class="tl-check"><input type="checkbox" id="card-modal-milestone" />
+                                <span>One day, on its due date</span></span>
+                        </div>
+                    </div>
+                    <div class="modal-field">
+                        <label for="card-dep-add">Waits For</label>
+                        <div id="card-deps" class="dep-chips"></div>
+                        <select id="card-dep-add"></select>
                     </div>
                 </div>
                 <div class="modal-field">
@@ -370,7 +394,20 @@
                     <input type="text" id="new-board-name" placeholder="e.g. Sprint 67" />
                 </div>
                 <div class="field">
-                    <label>Starting columns</label>
+                    <label id="new-board-type-label">Type</label>
+                    <div id="new-board-type" class="type-pick" role="radiogroup" aria-labelledby="new-board-type-label">
+                        <button type="button" class="type-opt active" data-type="kanban" role="radio" aria-checked="true">
+                            <span class="type-icon" data-icon="kanban"></span>
+                            <span class="type-text"><span class="type-name">Kanban</span><span class="type-sub">Cards move across columns</span></span>
+                        </button>
+                        <button type="button" class="type-opt" data-type="timeline" role="radio" aria-checked="false" tabindex="-1">
+                            <span class="type-icon" data-icon="timeline"></span>
+                            <span class="type-text"><span class="type-name">Timeline</span><span class="type-sub">Tasks as bars across dates</span></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="field">
+                    <label id="new-board-cols-label">Starting columns</label>
                     <div id="new-board-cols" class="col-chips">
                         <span class="col-chip" data-col="To Do">To Do</span>
                         <span class="col-chip" data-col="In Progress">In Progress</span>
@@ -391,7 +428,7 @@
     <div id="rename-col-modal" class="modal-backdrop hidden">
         <div class="glass-panel modal-panel small-modal">
             <div class="modal-header">
-                <span class="modal-heading">Rename Column</span>
+                <span class="modal-heading" id="rename-col-heading">Rename Column</span>
                 <button class="mini-btn modal-close" id="rename-col-close">
                     <svg width="16" height="16" viewBox="0 0 16 16">
                         <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5"
@@ -400,7 +437,7 @@
             </div>
             <div class="modal-body">
                 <div class="field">
-                    <label>Column Name</label>
+                    <label id="rename-col-label">Column Name</label>
                     <input type="text" id="rename-col-input" />
                 </div>
             </div>
@@ -664,6 +701,7 @@
     <script src="/js/p2p.js"></script>
     <script src="/js/sync.js"></script>
     <script src="/js/tour.js"></script>
+    <script src="/js/timeline.js"></script>
     <script src="/script.js"></script>
     <script src="/js/sw-update.js"></script>
 

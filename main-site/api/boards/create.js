@@ -8,7 +8,7 @@ module.exports = async (req, res) => {
     const { board } = req.body || {};
     if (!board?.id || !board?.name) return res.status(400).json({ error: 'Invalid board' });
 
-    const { error } = await supabase2.from('uwu_boards').insert({
+    const { error } = await supabase2.from('uwuboard_boards').insert({
       id: board.id,
       user_id: userId,
       name: board.name,

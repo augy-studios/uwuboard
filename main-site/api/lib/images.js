@@ -62,11 +62,13 @@ function cleanColumns(columns, userId) {
   });
 }
 
-// A board row's `data`, as stored: its columns, and when the board itself (its name) was
-// last changed, which device sync compares (js/sync.js).
+// A board row's `data`, as stored: its columns, how it's shown, and when the board itself
+// (its name or view) was last changed, which device sync compares (js/sync.js).
 function boardData(board, userId) {
   const data = { columns: cleanColumns(board.columns, userId) };
   if (Number.isFinite(board.updatedAt)) data.updatedAt = board.updatedAt;
+  // How the board is shown: as columns, or as a Timeline (js/timeline.js).
+  if (board.view === 'timeline' || board.view === 'kanban') data.view = board.view;
   return data;
 }
 

@@ -1,0 +1,10 @@
+# Secrets: real environment files never go in the repo. The example does.
+.env
+.env.*
+!.env.example
+
+# Vercel's local project link and build output.
+.vercel/
+
+# Dependencies.
+node_modules/

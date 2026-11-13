@@ -9,7 +9,7 @@ module.exports = async (req, res) => {
     if (!board?.id) return res.status(400).json({ error: 'Invalid board' });
 
     // Upsert: create if doesn't exist, update otherwise
-    const { error } = await supabase3.from('uwu_boards').upsert({
+    const { error } = await supabase3.from('uwuboard_boards').upsert({
       id: board.id,
       user_id: userId,
       name: board.name,

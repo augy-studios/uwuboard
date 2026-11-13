@@ -2167,6 +2167,7 @@ body.tray-open .topbar {
 .tray-buttons > :nth-child(5) { --i: 4; }
 .tray-buttons > :nth-child(6) { --i: 5; }
 .tray-buttons > :nth-child(7) { --i: 6; }
+.tray-buttons > :nth-child(8) { --i: 7; }
 
 .tray.collapsed .tray-buttons > * {
   opacity: 0;
@@ -2626,5 +2627,607 @@ body.touring {
   .tourLine {
     animation: none;
     stroke-dashoffset: 0;
+  }
+}
+
+/* ── Timeline (js/timeline.js) ── */
+/* A Gantt chart of the board: the task list on the left, sticky as the chart scrolls
+   sideways; the dates along the top, sticky as it scrolls down. */
+:root {
+  /* Solid, for the parts that stay put while the chart scrolls under them. */
+  --tl-solid: color-mix(in srgb, var(--brand) 12%, var(--bg));
+  --tl-line: color-mix(in srgb, var(--ink) 8%, transparent);
+  --tl-line-strong: color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+.board-canvas.is-timeline {
+  overflow: hidden;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-width: 0;
+}
+
+.tl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.tl-zoom {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+}
+
+.tl-zoom-btn {
+  padding: 6px 12px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  color: var(--muted-strong);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tl-zoom-btn.active {
+  background: var(--brand-fill);
+  color: var(--on-brand);
+}
+
+.tl-today-btn {
+  padding: 7px 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  color: var(--ink);
+}
+
+.tl-today-btn:hover {
+  background: var(--brand-fill);
+  color: var(--on-brand);
+}
+
+.tl-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.tl-grid {
+  display: grid;
+  grid-template-columns: var(--list) var(--chart);
+  grid-template-rows: 52px var(--rows);
+  width: max-content;
+}
+
+.tl-corner,
+.tl-head,
+.tl-list {
+  background: var(--tl-solid);
+}
+
+.tl-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 12px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  border-right: 1px solid var(--surface-border);
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.tl-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  border-bottom: 1px solid var(--surface-border);
+  overflow: hidden;
+}
+
+.tl-head-top {
+  position: absolute;
+  top: 7px;
+  padding-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.tl-head-bottom {
+  position: absolute;
+  top: 28px;
+  height: 20px;
+  padding-left: 4px;
+  border-left: 1px solid var(--tl-line-strong);
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--muted-strong);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tl-head-bottom.weekend {
+  color: var(--muted);
+}
+
+.tl-today-chip {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--brand-ink);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The task list. Sticky is positioned, so its rows are placed inside it. */
+.tl-list {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  border-right: 1px solid var(--surface-border);
+}
+
+.tl-phase,
+.tl-task,
+.tl-add {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  text-align: left;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.tl-phase {
+  font-size: 13px;
+  font-weight: 700;
+  border-top: 1px solid var(--surface-border);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.tl-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.tl-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--brand-fill);
+  color: var(--on-brand);
+  font-size: 11px;
+  text-align: center;
+}
+
+.tl-task {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  padding-left: 30px;
+  font-size: 13px;
+}
+
+.tl-task:hover,
+.tl-phase:hover {
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+}
+
+.tl-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tl-phase .tl-name {
+  display: block;
+}
+
+.tl-when {
+  font-size: 11px;
+  color: var(--muted-strong);
+  white-space: nowrap;
+}
+
+.tl-task.undated .tl-when {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.tl-diamond-sm {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  background: var(--brand-ink);
+}
+
+.tl-add {
+  padding-left: 30px;
+  font-size: 12.5px;
+  color: var(--muted-strong);
+}
+
+.tl-add:hover {
+  color: var(--brand-ink);
+}
+
+.tl-add-phase {
+  padding-left: 12px;
+  border-top: 1px solid var(--surface-border);
+}
+
+/* The chart. */
+.tl-chart {
+  position: relative;
+  overflow: hidden;
+}
+
+.tl-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--tl-line);
+}
+
+.tl-line.strong {
+  background: var(--tl-line-strong);
+}
+
+.tl-weekend {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.tl-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.tl-row-phase {
+  border-top: 1px solid var(--surface-border);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+/* A phase's span: from its first task's start to its last task's end. */
+.tl-rollup {
+  position: absolute;
+  top: 50%;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 3px;
+  opacity: 0.85;
+}
+
+/* A task with no dates: press a day to give it some. */
+.tl-row-task.undated {
+  cursor: copy;
+}
+
+.tl-row-task.undated:hover {
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+}
+
+.tl-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--brand-ink);
+  z-index: 1;
+}
+
+/* A task's bar, filled as far as its checklist is done. Dragging it sideways is the bar's;
+   up and down still scrolls on a touch screen. */
+.tl-bar {
+  position: absolute;
+  top: 8px;
+  height: 24px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bar) 35%, var(--surface-strong));
+  border: 1px solid color-mix(in srgb, var(--bar) 75%, transparent);
+  overflow: hidden;
+  cursor: grab;
+  touch-action: pan-y;
+  z-index: 2;
+}
+
+.tl-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--bar);
+  pointer-events: none;
+}
+
+/* Due and not finished. */
+.tl-bar.late {
+  box-shadow: 0 0 0 2px var(--error);
+}
+
+.tl-bar.dragging,
+.tl-milestone.dragging {
+  cursor: grabbing;
+  box-shadow: var(--shadow);
+  z-index: 5;
+}
+
+/* The ends, for changing a task's length. */
+.tl-h {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  cursor: ew-resize;
+}
+
+.tl-h-start {
+  left: 0;
+}
+
+.tl-h-end {
+  right: 0;
+}
+
+.tl-bar:hover .tl-h::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 3px;
+  width: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+}
+
+.tl-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tl-milestone {
+  position: absolute;
+  top: 9px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  touch-action: pan-y;
+  z-index: 2;
+}
+
+.tl-milestone .tl-label {
+  position: static;
+  transform: none;
+}
+
+.tl-diamond {
+  width: 16px;
+  height: 16px;
+  margin: 0 3px;
+  flex: none;
+  transform: rotate(45deg);
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--surface-strong);
+}
+
+.tl-bar:focus-visible,
+.tl-milestone:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Dependency arrows: grey, or red where the dates clash. */
+.tl-deps {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tl-dep {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+
+.tl-dep.clash {
+  stroke: var(--error);
+  stroke-width: 2;
+}
+
+.tl-arrowhead {
+  fill: var(--muted);
+}
+
+.tl-arrowhead.clash {
+  fill: var(--error);
+}
+
+@media (max-width: 720px) {
+  .tl-task,
+  .tl-add {
+    padding-left: 14px;
+  }
+
+  .tl-zoom-btn {
+    padding: 6px 9px;
+  }
+}
+
+/* ── The card window's timeline fields ── */
+.tl-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.tl-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-ink);
+}
+
+.dep-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.dep-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.dep-chip.clash {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.dep-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: inherit;
+}
+
+.dep-chip button:hover {
+  background: var(--brand-fill);
+}
+
+.dep-chip svg {
+  width: 12px;
+  height: 12px;
+}
+
+.dep-none {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ── New Board: Kanban or Timeline ── */
+.type-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.type-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.type-opt.active {
+  background: var(--brand-fill);
+  color: var(--on-brand);
+  border-color: var(--brand-ink);
+}
+
+.type-opt:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.type-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.type-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.type-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.type-name {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.type-sub {
+  font-size: 11.5px;
+  opacity: 0.8;
+}
+
+@media (max-width: 380px) {
+  .type-pick {
+    grid-template-columns: 1fr;
   }
 }
