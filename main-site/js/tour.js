@@ -30,7 +30,7 @@
         { el: '.tl-zoom', text: 'See weeks in detail, or months and quarters at once.' },
         { el: '#board-list', text: 'All your boards are listed here, with New Board to start another.', when: () => !narrow() },
         { el: '#mobile-menu-btn', text: 'Your boards are in here, with New Board to start another.', when: narrow },
-        { el: '#trayButtons, #trayTab', text: 'Theme, Show me around, and the open board’s view (Kanban or Timeline), Export, Import and Delete live here. The arrow tucks them away.' },
+        { el: '#trayButtons, #trayTab', text: 'Theme, Show me around, and the open board’s view, Export, Import and Delete live here. Press and hold one to see what it does; the arrow tucks them away.' },
         { el: '#syncBtn, #trayTab', text: 'Sync copies boards straight to your other phone or computer, no account needed.' },
       ],
     },

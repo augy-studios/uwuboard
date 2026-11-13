@@ -3231,3 +3231,32 @@ body.touring {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Press and hold a tray button (js/tray.js) ── */
+/* The label of a held button, beside it. Ink on paper in either mode, like the app's text. */
+.tray-tip {
+  position: fixed;
+  z-index: 46;
+  max-width: calc(100vw - 110px);
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 13px;
+  line-height: 1.3;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%) translateX(6px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.tray-tip.show {
+  opacity: 1;
+  transform: translateY(-50%);
+}
+
+/* No callout menu when a finger rests on a tray button. */
+.tray button {
+  -webkit-touch-callout: none;
+}

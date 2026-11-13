@@ -51,5 +51,81 @@
 
   init();
 
+  /* ---- Press and hold: what a button does ----
+     The buttons are icons only, and a touch screen has no hover to show their titles. Holding
+     one for a moment shows its label beside it, and letting go then does nothing, so a hold
+     is always safe. A quick tap works as ever. The label is the button's own aria-label, so a
+     screen reader already hears the same words; the bubble is hidden from it. */
+  const HOLD_MS = 450;
+  const MOVE_PX = 10;
+  let tip = null;
+  let holdTimer = null;
+  let hideTimer = null;
+  let held = false;
+  let start = null;
+
+  function showTip(btn) {
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.className = 'tray-tip';
+      tip.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(tip);
+    }
+    clearTimeout(hideTimer);
+    tip.textContent = btn.getAttribute('aria-label') || btn.title;
+    // Beside the button, on the side away from the screen's edge.
+    const r = btn.getBoundingClientRect();
+    tip.style.top = `${r.top + r.height / 2}px`;
+    tip.style.right = `${window.innerWidth - r.left + 10}px`;
+    tip.classList.add('show');
+  }
+
+  function hideTip(delay = 0) {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => tip?.classList.remove('show'), delay);
+  }
+
+  tray.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || btn.closest('[inert]') || e.button > 0) return;
+    held = false;
+    start = { x: e.clientX, y: e.clientY };
+    clearTimeout(holdTimer);
+    hideTip();
+    holdTimer = setTimeout(() => {
+      held = true;
+      showTip(btn);
+      navigator.vibrate?.(10);
+    }, HOLD_MS);
+  });
+
+  // A finger that slides off is scrolling or changing its mind, not holding.
+  tray.addEventListener('pointermove', (e) => {
+    if (!start || held) return;
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > MOVE_PX) clearTimeout(holdTimer);
+  });
+
+  const release = () => {
+    clearTimeout(holdTimer);
+    start = null;
+    if (held) hideTip(1500);
+  };
+  tray.addEventListener('pointerup', release);
+  tray.addEventListener('pointercancel', release);
+  tray.addEventListener('pointerleave', release);
+
+  // The click a hold ends with is swallowed before it reaches the button.
+  tray.addEventListener('click', (e) => {
+    if (!held) return;
+    held = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+
+  // No long-press menu or text selection on the buttons.
+  tray.addEventListener('contextmenu', (e) => {
+    if (e.target.closest('button')) e.preventDefault();
+  });
+
   window.Tray = { show, setOpen: (open) => setTray(open), isOpen };
 })();
