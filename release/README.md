@@ -31,7 +31,8 @@ powershell -ExecutionPolicy Bypass -File flutter\build-apk.ps1
 powershell -ExecutionPolicy Bypass -File flutter\build-apk.ps1 -Aab
 ```
 
-For a new version, raise `version:` in `flutter/pubspec.yaml` first, name and code: `1.0.1+2`.
+For a new version, raise the version name in `flutter/pubspec.yaml` first (`1.0.0` → `1.0.1`). The version
+code after the `+` goes up by itself on every build (`flutter/README.md`): commit `pubspec.yaml` with it.
 
 The desktop ones build on GitHub: publishing the release starts **Build desktop apps**, and a few
 minutes later its installers and update files are on the release. To build them before

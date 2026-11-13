@@ -86,8 +86,9 @@ Beside it, `uwuboard-<version>-play-mapping.txt` and `-play-symbols.zip` stay on
 (git-ignored): with them, `flutter symbolize` reads an obfuscated Dart stack trace from Play's
 crash reports.
 
-Every upload needs a higher `versionCode` than the last: raise `version:` in
-`flutter\pubspec.yaml` (`1.0.0+1` → `1.0.1+2`) and build again.
+Every upload needs a higher `versionCode` than any before it. `build-apk.ps1` raises it by itself
+on every run (the `+N` in `flutter\pubspec.yaml`), so a fresh build is always uploadable; commit
+`pubspec.yaml` with it.
 
 ## 5. Step 2: Developer account
 
@@ -233,7 +234,7 @@ Other answers:
 
 ## 11. After launch
 
-- **Every update**: raise `version:` (name and code), `build-apk.ps1 -Aab`, upload to a track,
+- **Every update**: raise the version name, `build-apk.ps1 -Aab` (the code goes up by itself), upload to a track,
   paste `announcements/play-release-notes-<version>.md`, roll out. The GitHub release goes on as
   before with the APK (`release/README.md`).
 - **Point people to Play**: add the Play link to the site and the GitHub release notes once it's

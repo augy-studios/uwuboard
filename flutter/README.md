@@ -56,8 +56,10 @@ in `release/<version>/` and is never shared: `-mapping.txt` (R8) and `-symbols.z
 `flutter symbolize`). The App Bundle carries R8's mapping and the native symbol tables for Play
 itself; the script checks they're there, and that the Play build has no updater.
 
-For a new version, raise `version:` in `pubspec.yaml`, name and code (`1.0.1+2`): a phone only
-takes a higher code as an update, and every platform shares the name.
+The version code (the `+N` in `pubspec.yaml`'s `version:`) goes up by one on **every** run of
+`build-apk.ps1`, APK or bundle: Play refuses a code it has seen before, and a phone only takes a
+higher one as an update. Commit `pubspec.yaml` with the build. For a new version, raise the name
+yourself (`1.0.0` → `1.0.1`); every platform shares it.
 
 ## The desktop apps
 

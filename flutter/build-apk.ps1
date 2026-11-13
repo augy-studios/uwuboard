@@ -57,10 +57,18 @@ $buildTools = Get-ChildItem "$env:ANDROID_HOME\build-tools" -Directory | Sort-Ob
 
 $pubspec = Get-Content "$here\pubspec.yaml" -Raw
 $version = [regex]::Match($pubspec, '(?m)^version:\s*([0-9.]+)').Groups[1].Value
+# A new version code for every build, APK or bundle: Play refuses a code it has ever seen, and a phone
+# only takes a higher one as an update. The version name stays as it is. Commit pubspec.yaml with it.
+$codeMatch = [regex]::Match($pubspec, '(?m)^version:\s*[0-9.]+\+(\d+)')
+if (-not $codeMatch.Success) { throw 'pubspec.yaml''s version needs a build number, as in 1.0.0+1.' }
+$versionCode = [int]$codeMatch.Groups[1].Value + 1
+$pubspec = [regex]::Replace($pubspec, '(?m)^(version:\s*[0-9.]+)\+\d+', "`${1}+$versionCode")
+[IO.File]::WriteAllText("$here\pubspec.yaml", $pubspec, (New-Object Text.UTF8Encoding $false))
+Write-Host "Version code raised to $versionCode."
 $flutter = if ($env:FLUTTER_ROOT) { "$env:FLUTTER_ROOT\bin\flutter.bat" } else { 'flutter' }
 $out = "$root\release\$version"
 New-Item -ItemType Directory -Force $out | Out-Null
-Write-Host "Building uwuBoard $version for Android (JDK: $env:JAVA_HOME)..."
+Write-Host "Building uwuBoard $version ($versionCode) for Android (JDK: $env:JAVA_HOME)..."
 
 # The Dart side's symbols, split off the obfuscated code, one folder per kind of build. Never
 # emptied here: when nothing's changed, Gradle skips compiling the Dart again and doesn't write
@@ -135,7 +143,7 @@ if ($Aab) {
     }
     Copy-Item $bundle "$out\uwuboard-$version.aab" -Force
     Save-CrashReaders '-play'
-    Write-Host "Done: $out\uwuboard-$version.aab"
+    Write-Host "Done: $out\uwuboard-$version.aab (version code $versionCode)"
     return
 }
 
@@ -155,4 +163,7 @@ if ($sha -and $sha.ToUpper() -ne $keySha256) {
 }
 Copy-Item $signed "$out\uwuboard-$version.apk" -Force
 Save-CrashReaders ''
-Write-Host "Done: $out\uwuboard-$version.apk"
+# The version code really is the new one.
+$badging = & "$($buildTools.FullName)\aapt2.exe" dump badging $signed 2>$null | Select-Object -First 1
+if ($badging -notmatch "versionCode='$versionCode'") { throw "The APK's version code isn't $versionCode ($badging)." }
+Write-Host "Done: $out\uwuboard-$version.apk (version code $versionCode)"
