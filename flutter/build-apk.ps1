@@ -121,6 +121,8 @@ if ($Aab) {
     }
     # Nothing of the updater left in what Play reads.
     if ($manifest -match 'REQUEST_INSTALL_PACKAGES') { throw 'The bundle still has REQUEST_INSTALL_PACKAGES in its manifest.' }
+    # No ads, no analytics: Play's Advertising ID declaration is "No", so the permission mustn't be there.
+    if ($manifest -match 'permission\.AD_ID') { throw 'The bundle asks for the advertising ID (AD_ID), which the app never uses.' }
     # The native libraries' symbols stripped into the bundle's metadata, for Play's crash reports.
     foreach ($lib in 'libflutter', 'libapp') {
         if (-not ($entries -match "^BUNDLE-METADATA/com\.android\.tools\.build\.debugsymbols/.*/$lib\.so\.(sym|dbg)$")) {
