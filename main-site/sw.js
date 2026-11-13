@@ -1,7 +1,7 @@
 // Bump on every change to anything this worker serves. The browser only sees
 // an update when this file changes byte for byte, so a deploy that leaves this
 // alone never reaches anyone who already has the site cached.
-const VERSION = "v12";
+const VERSION = "v13";
 const CACHE = `uwuboard-${VERSION}`;
 // The last answer from each API route, for opening the app offline. Versioned
 // too, so copies from before a deploy (which may carry what it removed, such as

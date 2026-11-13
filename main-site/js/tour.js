@@ -1,45 +1,93 @@
 'use strict';
 
 /* First-visit tours (docs/page-tour-spec.md). The page dims, one thing on it is lit, and a
-   chalk arrow runs to it from a line saying what it does. uwuBoard has two "pages": the board
-   view, whose tour is the welcome, and the card details window, whose tour runs the first time
-   a card is opened. "Show me around" in the tray replays either.
+   chalk arrow runs to it from a line saying what it does.
 
-   What it needs from script.js: openFirstCard() and closeCardModal(), a `pagechange` event on
-   window when the card window opens or closes or the app appears, and S.boardsReady once the
-   boards have loaded. */
+   A tour for each thing that can be on screen, shown the first time it is:
+     kanban    a board shown as columns
+     timeline  a board shown as a Timeline (js/timeline.js)
+     newboard  the New Board window: how to make a board
+     card      the card details window
+   and the welcome, the first time the app opens: where the boards are, the tray and Sync,
+   joined onto the steps of the view on screen as one tour, after which that view counts as
+   seen too. "Show me around" in the tray replays any of them. A view's tour shows the open
+   board as that view while it runs and puts it back after, without changing the board.
+
+   What it needs from script.js: getActiveBoard(), isTimeline(), setViewOverride(),
+   firstCard(), openFirstCard(), closeCardModal(), openNewBoardModal() and
+   closeNewBoardModal(); a `pagechange` event on window whenever what's on screen changes; and
+   S.boardsReady once the boards have loaded. */
 (function () {
   const WELCOME_KEY = 'uwuboard.tour.welcome';
   const PAGES_KEY = 'uwuboard.tour.pages';
   const PAD = 8;
-  const START = 'board';
+  const WELCOME = 'welcome';
+  const VIEWS = ['kanban', 'timeline'];
 
   const narrow = () => window.innerWidth <= 720;
+  const hasBoard = () => !!window.getActiveBoard?.();
 
-  // Each page's steps: `el` a selector (alternatives allowed, the first visible match is
-  // used), `text` one line, `when` an optional test for whether the step applies.
+  // Each tour's steps: `el` a selector (alternatives allowed, the first visible match is
+  // used), `text` one line, `when` an optional test for whether the step applies. `page` is
+  // what has to be on screen for it; `available` whether it can be replayed just now, and
+  // `why` what to do if not.
   const TOURS = {
-    board: {
-      label: 'Boards',
+    welcome: {
+      label: 'Welcome',
       steps: [
-        { el: '#empty-new-board-btn', text: 'Start here: make a board, with the columns you want.' },
-        { el: '.column .add-card-btn', text: 'Add a card to a column. Drag cards from one column to the next as work moves along.' },
-        { el: '.columns-container .card', text: 'Open a card for its details: due date, priority, labels, a checklist and images.' },
-        // A Timeline board (js/timeline.js) instead: its bars, and how far it zooms.
-        { el: '.tl-bar, .tl-row-task.undated', text: 'Each task is a bar across its dates. Drag it to move them, or drag an end to change how long it takes.' },
-        { el: '.tl-zoom', text: 'See weeks in detail, or months and quarters at once.' },
-        { el: '#board-list', text: 'All your boards are listed here, with New Board to start another.', when: () => !narrow() },
-        { el: '#mobile-menu-btn', text: 'Your boards are in here, with New Board to start another.', when: narrow },
+        { el: '#empty-new-board-btn', text: 'Start here: make a board. It can be a Kanban board or a Timeline.' },
+        { el: '#board-list', text: 'All your boards are listed here, with New Board below to make another.', when: () => !narrow() },
+        { el: '#mobile-menu-btn', text: 'Your boards are in here, with New Board to make another.', when: narrow },
         { el: '#trayButtons, #trayTab', text: 'Theme, Show me around, and the open board’s view, Export, Import and Delete live here. Press and hold one to see what it does; the arrow tucks them away.' },
         { el: '#syncBtn, #trayTab', text: 'Sync copies boards straight to your other phone or computer, no account needed.' },
       ],
     },
+    kanban: {
+      label: 'Kanban board',
+      page: 'kanban',
+      available: hasBoard,
+      why: 'Open a board first',
+      steps: [
+        { el: '.column .add-card-btn', text: 'Add a card to a column.' },
+        { el: '.columns-container .card', text: 'Drag a card to the next column as the work moves along. Tap it for its details.' },
+        { el: '.column .col-menu-btn', text: 'Rename or delete a column here.' },
+        { el: '.add-col-circle-btn', text: 'Add another column.' },
+        { el: '#board-view-btn, #trayTab', text: 'See this board as a Timeline: the same cards, as bars across dates.' },
+      ],
+    },
+    timeline: {
+      label: 'Timeline',
+      page: 'timeline',
+      available: hasBoard,
+      why: 'Open a board first',
+      steps: [
+        { el: '.tl-bar, .tl-milestone', text: 'Each task is a bar across its dates. Drag it to move them, or drag an end to change how long it takes.' },
+        { el: '.tl-row-task.undated', text: 'No dates yet: press a day in its row to give it some.' },
+        { el: '.tl-dep', text: 'Arrows show what a task waits for, and turn red when the dates clash. Set them in a task’s details.' },
+        { el: '.tl-zoom', text: 'See weeks in detail, or months and quarters at once. Today brings you back.' },
+        { el: '.tl-phase', text: 'Phases are this board’s columns. Press one to rename it; add tasks and phases under them.' },
+        { el: '#board-view-btn, #trayTab', text: 'Back to Kanban any time: the same cards, as columns.' },
+      ],
+    },
+    newboard: {
+      label: 'New board',
+      page: 'newboard',
+      steps: [
+        { el: '#new-board-name', text: 'Name the board after what it’s for.' },
+        { el: '#new-board-type', text: 'Kanban moves cards across columns; Timeline lays tasks out as bars across dates. You can switch later.' },
+        { el: '#new-board-cols', text: 'The columns it starts with: phases, on a Timeline. Tap one to remove it, or Add for another.' },
+        { el: '#create-board-btn', text: 'Create makes the board and opens it.' },
+      ],
+    },
     card: {
       label: 'Card details',
+      page: 'card',
       available: () => !!window.firstCard?.(),
+      why: 'Add a card first',
       steps: [
         { el: '#card-modal-desc', text: 'Notes on the card go here.' },
         { el: '#card-modal .modal-row', text: 'A due date and a priority, both shown on the card.' },
+        { el: '#card-tl-fields', text: 'On a Timeline: when it starts, whether it’s a milestone, and what it waits for.' },
         { el: '#card-modal-col-btn', text: 'Move the card to another column without dragging it.' },
         { el: '#card-modal .img-upload-label', text: 'Add images. The one you star shows on the card.' },
         { el: '#card-modal .checklist-add-row', text: 'Break the card into steps; the card shows how many are done.' },
@@ -48,41 +96,54 @@
     },
   };
 
-  /* ---- the app's pages ---- */
+  /* ---- what's on screen ---- */
 
   const isShown = (id) => !document.getElementById(id)?.classList.contains('hidden');
 
   const pages = {
+    // `null` before the app is on screen; `empty` with no board open.
     active() {
       if (!isShown('app')) return null;
-      return isShown('card-modal') ? 'card' : 'board';
+      if (isShown('new-board-modal')) return 'newboard';
+      if (isShown('card-modal')) return 'card';
+      const board = window.getActiveBoard?.();
+      if (!board) return 'empty';
+      return window.isTimeline?.(board) ? 'timeline' : 'kanban';
     },
     open(id) {
-      if (id === 'card') window.openFirstCard?.();
-      else window.closeCardModal?.();
+      if (id === 'newboard') {
+        window.closeCardModal?.();
+        window.openNewBoardModal?.();
+        return;
+      }
+      window.closeNewBoardModal?.();
+      if (id === 'card') return window.openFirstCard?.();
+      window.closeCardModal?.();
+      // A view: the open board shown as it, or as its own view again.
+      if (VIEWS.includes(id)) window.setViewOverride?.(id);
     },
   };
 
-  // A window open over the page: any modal but the card window when that's the page.
+  // A window open over the page: any but the one that is the page.
+  const OWN = { card: 'card-modal', newboard: 'new-board-modal' };
   function windowOpen(id) {
-    return [...document.querySelectorAll('.modal-backdrop:not(.hidden)')]
-      .some((el) => !(id === 'card' && el.id === 'card-modal'));
+    return [...document.querySelectorAll('.modal-backdrop:not(.hidden)')].some((el) => el.id !== OWN[id]);
   }
 
-  // A page that loads its content: the board view, until the boards are in.
-  const ready = (id) => id !== 'board' || !!(typeof S !== 'undefined' && S.boardsReady);
+  // The views wait for the boards to load; the windows are drawn as they open.
+  const ready = (id) => !(VIEWS.includes(id) || id === 'empty') || !!(typeof S !== 'undefined' && S.boardsReady);
 
   /* ---- state ---- */
 
   let steps = [];
   let at = 0;
   let root = null; // the layer, or `true` while a tour is getting ready
-  let page = null;
+  let marks = [];  // the tours this one counts as, once it ends
   let began = null;
 
   function seen(id) {
     try {
-      if (id === START) return localStorage.getItem(WELCOME_KEY) === 'done';
+      if (id === WELCOME) return localStorage.getItem(WELCOME_KEY) === 'done';
       return JSON.parse(localStorage.getItem(PAGES_KEY) || '[]').includes(id);
     } catch {
       // Broken storage counts every tour as seen, rather than showing one on every visit.
@@ -92,7 +153,7 @@
 
   function markSeen(id) {
     try {
-      if (id === START) return localStorage.setItem(WELCOME_KEY, 'done');
+      if (id === WELCOME) return localStorage.setItem(WELCOME_KEY, 'done');
       const list = JSON.parse(localStorage.getItem(PAGES_KEY) || '[]');
       if (!list.includes(id)) localStorage.setItem(PAGES_KEY, JSON.stringify([...list, id]));
     } catch { /* shown again next time */ }
@@ -269,53 +330,63 @@
   }
 
   function end() {
-    if (page) markSeen(page);
+    for (const id of marks) markSeen(id);
+    marks = [];
     removeEventListener('resize', place);
     removeEventListener('scroll', place, true);
     if (root && root !== true) root.remove();
     root = null;
-    page = null;
     document.body.classList.remove('touring');
     const back = began;
     began = null;
-    // Back where it began, which may be a page whose own tour is still to see.
+    // Back where it began (its own view again, if it was shown as the other), which may be a
+    // page whose own tour is still to see.
     if (back && pages.active() !== back) pages.open(back);
     else setTimeout(forPage, 600);
   }
 
-  // `id`'s tour, on its page.
-  function start(id = START) {
-    if (root || !TOURS[id]) return;
+  // `id`'s tour, on its page. With `withWelcome`, the welcome's steps follow its own, as the
+  // first tour anyone sees; `id` may then be `empty`, which has no steps of its own.
+  function start(id, { withWelcome = false } = {}) {
+    const tour = TOURS[id];
+    if (root || (!tour && !withWelcome)) return;
     const from = pages.active();
     if (!from) return;
-    if (from !== id) pages.open(id);
+    const goTo = tour?.page;
+    if (goTo && from !== goTo) pages.open(goTo);
     root = true; // taken, while the page draws
     setTimeout(() => {
       root = null;
-      steps = TOURS[id].steps
+      const list = [...(tour?.steps || []), ...(withWelcome && id !== WELCOME ? TOURS.welcome.steps : [])];
+      steps = list
         .filter((s) => !s.when || s.when())
         .map((s) => ({ ...s, target: target(s) }))
         .filter((s) => s.target);
-      // A step about the tray and one about Sync can land on the same collapsed tab.
+      // Two steps can land on the same thing, such as the collapsed tray's tab.
       steps = steps.filter((s, i) => i === 0 || s.target !== steps[i - 1].target);
+      const done = [...(withWelcome ? [WELCOME] : []), ...(tour ? [id] : [])];
       if (!steps.length) {
-        markSeen(id);
+        done.forEach(markSeen);
         if (pages.active() !== from) pages.open(from);
         return;
       }
-      page = id;
+      marks = done;
       began = from;
       document.body.classList.add('touring');
       build();
       show(0);
-    }, from === id ? 0 : 400);
+    }, !goTo || from === goTo ? 0 : 400);
   }
 
-  // The page on show's tour, the first time, once it's drawn.
+  // The tour for what's on screen, the first time, once it's drawn: the welcome joined to the
+  // view's own steps if the welcome's still to see, or that page's own tour.
   let waiting = null;
   function forPage() {
+    if (root) return;
     const id = pages.active();
-    if (!id || root || seen(id) || !TOURS[id]) return;
+    if (!id) return;
+    const welcome = !seen(WELCOME) && (VIEWS.includes(id) || id === 'empty');
+    if (!welcome && (!TOURS[id] || seen(id))) return;
     clearInterval(waiting);
     let tries = 0;
     waiting = setInterval(() => {
@@ -323,11 +394,11 @@
       if (pages.active() !== id || root) return clearInterval(waiting);
       if (ready(id) ? tries < 2 : tries <= 16) return;
       clearInterval(waiting);
-      if (!windowOpen(id)) start(id);
+      if (!windowOpen(id)) start(id, { withWelcome: welcome });
     }, 500);
   }
 
-  // Once the app is on screen: the welcome, unless a link opened something.
+  // Once the app is on screen: the first tour, unless a link opened something.
   let started = false;
   function init() {
     if (started) return;
@@ -337,14 +408,14 @@
     forPage();
   }
 
-  // "Show me around": a button per tour, the card one only while there's a card to open.
+  // "Show me around": a button per tour, each only while there's something for it to show.
+  const ORDER = ['welcome', 'kanban', 'timeline', 'newboard', 'card'];
   function pickers() {
-    return Object.entries(TOURS)
-      .map(([id, t]) => {
-        const off = t.available && !t.available();
-        return `<button class="btn-ghost" type="button" data-tour="${id}"${off ? ' disabled title="Add a card first"' : ''}>${t.label}</button>`;
-      })
-      .join('');
+    return ORDER.map((id) => {
+      const t = TOURS[id];
+      const off = t.available && !t.available();
+      return `<button class="btn-ghost" type="button" data-tour="${id}"${off ? ` disabled title="${t.why}"` : ''}>${t.label}</button>`;
+    }).join('');
   }
 
   window.Tour = { init, start, end, pickers, active: () => !!root };

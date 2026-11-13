@@ -299,12 +299,15 @@ function selectBoard(id) {
   $('edit-board-title-btn').classList.remove('hidden');
   setBoardActions(true);
   $('empty-state').classList.add('hidden');
+  S.viewOverride = null;
   renderBoardList();
   renderBoard(board);
+  pageChanged();
 }
 
 // No board open: neither view on show.
 function hideBoardViews() {
+  S.viewOverride = null;
   $('columns-container').classList.add('hidden');
   $('timeline-container').classList.add('hidden');
   $('timeline-container').innerHTML = '';
@@ -321,7 +324,21 @@ function setBoardActions(on) {
 
 /* ── Kanban or Timeline ── */
 // The same board either way: its columns are a timeline's phases and its cards the tasks.
-const isTimeline = board => board?.view === 'timeline';
+// Show me around can show the open board as the other view for its tour (js/tour.js); that's
+// S.viewOverride, which is never saved and goes when the tour ends or another board opens.
+const isTimeline = board =>
+  ((board && board === getActiveBoard() && S.viewOverride) || board?.view) === 'timeline';
+window.isTimeline = isTimeline;
+
+// `view` for the open board, just for now; its own view clears it.
+function setViewOverride(view) {
+  const board = getActiveBoard();
+  if (!board) return;
+  const own = board.view === 'timeline' ? 'timeline' : 'kanban';
+  S.viewOverride = view && view !== own ? view : null;
+  renderBoard(board);
+  pageChanged();
+}
 
 // The tray button offers the other view.
 function updateViewButton(board) {
@@ -337,9 +354,11 @@ $('board-view-btn').addEventListener('click', () => {
   const board = getActiveBoard();
   if (!board) return;
   board.view = isTimeline(board) ? 'kanban' : 'timeline';
+  S.viewOverride = null;
   touch(board);
   persistBoard(board);
   renderBoard(board);
+  pageChanged();
   toast(isTimeline(board) ? 'Showing as a timeline' : 'Showing as a kanban board');
 });
 
@@ -1039,6 +1058,7 @@ function openNewBoardModal() {
   setNewBoardType('kanban');
   $('new-board-name').value = '';
   $('new-board-modal').classList.remove('hidden');
+  pageChanged();
   setTimeout(() => $('new-board-name').focus(), 50);
 }
 
@@ -1121,15 +1141,21 @@ $('create-board-btn').addEventListener('click', async () => {
     window.Sync?.changed();
   } else { saveGuest(); }
 
-  $('new-board-modal').classList.add('hidden');
+  closeNewBoardModal();
   renderBoardList();
   selectBoard(board.id);
   toast(`Board "${name}" created`);
 });
 
-$('new-board-cancel').addEventListener('click', () => $('new-board-modal').classList.add('hidden'));
-$('new-board-modal-close').addEventListener('click', () => $('new-board-modal').classList.add('hidden'));
-$('new-board-modal').addEventListener('click', e => { if (e.target === $('new-board-modal')) $('new-board-modal').classList.add('hidden'); });
+function closeNewBoardModal() {
+  if ($('new-board-modal').classList.contains('hidden')) return;
+  $('new-board-modal').classList.add('hidden');
+  pageChanged();
+}
+
+$('new-board-cancel').addEventListener('click', closeNewBoardModal);
+$('new-board-modal-close').addEventListener('click', closeNewBoardModal);
+$('new-board-modal').addEventListener('click', e => { if (e.target === $('new-board-modal')) closeNewBoardModal(); });
 
 /* ── Rename board ── */
 $('edit-board-title-btn').addEventListener('click', () => {
@@ -1274,31 +1300,42 @@ async function persistBoard(board) {
 }
 
 /* ── Sidebar toggle ── */
+// On a phone the sidebar slides in over the page, with a dim layer over the rest; a tap
+// anywhere outside it (on that layer) closes it. On a computer it collapses to icons instead.
+const isPhone = () => window.innerWidth <= 720;
+
+function setSidebarOpen(open) {
+  $('sidebar').classList.toggle('open', open);
+  $('sidebar-scrim').classList.toggle('show', open);
+}
+
 $('sidebar-toggle').addEventListener('click', () => {
-  if (window.innerWidth <= 720) {
-    $('sidebar').classList.remove('open');
-  } else {
-    $('sidebar').classList.toggle('collapsed');
-  }
+  if (isPhone()) setSidebarOpen(false);
+  else $('sidebar').classList.toggle('collapsed');
 });
 
 $('mobile-menu-btn').addEventListener('click', () => {
-  if (window.innerWidth <= 720) {
-    $('sidebar').classList.toggle('open');
-  } else {
-    $('sidebar').classList.toggle('collapsed');
-  }
+  if (isPhone()) setSidebarOpen(!$('sidebar').classList.contains('open'));
+  else $('sidebar').classList.toggle('collapsed');
+});
+
+$('sidebar-scrim').addEventListener('click', () => setSidebarOpen(false));
+
+// Grown past phone width with it open: no dim layer left behind.
+window.addEventListener('resize', () => {
+  if (!isPhone() && $('sidebar').classList.contains('open')) setSidebarOpen(false);
 });
 
 /* ── Escape closes modals ── */
 document.addEventListener('keydown', e => {
   // A tour handles its own Escape (js/tour.js), and leaves the windows under it be.
   if (e.key === 'Escape' && !e.defaultPrevented) {
+    if ($('sidebar').classList.contains('open')) setSidebarOpen(false);
     closeCardModal();
     closeModal('syncModal');
     closeModal('tourModal');
     $('rename-col-modal').classList.add('hidden');
-    $('new-board-modal').classList.add('hidden');
+    closeNewBoardModal();
     $('col-picker-sheet').classList.add('hidden');
     closeModal('themeModal');
     $('profile-modal').classList.add('hidden');

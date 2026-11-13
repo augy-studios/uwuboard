@@ -1052,6 +1052,17 @@ body.tray-open .topbar {
   opacity: 1;
 }
 
+/* No hover on a touch screen, so always there; and while a tour points at it. */
+@media (hover: none) {
+  .col-menu-btn {
+    opacity: 1;
+  }
+}
+
+body.touring .col-menu-btn {
+  opacity: 1;
+}
+
 .cards-list {
   flex: 1;
   overflow-y: auto;
@@ -2897,6 +2908,10 @@ body.touring {
 .tl-chart {
   position: relative;
   overflow: hidden;
+  /* Its own layer, under the sticky task list and dates: bars, milestones and their titles
+     slide under them as the chart scrolls, never over. */
+  isolation: isolate;
+  z-index: 0;
 }
 
 .tl-line {
@@ -3259,4 +3274,28 @@ body.touring {
 /* No callout menu when a finger rests on a tray button. */
 .tray button {
   -webkit-touch-callout: none;
+}
+
+/* ── The phone sidebar's dim layer (script.js) ── */
+/* Under the sidebar, over everything else; a tap on it closes the sidebar. */
+.sidebar-scrim {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .sidebar-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(10, 15, 12, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .sidebar-scrim.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
