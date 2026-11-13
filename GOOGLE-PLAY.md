@@ -105,7 +105,7 @@ Every upload needs a higher `versionCode` than the last: raise `version:` in
 
 ## 6. Step 3: Create the app
 
-1. **Create app**: name `uwuBoard`, default language **English (United States)**, **App**,
+1. **Create app**: name `uwuBoard`, default language **English (United Kingdom)** (`en-GB`), as the app and its notes are written, **App**,
    **Free**, your contact email. Accept the declarations.
 2. **Test and release** > **Setup** > **App signing** (or when you create the first release):
    choose **Use a different key** > **Export and upload a key from Java keystore**, and follow
