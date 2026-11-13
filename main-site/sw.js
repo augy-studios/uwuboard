@@ -1,7 +1,7 @@
 // Bump on every change to anything this worker serves. The browser only sees
 // an update when this file changes byte for byte, so a deploy that leaves this
 // alone never reaches anyone who already has the site cached.
-const VERSION = "v9";
+const VERSION = "v10";
 const CACHE = `uwuboard-${VERSION}`;
 // The last answer from each API route, for opening the app offline. Versioned
 // too, so copies from before a deploy (which may carry what it removed, such as
@@ -30,9 +30,16 @@ const ASSETS = [
 
 // No skipWaiting() here: a new version installs and then waits until somebody
 // presses Reload in the update bar (js/sw-update.js).
+//
+// Every file is fetched past the browser's own HTTP cache (`cache: "reload"`).
+// Otherwise a file the browser still holds from an earlier deploy (a CDN in
+// front of the site once told it to keep CSS and JS for 4 hours) goes into the
+// new version's cache beside this deploy's HTML: a new page with old styles.
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE).then((cache) =>
+      cache.addAll(ASSETS.map((url) => new Request(url, { cache: "reload" })))
+    )
   );
 });
 
@@ -91,9 +98,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // This version's own copy, never another version's that hasn't been deleted
+  // yet; and the refresh behind it asks the server, not the browser's cache, so
+  // the copy it keeps for next time is this deploy's.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetched = fetch(event.request).then((response) => {
+    caches.open(CACHE).then((cache) => cache.match(event.request)).then((cached) => {
+      const fetched = fetch(new Request(event.request.url, { cache: "no-cache", credentials: "same-origin" })).then((response) => {
         // Only cache valid same-origin responses
         if (response && response.status === 200 && response.type === "basic") {
           const clone = response.clone();
