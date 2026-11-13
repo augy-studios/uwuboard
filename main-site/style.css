@@ -109,7 +109,6 @@ button:disabled {
   --radius-md: 12px;
   --radius-lg: 18px;
   --sidebar-w: 240px;
-  --topbar-h: 56px;
   --glass-blur: 18px;
   --glass-sat: 150%;
 }
@@ -383,8 +382,8 @@ body.modal-open {
 
 /* ── Update bar (js/sw-update.js) ── */
 /* Above the auth overlay and the modals so it is reachable from any screen,
-   below the toasts. Quieter than the topbar, tinted enough to read as a
-   notice rather than as part of the layout. */
+   below the toasts. Quieter than the floating controls, tinted enough to
+   read as a notice rather than as part of the layout. */
 .update-notice {
   flex: none;
   position: relative;
@@ -884,57 +883,81 @@ textarea {
 
 /* ── Main ── */
 .main {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* ── Topbar ── */
+/* ── Floating top controls ── */
+/* No bar: the menu button and the board's title float over the top of the board, level
+   with the edge tray on the other side, and the board runs up behind them. */
 .topbar {
-  height: var(--topbar-h);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--surface-border);
-  border-radius: 0;
-  background: var(--surface);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  flex-shrink: 0;
-}
-
-.topbar-left {
+  position: absolute;
+  z-index: 30;
+  /* The tray's top is 6px below the update bar, which sits above #app; this is 6px below
+     the top of the board, so the two line up. */
+  top: 6px;
+  left: 16px;
+  /* Clear of the collapsed tray's tab (24px) and a 10px gap. */
+  right: 34px;
   display: flex;
   align-items: center;
   gap: 8px;
+  pointer-events: none;
+  transition: right var(--tray-time) var(--tray-ease);
+}
+
+/* Only the controls take clicks; the space between and around them is the board's. */
+.topbar > * {
+  pointer-events: auto;
+}
+
+/* With the tray open, as far as the strip the board keeps clear for it. */
+body.tray-open .topbar {
+  right: calc(var(--glass-btn) + var(--edge) + 12px);
+}
+
+.topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
+  max-width: 480px;
+  height: var(--glass-btn);
+  padding: 0 6px 0 16px;
+  border-radius: 14px;
+  background: var(--surface-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow);
 }
 
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+/* No board open, so no Rename: even padding on both sides of the title. */
+.topbar-title:has(.edit-board-title-btn.hidden) {
+  padding-right: 16px;
 }
 
 .board-title {
+  min-width: 0;
   font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 300px;
 }
 
 /* ── Board canvas ── */
+/* Its columns start below the floating controls: their 6px from the top, their height,
+   then the board's usual 20px less a little. */
 .board-canvas {
   flex: 1;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 20px;
+  padding: calc(var(--glass-btn) + 20px) 20px 20px;
 }
 
 .empty-state {
@@ -1762,31 +1785,23 @@ textarea {
     transform: translateX(-100%);
   }
 
-  .topbar {
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex-wrap: nowrap;
-    height: auto;
-    min-height: var(--topbar-h);
-    padding: 8px 12px;
-    gap: 8px;
-  }
-
-  .topbar-left {
-    flex-shrink: 0;
-  }
-
-  .topbar-right {
-    flex-shrink: 0;
-  }
-
-  .topbar-right .btn-ghost span {
-    display: none;
-  }
-
   .board-title {
     font-size: 14px;
-    max-width: 160px;
+  }
+}
+
+/* On a phone the controls sit the tray's 10px from the edge. */
+@media (max-width: 480px) {
+  .topbar {
+    left: 10px;
+  }
+
+  .topbar-title {
+    padding-left: 12px;
+  }
+
+  .topbar-title:has(.edit-board-title-btn.hidden) {
+    padding-right: 12px;
   }
 }
 
@@ -2196,7 +2211,8 @@ body.tray-open .main {
   .tray-tab svg,
   .tray-buttons > *,
   .glass-btn,
-  .main {
+  .main,
+  .topbar {
     transition-duration: 0.001ms !important;
     transition-delay: 0s !important;
   }
