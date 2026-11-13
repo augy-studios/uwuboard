@@ -20,11 +20,21 @@
   // This page view only. Never stored: "Not now" means not now.
   let dismissed = false;
 
+  // The bar's height as --banner-h, so the edge tray (js/tray.js) starts below it and
+  // glides as it comes and goes.
+  const sizer = 'ResizeObserver' in window
+    ? new ResizeObserver(([entry]) => {
+      document.documentElement.style.setProperty('--banner-h', `${entry.target.offsetHeight}px`);
+    })
+    : null;
+
   function render() {
     const existing = document.querySelector('.update-notice');
 
     if (!waitingWorker || dismissed) {
       existing?.remove();
+      sizer?.disconnect();
+      document.documentElement.style.setProperty('--banner-h', '0px');
       return;
     }
 
@@ -51,7 +61,10 @@
       render();
     });
 
-    if (!existing) document.body.prepend(bar);
+    if (!existing) {
+      document.body.prepend(bar);
+      sizer?.observe(bar);
+    }
   }
 
   function watchForUpdate() {

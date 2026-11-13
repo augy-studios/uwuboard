@@ -32,7 +32,8 @@ module.exports = async (req, res) => {
   return res.status(200).json({
     username: user.username,
     displayName: user.display_name || user.username,
-    avatarUrl: user.avatar_url || null,
+    // Whether there is one, not where: the bytes come from api/auth/avatar.js.
+    hasAvatar: !!user.avatar_url,
     session: { token, userId: user.id },
   });
 };

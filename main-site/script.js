@@ -18,6 +18,13 @@ const S = {
 const $ = id => document.getElementById(id);
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
+// When a card, a column or a board's name was last changed. Syncing with another device
+// (js/sync.js) keeps whichever copy of a thing on both was changed last.
+const touch = obj => { obj.updatedAt = Date.now(); return obj; };
+
+// The card details window opening or closing, or the app appearing: js/tour.js listens.
+const pageChanged = () => window.dispatchEvent(new Event('pagechange'));
+
 function toast(msg, type = 'success') {
   const c = $('toast-container');
   const t = document.createElement('div');
@@ -85,65 +92,103 @@ async function api(method, path, body) {
 /* ── Local storage (guest) ── */
 const LS_BOARDS = 'kanbanflow_guest_boards';
 function saveGuest() {
-  if (S.isGuest) localStorage.setItem(LS_BOARDS, JSON.stringify(S.boards));
+  if (!S.isGuest) return;
+  localStorage.setItem(LS_BOARDS, JSON.stringify(S.boards));
+  window.Sync?.changed();
 }
 function loadGuest() {
   try { return JSON.parse(localStorage.getItem(LS_BOARDS)) || []; } catch { return []; }
 }
 
 /* ── Auth ── */
-function updateSidebarAvatar() {
-  const el = $('user-avatar');
-  if (!el) return;
-  if (S.avatarUrl) {
-    el.innerHTML = `<img src="${S.avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`;
-  } else if (!S.isGuest && S.session) {
-    el.textContent = ($('user-name').textContent || 'U')[0].toUpperCase();
-  } else {
-    el.textContent = 'G';
-  }
+// The avatar as a blob: URL from /api/auth/avatar (js/images.js), never its address. The
+// initial while it loads, or when there isn't one.
+function showAvatar(el, round) {
+  const initial = !S.isGuest && S.session ? ($('user-name').textContent || 'U')[0].toUpperCase() : 'G';
+  el.textContent = initial;
+  if (S.isGuest || !S.session || !S.hasAvatar) return;
+  const session = S.session;
+  ImageStore.avatar().then(url => {
+    if (S.session !== session) return;
+    el.innerHTML = `<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;${round ? 'border-radius:50%;' : ''}display:block;" />`;
+  }, () => {});
 }
 
-function setSession(session, username, displayName, avatarUrl) {
-  S.session = session;
-  S.username = username;
-  S.avatarUrl = avatarUrl || null;
-  S.isGuest = false;
-  const shown = displayName || username;
-  localStorage.setItem('uwuboard_session', JSON.stringify({ session, username, displayName: shown, avatarUrl: avatarUrl || null }));
-  $('user-name').textContent = shown;
-  $('user-role').textContent = 'Signed in';
-  $('user-avatar').textContent = shown[0].toUpperCase();
+function updateSidebarAvatar() {
+  const el = $('user-avatar');
+  if (el) showAvatar(el, true);
+}
+
+// What's kept of a session in this browser: no avatar address, just whether there is one.
+function saveSession(changes) {
+  const saved = JSON.parse(localStorage.getItem('uwuboard_session') || '{}');
+  delete saved.avatarUrl;
+  localStorage.setItem('uwuboard_session', JSON.stringify({ ...saved, ...changes }));
+}
+
+// The app is on screen, signed in or as a guest.
+function appShown() {
   $('auth-overlay').classList.add('hidden');
   $('app').classList.remove('hidden');
+  Tray.show(true);
+  // The tour first, while a sync link is still in the address (it skips the welcome for one).
+  Tour.init();
+  Sync.appShown();
+  pageChanged();
+}
+
+function setSession(session, username, displayName, hasAvatar) {
+  S.session = session;
+  S.username = username;
+  S.hasAvatar = !!hasAvatar;
+  S.isGuest = false;
+  ImageStore.setToken(session?.token);
+  const shown = displayName || username;
+  localStorage.setItem('uwuboard_session', JSON.stringify({ session, username, displayName: shown, hasAvatar: S.hasAvatar }));
+  $('user-name').textContent = shown;
+  $('user-role').textContent = 'Signed in';
   updateSidebarAvatar();
+  appShown();
 }
 
 function setGuest() {
   S.session = null;
   S.isGuest = true;
+  S.hasAvatar = false;
   $('user-name').textContent = 'Guest';
   $('user-role').textContent = 'Guest session';
   $('user-avatar').textContent = 'G';
-  $('auth-overlay').classList.add('hidden');
-  $('app').classList.remove('hidden');
   S.boards = loadGuest();
+  S.boardsReady = true;
   renderBoardList();
   if (S.boards.length) selectBoard(S.boards[0].id);
+  appShown();
 }
 
 function logout() {
   if (!S.isGuest && S.session) {
     fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${S.session.token}` } }).catch(() => {});
   }
+  // Whatever was open belongs to the account going away: a sync session ends with its window.
+  document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(el => closeModal(el.id));
+  Tour.end();
   localStorage.removeItem('uwuboard_session');
   S.session = null;
   S.isGuest = false;
+  S.hasAvatar = false;
   S.boards = [];
+  S.boardsReady = false;
   S.activeBoardId = null;
+  // Nothing of this account is left for the next: its images' URLs, and the worker's copies
+  // of its API answers.
+  ImageStore.clear();
+  navigator.serviceWorker?.controller?.postMessage('clear-api-cache');
+  Tray.show(false);
+  setBoardActions(false);
   $('app').classList.add('hidden');
   $('auth-overlay').classList.remove('hidden');
   $('board-title').textContent = 'Select a board';
+  $('edit-board-title-btn').classList.add('hidden');
   $('columns-container').classList.add('hidden');
   $('empty-state').classList.remove('hidden');
   renderBoardList();
@@ -183,7 +228,7 @@ $('login-form').addEventListener('submit', async (e) => {
       const cred = new PasswordCredential({ id: user, password: pass });
       navigator.credentials.store(cred).catch(() => {});
     }
-    setSession(data.session, data.username, data.displayName, data.avatarUrl);
+    setSession(data.session, data.username, data.displayName, data.hasAvatar);
     await loadUserBoards();
   } catch (e) { showError('login-error', e.message); }
 });
@@ -228,7 +273,9 @@ async function loadUserBoards() {
     S.boards = data.boards;
     renderBoardList();
     if (S.boards.length) selectBoard(S.boards[0].id);
+    window.Sync?.changed();
   } catch (e) { toast('Failed to load boards', 'error'); }
+  S.boardsReady = true;
 }
 
 function renderBoardList() {
@@ -250,9 +297,7 @@ function selectBoard(id) {
   if (!board) return;
   $('board-title').textContent = board.name;
   $('edit-board-title-btn').classList.remove('hidden');
-  $('board-export-btn').classList.remove('hidden');
-  $('board-import-btn').classList.remove('hidden');
-  $('delete-board-btn').classList.remove('hidden');
+  setBoardActions(true);
   $('empty-state').classList.add('hidden');
   $('columns-container').classList.remove('hidden');
   renderBoardList();
@@ -260,6 +305,36 @@ function selectBoard(id) {
 }
 
 function getActiveBoard() { return S.boards.find(b => b.id === S.activeBoardId); }
+
+// The open board's actions in the edge tray, and the rule above them: there only with a board open.
+function setBoardActions(on) {
+  ['trayBoardRule', 'board-export-btn', 'board-import-btn', 'delete-board-btn']
+    .forEach(id => $(id).classList.toggle('hidden', !on));
+}
+
+// Boards that came in from another device (js/sync.js): the list and the board on show follow.
+function boardsChanged(changed) {
+  renderBoardList();
+  const active = getActiveBoard();
+  if (!active) {
+    if (S.boards.length) selectBoard(S.boards[0].id);
+  } else if (changed.includes(active)) {
+    $('board-title').textContent = active.name;
+    renderBoard(active);
+  }
+}
+
+// The first card on the open board, for the card details tour (js/tour.js).
+function firstCard() {
+  const board = getActiveBoard();
+  for (const col of board?.columns || []) if (col.cards.length) return { card: col.cards[0], col };
+  return null;
+}
+
+function openFirstCard() {
+  const first = firstCard();
+  if (first) openCardModal(first.card.id, first.col.id);
+}
 
 /* ── Render board ── */
 function renderBoard(board) {
@@ -358,12 +433,11 @@ function buildCard(card, colId) {
     </div>`;
   }
 
-  let thumbnailHtml = '';
-  if (card.images?.length) {
-    const thumb = card.images.find(i => i.id === card.thumbnailId) || card.images[0];
-    thumbnailHtml = `<div class="card-thumb"><img src="${thumb.url || thumb.data}" alt="" /></div>`;
-  }
+  // The thumbnail's bytes arrive as a blob: URL (js/images.js), never the storage address.
+  const thumb = card.images?.length ? (card.images.find(i => i.id === card.thumbnailId) || card.images[0]) : null;
+  const thumbnailHtml = thumb ? `<div class="card-thumb"><img alt="" /></div>` : '';
   el.innerHTML = `${thumbnailHtml}${labelsHtml}<div class="card-title">${esc(card.title)}</div>${metaHtml}${checkHtml}`;
+  if (thumb) ImageStore.show(el.querySelector('.card-thumb img'), thumb);
   el.addEventListener('click', () => openCardModal(card.id, colId));
   el.addEventListener('dragstart', e => {
     S.dragCard = { cardId: card.id, colId };
@@ -411,7 +485,7 @@ async function addCard(colId, title) {
   if (!board) return;
   const col = board.columns.find(c => c.id === colId);
   if (!col) return;
-  const card = { id: uid(), title, description: '', labels: [], checklist: [], due: '', priority: '', images: [], thumbnailId: null };
+  const card = touch({ id: uid(), title, description: '', labels: [], checklist: [], due: '', priority: '', images: [], thumbnailId: null });
   col.cards.push(card);
 
   if (!S.isGuest) {
@@ -457,6 +531,8 @@ function setupColDrop(cardsList, colId) {
     const cardIdx = srcCol.cards.findIndex(c => c.id === S.dragCard.cardId);
     if (cardIdx === -1) return;
     const [card] = srcCol.cards.splice(cardIdx, 1);
+    // Where a card is counts as a change to it, so a move made here wins over an older copy.
+    if (srcCol !== dstCol) touch(card);
 
     const afterEl = getDragAfterEl(cardsList, e.clientY);
     if (!afterEl) {
@@ -559,6 +635,7 @@ function openCardModal(cardId, colId) {
   renderChecklist(card.checklist || []);
 
   $('card-modal').classList.remove('hidden');
+  pageChanged();
 }
 
 function renderModalLabels(labels) {
@@ -649,6 +726,7 @@ $('save-card-btn').addEventListener('click', () => {
   card.description = $('card-modal-desc').value;
   card.due = $('card-modal-due').value;
   card.priority = $('card-modal-priority').value;
+  touch(card);
 
   const targetColId = $('card-modal-col').value;
   if (targetColId && targetColId !== S.editingColId) {
@@ -705,7 +783,11 @@ $('card-modal-col-btn').addEventListener('click', () => {
 $('col-picker-close').addEventListener('click', () => $('col-picker-sheet').classList.add('hidden'));
 $('col-picker-sheet').addEventListener('click', e => { if (e.target === $('col-picker-sheet')) $('col-picker-sheet').classList.add('hidden'); });
 
-function closeCardModal() { $('card-modal').classList.add('hidden'); }
+function closeCardModal() {
+  if ($('card-modal').classList.contains('hidden')) return;
+  $('card-modal').classList.add('hidden');
+  pageChanged();
+}
 
 /* ── Card images ── */
 function renderCardImages(card) {
@@ -715,25 +797,38 @@ function renderCardImages(card) {
   card.images.forEach(img => {
     const thumbId = card.thumbnailId || card.images[0]?.id;
     const isThumb = img.id === thumbId;
-    const src = img.url || img.data;
     const item = document.createElement('div');
     item.className = 'card-img-item' + (isThumb ? ' is-thumb' : '');
     item.innerHTML = `
-      <img src="${src}" alt="${esc(img.name)}" />
+      <img alt="${esc(img.name)}" title="Open image" />
       <div class="img-actions">
-        <button type="button" class="img-action-btn${isThumb ? ' active' : ''}" title="${isThumb ? 'Thumbnail' : 'Set as thumbnail'}">
+        <button type="button" class="img-action-btn thumb-img-btn${isThumb ? ' active' : ''}" title="${isThumb ? 'Thumbnail' : 'Set as thumbnail'}">
           <svg width="11" height="11" viewBox="0 0 11 11"><path d="M5.5 1l1.2 2.4 2.8.4-2 2 .5 2.7-2.5-1.4L3 8.5l.5-2.7-2-2 2.8-.4z" fill="currentColor"/></svg>
           ${isThumb ? 'Thumbnail' : 'Set thumb'}
         </button>
+        <button type="button" class="img-action-btn save-img-btn" title="Download"><span data-icon="download"></span> Save</button>
         <button type="button" class="img-action-btn del-img-btn" title="Delete"><span data-icon="close"></span> Delete</button>
       </div>`;
-    item.querySelector('.img-action-btn:not(.del-img-btn)').addEventListener('click', () => {
+    // Bytes, as a blob: URL: opening or saving the image never shows where it's stored.
+    const imgEl = item.querySelector('img');
+    ImageStore.show(imgEl, img);
+    // Pressing the image (its actions sit over it) opens it, straight from the click, before
+    // anything is awaited, so no popup blocker stops it.
+    item.addEventListener('click', e => {
+      if (!e.target.closest('button') && imgEl.src) window.open(imgEl.src, '_blank');
+    });
+    item.querySelector('.save-img-btn').addEventListener('click', () => {
+      ImageStore.blob(img).then(
+        b => ImageStore.save(b, img.name || `image-${img.id}`),
+        () => toast('That image could not be loaded', 'error'));
+    });
+    item.querySelector('.thumb-img-btn').addEventListener('click', () => {
       card.thumbnailId = img.id;
       renderCardImages(card);
     });
     item.querySelector('.del-img-btn').addEventListener('click', async () => {
-      if (!S.isGuest && img.path) {
-        try { await api('DELETE', '/images/delete', { path: img.path }); } catch { toast('Could not delete image from storage', 'error'); }
+      if (!S.isGuest && (img.file || img.path)) {
+        try { await api('DELETE', '/images/delete', img.file ? { file: img.file } : { path: img.path }); } catch { toast('Could not delete image from storage', 'error'); }
       }
       card.images = card.images.filter(i => i.id !== img.id);
       if (card.thumbnailId === img.id) card.thumbnailId = card.images[0]?.id ?? null;
@@ -758,8 +853,9 @@ $('card-img-input').addEventListener('change', async e => {
       card.images.push({ id: uid(), data: imageData, name: file.name });
     } else {
       try {
+        // The image's name in this account's storage; its bytes come from /api/images/get.
         const result = await api('POST', '/images/upload', { imageData, fileName: file.name });
-        card.images.push({ id: uid(), url: result.url, path: result.path, name: file.name });
+        card.images.push({ id: uid(), file: result.file, name: file.name });
       } catch { toast('Image upload failed', 'error'); }
     }
   }
@@ -780,6 +876,7 @@ $('save-col-name-btn').addEventListener('click', () => {
   const col = board.columns.find(c => c.id === S.editingColId);
   if (!col) return;
   col.name = $('rename-col-input').value.trim() || col.name;
+  touch(col);
   $('rename-col-modal').classList.add('hidden');
   persistBoard(board);
   renderBoard(board);
@@ -803,7 +900,7 @@ function addColumn() {
   const name = prompt('Column name:');
   if (!name?.trim()) return;
   const board = getActiveBoard();
-  board.columns.push({ id: uid(), name: name.trim(), cards: [] });
+  board.columns.push(touch({ id: uid(), name: name.trim(), cards: [] }));
   persistBoard(board);
   renderBoard(board);
 }
@@ -857,16 +954,17 @@ $('new-col-chip-input').addEventListener('keydown', e => {
 $('create-board-btn').addEventListener('click', async () => {
   const name = $('new-board-name').value.trim();
   if (!name) return;
-  const board = {
+  const board = touch({
     id: uid(),
     name,
-    columns: S.colChips.map(n => ({ id: uid(), name: n, cards: [] })),
-  };
+    columns: S.colChips.map(n => touch({ id: uid(), name: n, cards: [] })),
+  });
   S.boards.push(board);
 
   if (!S.isGuest) {
     try { await api('POST', '/boards/create', { board }); }
     catch (e) { toast('Save error', 'error'); }
+    window.Sync?.changed();
   } else { saveGuest(); }
 
   $('new-board-modal').classList.add('hidden');
@@ -886,6 +984,7 @@ $('edit-board-title-btn').addEventListener('click', () => {
   const name = prompt('Board name:', board.name);
   if (!name?.trim()) return;
   board.name = name.trim();
+  touch(board);
   $('board-title').textContent = board.name;
   persistBoard(board);
   renderBoardList();
@@ -904,28 +1003,39 @@ $('delete-board-btn').addEventListener('click', async () => {
   S.boards = S.boards.filter(b => b.id !== board.id);
   S.activeBoardId = null;
   saveGuest();
+  if (!S.isGuest) window.Sync?.changed();
   renderBoardList();
   $('board-title').textContent = 'Select a board';
   $('columns-container').classList.add('hidden');
   $('empty-state').classList.remove('hidden');
   $('edit-board-title-btn').classList.add('hidden');
-  $('board-export-btn').classList.add('hidden');
-  $('board-import-btn').classList.add('hidden');
-  $('delete-board-btn').classList.add('hidden');
+  setBoardActions(false);
   toast('Board deleted');
   if (S.boards.length) selectBoard(S.boards[0].id);
 });
 
 /* ── Export / Import ── */
-$('board-export-btn').addEventListener('click', () => {
+// The file carries each image's bytes as a data URL, so it opens anywhere: in a guest
+// browser, or another account. It names no storage address.
+$('board-export-btn').addEventListener('click', async () => {
   const board = getActiveBoard();
   if (!board) return;
-  const blob = new Blob([JSON.stringify(board, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${board.name.replace(/\s+/g, '_')}_kanban.json`;
-  a.click();
-  toast('Board exported');
+  const copy = JSON.parse(JSON.stringify(board));
+  let missing = 0;
+  for (const col of copy.columns) {
+    for (const card of col.cards) {
+      const images = [];
+      for (const img of card.images || []) {
+        try {
+          images.push({ id: img.id, name: img.name, data: await ImageStore.dataUrl(img) });
+        } catch { missing++; }
+      }
+      card.images = images;
+    }
+  }
+  const blob = new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' });
+  ImageStore.save(blob, `${board.name.replace(/\s+/g, '_')}_kanban.json`);
+  toast(missing ? `Board exported, without ${missing === 1 ? '1 image' : `${missing} images`} that wouldn’t load` : 'Board exported');
 });
 
 $('board-import-btn').addEventListener('click', () => $('board-import-file').click());
@@ -962,20 +1072,39 @@ function readJSON(file, callback) {
   reader.readAsText(file);
 }
 
-function importBoardFromJSON(json, asNew) {
+// Signed in, an imported board's images go into this account's storage, so they're kept by
+// name like any other (an export carries them as data; a file from before, as a public URL).
+async function uploadImportedImages(board) {
+  for (const col of board.columns || []) {
+    for (const card of col.cards || []) {
+      if (!Array.isArray(card.images)) continue;
+      const kept = [];
+      for (const img of card.images) {
+        if (img?.file || !(img?.data || img?.url)) { if (img?.file) kept.push(img); continue; }
+        try {
+          const imageData = await ImageStore.dataUrl(img);
+          const result = await api('POST', '/images/upload', { imageData, fileName: img.name || 'image' });
+          kept.push({ id: img.id || uid(), file: result.file, name: img.name || '' });
+        } catch { /* left out */ }
+      }
+      card.images = kept;
+      if (!kept.some(i => i.id === card.thumbnailId)) card.thumbnailId = kept[0]?.id ?? null;
+    }
+  }
+}
+
+async function importBoardFromJSON(json, asNew) {
   if (!json.id || !json.name || !Array.isArray(json.columns)) {
     toast('Invalid board file', 'error');
     return;
   }
-  if (asNew || !S.activeBoardId) {
-    json.id = uid();
-    S.boards.push(json);
-  } else {
-    const idx = S.boards.findIndex(b => b.id === S.activeBoardId);
-    if (idx !== -1) S.boards[idx] = json;
-  }
-  saveGuest();
-  if (!S.isGuest) persistBoard(json).catch(() => {});
+  if (asNew || !S.activeBoardId) json.id = uid();
+  else json.id = S.activeBoardId;
+  if (!S.isGuest) await uploadImportedImages(json);
+  const idx = S.boards.findIndex(b => b.id === json.id);
+  if (idx !== -1) S.boards[idx] = json;
+  else S.boards.push(json);
+  await persistBoard(json);
   renderBoardList();
   selectBoard(json.id);
   toast('Board imported');
@@ -987,6 +1116,7 @@ async function persistBoard(board) {
   try {
     await api('PUT', '/boards/update', { board });
   } catch (e) { toast('Sync error', 'error'); }
+  window.Sync?.changed();
 }
 
 /* ── Sidebar toggle ── */
@@ -1008,8 +1138,11 @@ $('mobile-menu-btn').addEventListener('click', () => {
 
 /* ── Escape closes modals ── */
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
+  // A tour handles its own Escape (js/tour.js), and leaves the windows under it be.
+  if (e.key === 'Escape' && !e.defaultPrevented) {
     closeCardModal();
+    closeModal('syncModal');
+    closeModal('tourModal');
     $('rename-col-modal').classList.add('hidden');
     $('new-board-modal').classList.add('hidden');
     $('col-picker-sheet').classList.add('hidden');
@@ -1038,12 +1171,7 @@ function openProfileModal() {
   $('profile-confirm-pass').value = '';
   clearError('profile-error');
   S._pendingAvatarData = null;
-  const avatarEl = $('profile-modal-avatar');
-  if (S.avatarUrl) {
-    avatarEl.innerHTML = `<img src="${S.avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;" />`;
-  } else {
-    avatarEl.textContent = ($('user-name').textContent || 'U')[0].toUpperCase();
-  }
+  showAvatar($('profile-modal-avatar'), false);
   $('profile-modal').classList.remove('hidden');
 }
 
@@ -1084,18 +1212,16 @@ $('save-profile-btn').addEventListener('click', async () => {
       const result = await api('PUT', '/auth/update-profile', payload);
       if (result.displayName) {
         $('user-name').textContent = result.displayName;
-        const saved = JSON.parse(localStorage.getItem('uwuboard_session') || '{}');
-        saved.displayName = result.displayName;
-        localStorage.setItem('uwuboard_session', JSON.stringify(saved));
+        saveSession({ displayName: result.displayName });
       }
     }
     if (S._pendingAvatarData) {
-      const avatarResult = await api('PUT', '/auth/update-avatar', { imageData: S._pendingAvatarData });
-      S.avatarUrl = avatarResult.avatarUrl;
+      await api('PUT', '/auth/update-avatar', { imageData: S._pendingAvatarData });
+      S.hasAvatar = true;
       S._pendingAvatarData = null;
-      const saved = JSON.parse(localStorage.getItem('uwuboard_session') || '{}');
-      saved.avatarUrl = S.avatarUrl;
-      localStorage.setItem('uwuboard_session', JSON.stringify(saved));
+      saveSession({ hasAvatar: true });
+      // The new one, not the copy of the old one this session already has.
+      ImageStore.avatar({ fresh: true }).catch(() => {});
       updateSidebarAvatar();
     }
     $('profile-modal').classList.add('hidden');
@@ -1150,12 +1276,16 @@ $('delete-step3-confirm').addEventListener('click', async () => {
   if (!saved) return;
   let parsed;
   try { parsed = JSON.parse(saved); } catch { localStorage.removeItem('uwuboard_session'); return; }
-  const { session, username, displayName, avatarUrl } = parsed;
+  const { session, username, displayName } = parsed;
+  // A session saved before images were hidden kept the avatar's address; only whether there
+  // is one matters now, and setSession() saves it that way.
+  const hasAvatar = parsed.hasAvatar ?? !!parsed.avatarUrl;
   S.session = session;
   try {
     const data = await api('GET', '/boards/list');
-    setSession(session, username, displayName, avatarUrl);
+    setSession(session, username, displayName, hasAvatar);
     S.boards = data.boards;
+    S.boardsReady = true;
     renderBoardList();
     if (S.boards.length) selectBoard(S.boards[0].id);
   } catch {
@@ -1163,5 +1293,24 @@ $('delete-step3-confirm').addEventListener('click', async () => {
     localStorage.removeItem('uwuboard_session');
   }
 })();
+
+/* ── Show me around (js/tour.js) ── */
+$('tourBtn').addEventListener('click', () => {
+  $('tourPicks').innerHTML = Tour.pickers();
+  openModal('tourModal');
+});
+
+$('tourPicks').addEventListener('click', e => {
+  const btn = e.target.closest('[data-tour]');
+  if (!btn || btn.disabled) return;
+  closeModal('tourModal');
+  // After the window has gone.
+  setTimeout(() => Tour.start(btn.dataset.tour), 300);
+});
+
+$('tourModal').addEventListener('click', e => { if (e.target === $('tourModal')) closeModal('tourModal'); });
+
+/* ── Sync with another device (js/sync.js) ── */
+Sync.init();
 
 /* Service worker registration and the update bar live in js/sw-update.js. */

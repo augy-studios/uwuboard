@@ -44,6 +44,14 @@
             "destination": "/api/images/delete.js"
         },
         {
+            "source": "/api/images/get",
+            "destination": "/api/images/get.js"
+        },
+        {
+            "source": "/api/auth/avatar",
+            "destination": "/api/auth/avatar.js"
+        },
+        {
             "source": "/api/auth/update-profile",
             "destination": "/api/auth/update-profile.js"
         },

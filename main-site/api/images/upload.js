@@ -21,11 +21,12 @@ module.exports = async (req, res) => {
       .upload(path, buffer, { contentType, upsert: false });
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('card-images')
-      .getPublicUrl(path);
-
-    return res.status(200).json({ url: publicUrl, path });
+    // The object's name, not its address: the page shows it through api/images/get.js.
+    // `path` (the key, which names no host or bucket) is for pages still running the build
+    // from before, which save it back; api/lib/images.js turns it into `file`. Drop it once
+    // those have reloaded.
+    const file = path.slice(userId.length + 1);
+    return res.status(200).json({ file, path });
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message });
   }

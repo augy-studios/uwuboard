@@ -2,6 +2,9 @@ const supabase = require('../lib/supabase');
 const {
     requireAuth
 } = require('../lib/auth');
+const {
+    cleanColumns
+} = require('../lib/images');
 
 module.exports = async (req, res) => {
     if (req.method !== 'GET') return res.status(405).json({
@@ -33,12 +36,14 @@ module.exports = async (req, res) => {
             error: 'Board not found'
         });
 
+        // No storage addresses: each image goes by its name (api/lib/images.js).
         const board = {
             id: data.id,
             name: data.name,
             createdAt: data.created_at,
             updatedAt: data.updated_at,
             ...data.data,
+            columns: cleanColumns(data.data?.columns, userId),
         };
 
         return res.status(200).json({

@@ -1944,3 +1944,656 @@ textarea {
   color: var(--ink);
   line-height: 1.5;
 }
+
+/* ── Card images (js/images.js) ── */
+/* Pressing a tile opens the image; one that wouldn't load says so in its alt text. */
+.card-img-item {
+  cursor: zoom-in;
+}
+
+.img-missing {
+  background: var(--surface);
+}
+
+/* ── Edge tray (js/tray.js, docs/edge-tray-spec.md) ── */
+:root {
+  --glass-btn: 44px;
+  --edge: max(16px, calc(env(safe-area-inset-right) + 16px));
+  --banner-h: 0px;
+  --tray-top: max(calc(var(--banner-h, 0px) + 6px), calc(env(safe-area-inset-top) + 6px));
+  --tray-time: 0.34s;
+  --tray-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (max-width: 480px) {
+  :root {
+    --glass-btn: 40px;
+    --edge: max(10px, calc(env(safe-area-inset-right) + 10px));
+  }
+}
+
+/* Fixed top right. Lets clicks through except on its children. Above the board and the
+   sidebar, below the windows (50 and up) and the update bar, which sits in flow above it. */
+.hud-right {
+  position: fixed;
+  z-index: 45;
+  top: var(--tray-top);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
+  transition: top 0.2s ease;
+}
+
+.hud-right[hidden] {
+  display: none;
+}
+
+.hud-right > * {
+  pointer-events: auto;
+}
+
+/* Collapsed, the whole tray shifts right until only the tab is left, flush with the edge. */
+.tray {
+  --tray-shift: calc(var(--glass-btn) + 8px + var(--edge));
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  transition: transform var(--tray-time) var(--tray-ease);
+  /* Its box runs the height of the buttons; the strip under the tab lets clicks through too. */
+  pointer-events: none;
+}
+
+.tray > * {
+  pointer-events: auto;
+}
+
+.tray.collapsed {
+  transform: translateX(var(--tray-shift));
+}
+
+.tray-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: var(--glass-btn);
+  padding: 0;
+  border-radius: 12px;
+  background: var(--surface-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-radius var(--tray-time) var(--tray-ease);
+}
+
+.tray-tab svg {
+  width: 16px;
+  height: 16px;
+  transition: transform var(--tray-time) var(--tray-ease);
+}
+
+/* At the edge it is a tab: flat on the side the screen cuts off. */
+.tray.collapsed .tray-tab {
+  border-radius: 12px 0 0 12px;
+  border-right: none;
+}
+
+.tray.collapsed .tray-tab svg {
+  transform: rotate(180deg);
+}
+
+.tray-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-right: var(--edge);
+}
+
+/* A short phone in landscape still reaches every button. Only there, as a scrolling column
+   clips the buttons' shadows into a visible box. */
+@media (max-height: 460px) {
+  .tray-buttons {
+    max-height: calc(100dvh - var(--tray-top) - 16px);
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+}
+
+/* Separates the app's actions from the open board's. */
+.tray-rule {
+  width: 24px;
+  height: 1px;
+  margin: 2px 0;
+  flex: none;
+  background: color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.glass-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--glass-btn);
+  height: var(--glass-btn);
+  padding: 0;
+  border-radius: 14px;
+  background: var(--surface-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.glass-btn:hover {
+  transform: translateY(-1px);
+  background: var(--brand-fill);
+  color: var(--on-brand);
+}
+
+.glass-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.glass-btn [data-icon] {
+  display: inline-flex;
+}
+
+.glass-btn.danger {
+  color: var(--error);
+}
+
+.glass-btn.danger:hover {
+  background: color-mix(in srgb, var(--error) 14%, var(--bg));
+  color: var(--error);
+}
+
+/* The buttons unroll: each fades in, slides back from the edge and grows, 18 ms after the
+   one above it. They move by `translate` and `scale`, leaving `transform` to the hover lift. */
+.tray-buttons > * {
+  transition:
+    opacity calc(var(--tray-time) * 0.8) ease,
+    translate var(--tray-time) var(--tray-ease),
+    scale var(--tray-time) var(--tray-ease),
+    transform 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+  /* Only opening is staggered: the delay comes from the state being entered. */
+  transition-delay: calc(var(--i, 0) * 18ms), calc(var(--i, 0) * 18ms), calc(var(--i, 0) * 18ms), 0s, 0s, 0s;
+}
+
+.tray-buttons > :nth-child(2) { --i: 1; }
+.tray-buttons > :nth-child(3) { --i: 2; }
+.tray-buttons > :nth-child(4) { --i: 3; }
+.tray-buttons > :nth-child(5) { --i: 4; }
+.tray-buttons > :nth-child(6) { --i: 5; }
+.tray-buttons > :nth-child(7) { --i: 6; }
+
+.tray.collapsed .tray-buttons > * {
+  opacity: 0;
+  translate: 12px 0;
+  scale: 0.85;
+  transition-delay: 0s;
+}
+
+.tray-tab:focus-visible,
+.glass-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* The board is full width, so it keeps a strip clear for the open tray at every width, not
+   only on a phone: its columns run to the right edge and would otherwise sit under it.
+   Collapsed, it takes the full width and the tab floats over the top bar's empty right end. */
+.main {
+  transition: padding-right var(--tray-time) var(--tray-ease);
+}
+
+body.tray-open .main {
+  padding-right: calc(var(--glass-btn) + var(--edge) + 12px);
+}
+
+/* A tray left collapsed starts collapsed, with no slide on load (the head script in
+   index.html sets the class; js/tray.js removes it). */
+.tray-start-collapsed .tray {
+  transform: translateX(var(--tray-shift));
+  transition: none;
+}
+
+.tray-start-collapsed .tray-buttons > * {
+  opacity: 0;
+  translate: 12px 0;
+  scale: 0.85;
+  transition: none;
+}
+
+.tray-start-collapsed .main {
+  transition: none;
+}
+
+.tray-start-collapsed .tray-tab {
+  border-radius: 12px 0 0 12px;
+  border-right: none;
+}
+
+.tray-start-collapsed .tray-tab svg {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-right,
+  .tray,
+  .tray-tab,
+  .tray-tab svg,
+  .tray-buttons > *,
+  .glass-btn,
+  .main {
+    transition-duration: 0.001ms !important;
+    transition-delay: 0s !important;
+  }
+}
+
+/* ── Sync with another device (js/sync.js) ── */
+.sync-modal {
+  max-width: 460px;
+}
+
+.syncBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.syncBlock .mode-note,
+.sync-modal > .mode-note {
+  margin-top: 0;
+}
+
+.syncBlock .btn-primary [data-icon],
+.syncBlock .btn-primary [data-icon] svg {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+.syncJoin {
+  display: flex;
+  gap: 8px;
+}
+
+.syncJoin input {
+  flex: 1;
+  min-width: 0;
+}
+
+.syncCodeInput {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.syncCodeInput::placeholder {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* The code in large type, read off one screen and typed into the other. */
+.syncCode {
+  width: 100%;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--brand-fill);
+  color: var(--on-brand);
+  border: 1px solid var(--surface-border);
+  font-size: 2rem;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  transition: background 0.15s ease;
+}
+
+.syncCode:hover {
+  background: var(--brand-fill-strong);
+}
+
+/* Centred, with its white quiet zone, so a camera pointed at the middle finds it. Fixed black
+   on white in both modes: scanners expect dark modules on a light ground. */
+.syncQr {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+}
+
+.syncQr svg {
+  width: 168px;
+  height: 168px;
+}
+
+.syncQr .qr-bg {
+  fill: #ffffff;
+}
+
+.syncQr .qr-fg {
+  fill: #121815;
+}
+
+.syncLink {
+  font-size: 0.8rem;
+  color: var(--muted-strong);
+  text-align: center;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.syncStatus {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted-strong);
+}
+
+/* The script shows and hides parts by `hidden`, which a button's own display would beat. */
+.sync-modal [hidden] {
+  display: none !important;
+}
+
+.statusDot {
+  width: 9px;
+  height: 9px;
+  margin-top: 0.35em;
+  border-radius: 50%;
+  background: var(--busy);
+  flex: none;
+}
+
+.statusDot.ok { background: var(--ok); }
+.statusDot.warn { background: var(--warn); }
+.statusDot.error { background: var(--error); }
+
+.syncNote {
+  margin-top: 0;
+  color: var(--muted-strong);
+}
+
+.syncNote.error {
+  color: var(--error);
+}
+
+.syncControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.syncTabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.syncTab {
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  color: var(--muted-strong);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.syncTab.active {
+  background: var(--brand-fill);
+  color: var(--on-brand);
+}
+
+.syncList {
+  max-height: 40vh;
+  overflow: auto;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  padding: 6px;
+  background: var(--surface);
+}
+
+.syncGroupLabel {
+  margin: 8px 6px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+
+.syncGroupLabel:first-child {
+  margin-top: 2px;
+}
+
+.syncEmpty {
+  padding: 14px 8px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted-strong);
+}
+
+.syncItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.syncItem:hover {
+  background: var(--surface-strong);
+}
+
+.syncItem input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: var(--brand-ink);
+  cursor: pointer;
+}
+
+.syncItem.done {
+  cursor: default;
+}
+
+.syncItem.done:hover {
+  background: none;
+}
+
+.syncItem.done .syncItemText {
+  opacity: 0.6;
+}
+
+/* In line with the list's boxes: its border and padding, then a row's own. */
+.syncAll {
+  padding: 0 15px;
+}
+
+.syncItemText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.syncItemText .name,
+.syncItemText .sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.syncItemText .sub {
+  font-size: 0.8rem;
+  color: var(--muted-strong);
+}
+
+.syncTag {
+  font-size: 0.75rem;
+  color: var(--muted-strong);
+  white-space: nowrap;
+  flex: none;
+}
+
+.syncPrivacy {
+  font-size: 0.75rem;
+}
+
+/* ── Page tours (js/tour.js, docs/page-tour-spec.md) ── */
+/* The dim and chalk colours are fixed rather than themed: the tour reads the same over a
+   light or a dark page. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+.tourHole {
+  position: fixed;
+  border-radius: 18px;
+  box-shadow: 0 0 0 200vmax rgba(8, 14, 10, 0.86), 0 0 24px 8px rgba(255, 255, 255, 0.35);
+  transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease;
+  pointer-events: none;
+}
+
+.tourArrow {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.tourLine,
+.tourHead {
+  fill: none;
+  stroke: #f6f1e6;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Drawn in over its own length; the script sets --len. */
+.tourLine {
+  stroke-dasharray: var(--len, 600);
+  stroke-dashoffset: var(--len, 600);
+  animation: tour-draw 0.6s ease forwards;
+}
+
+@keyframes tour-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.tourSkip {
+  position: fixed;
+  top: max(16px, calc(env(safe-area-inset-top) + 12px));
+  left: 16px;
+  padding: 8px 14px;
+  background: none;
+  border: 0;
+  color: #f6f1e6;
+  font-size: 1.05rem;
+}
+
+.tourCard {
+  position: fixed;
+  box-sizing: border-box;
+  width: min(460px, calc(100vw - 24px));
+  color: #f6f1e6;
+}
+
+.tourCard.solid {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(8, 14, 10, 0.92);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.tourText {
+  font-size: 1.3rem;
+  line-height: 1.35;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+}
+
+.tourFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.tourNext {
+  background: #f6f1e6;
+  color: #1a221d;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-size: 1rem;
+}
+
+.tourNext:focus-visible,
+.tourSkip:focus-visible {
+  outline: 2px solid #f6f1e6;
+  outline-offset: 3px;
+}
+
+.tourDots {
+  display: flex;
+  gap: 6px;
+}
+
+.tourDots > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(246, 241, 230, 0.4);
+  transition: width 0.2s ease;
+}
+
+.tourDots > .on {
+  width: 20px;
+  background: #f6f1e6;
+}
+
+body.touring {
+  overflow: hidden;
+}
+
+.tourPicks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tourHole {
+    transition: none;
+  }
+
+  .tourLine {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

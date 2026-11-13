@@ -21,7 +21,7 @@
 
     <meta charset="utf-8">
     <title>uwuBoard | UwU Apps</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="description"
         content="Turn your to-do list into a clear board where you can drag tasks from To Do to Done." />
 
@@ -49,6 +49,14 @@
             var c = localStorage.getItem(k + ".colorTheme") || "classic";
             document.documentElement.setAttribute("data-mode", m);
             document.documentElement.setAttribute("data-color-theme", c);
+
+            // The edge tray's state before first paint, so a tray left
+            // collapsed doesn't slide shut on load. js/tray.js takes over.
+            try {
+                if (localStorage.getItem(k + ".trayOpen") === "0") {
+                    document.documentElement.classList.add("tray-start-collapsed");
+                }
+            } catch (e) {}
         })();
     </script>
 
@@ -66,6 +74,48 @@
 </head>
 
 <body>
+    <!-- ─── EDGE TRAY (js/tray.js, docs/edge-tray-spec.md) ─── -->
+    <div class="hud-right" id="hudRight" hidden>
+        <div id="tray" class="tray">
+            <button id="trayTab" class="tray-tab" type="button" aria-controls="trayButtons" aria-expanded="true"
+                aria-label="Hide menu" title="Hide menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" aria-hidden="true">
+                    <path d="m9 5 7 7-7 7" />
+                </svg>
+            </button>
+
+            <div id="trayButtons" class="tray-buttons">
+                <button class="glass-btn" id="themeBtn" type="button" aria-haspopup="dialog" aria-label="Theme" title="Theme">
+                    <span data-icon="sun"></span>
+                </button>
+                <button class="glass-btn" id="syncBtn" type="button" aria-haspopup="dialog"
+                    aria-label="Sync with another device" title="Sync with another device">
+                    <span data-icon="sync"></span>
+                </button>
+                <button class="glass-btn" id="tourBtn" type="button" aria-haspopup="dialog" aria-label="Show me around"
+                    title="Show me around">
+                    <span data-icon="help"></span>
+                </button>
+
+                <!-- The open board's actions, shown while a board is open. -->
+                <span class="tray-rule hidden" id="trayBoardRule" aria-hidden="true"></span>
+                <button class="glass-btn hidden" id="board-export-btn" type="button" aria-label="Export board"
+                    title="Export board">
+                    <span data-icon="download"></span>
+                </button>
+                <button class="glass-btn hidden" id="board-import-btn" type="button" aria-label="Import board"
+                    title="Import board">
+                    <span data-icon="upload"></span>
+                </button>
+                <button class="glass-btn danger hidden" id="delete-board-btn" type="button" aria-label="Delete board"
+                    title="Delete board">
+                    <span data-icon="trash"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- ─── AUTH OVERLAY ─── -->
     <div id="auth-overlay" class="overlay">
         <div class="glass-panel auth-panel">
@@ -204,25 +254,8 @@
                                 stroke-linecap="round" /></svg>
                     </button>
                 </div>
-                <div class="topbar-right">
-                    <button class="btn-ghost small hidden" id="board-export-btn">
-                        <svg width="14" height="14" viewBox="0 0 14 14">
-                            <path d="M7 1v8M4 6l3 3 3-3M1 10v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor"
-                                stroke-width="1.3" fill="none" stroke-linecap="round" /></svg>
-                        Export
-                    </button>
-                    <button class="btn-ghost small hidden" id="board-import-btn">
-                        <svg width="14" height="14" viewBox="0 0 14 14">
-                            <path d="M7 9V1M4 4l3-3 3 3M1 10v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor"
-                                stroke-width="1.3" fill="none" stroke-linecap="round" /></svg>
-                        Import
-                    </button>
-                    <input type="file" id="board-import-file" accept=".json" style="display:none" />
-                    <button class="btn-ghost small hidden danger" id="delete-board-btn">Delete Board</button>
-                    <button class="icon-btn" id="themeBtn" type="button" aria-label="Theme">
-                        <span data-icon="sun"></span>
-                    </button>
-                </div>
+                <!-- Export, Import, Delete Board and Theme are in the edge tray. -->
+                <input type="file" id="board-import-file" accept=".json" style="display:none" />
             </header>
 
             <!-- Board canvas -->
@@ -547,9 +580,87 @@
         </div>
     </div>
 
+    <!-- Sync with another device (js/sync.js, docs/STUN-p2p-spec.md) -->
+    <div class="modal-backdrop hidden" id="syncModal" style="z-index:170">
+        <div class="modal glass sync-modal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
+            <div class="modal-head">
+                <h2 id="syncModalTitle">Sync with another device</h2>
+                <button class="icon-btn small" type="button" data-close-modal="syncModal" aria-label="Close">
+                    <span data-icon="close"></span>
+                </button>
+            </div>
+            <p class="mode-note">Copy boards and your theme straight between this device and another. Both have to
+                be on the same wifi, or one on the other&rsquo;s hotspot. Copying adds and updates, and never deletes
+                anything.</p>
+
+            <p id="syncStatus" class="syncStatus" hidden><span class="statusDot" aria-hidden="true"></span><span
+                    id="syncStatusText" role="status"></span></p>
+
+            <div id="syncStart" class="syncBlock">
+                <button id="syncHostBtn" class="btn-primary" type="button"><span data-icon="sync"></span> Show a code on
+                    this device</button>
+                <div class="syncJoin">
+                    <input id="syncCodeInput" class="syncCodeInput" type="text" maxlength="12" autocomplete="off"
+                        autocapitalize="characters" spellcheck="false" enterkeyhint="go"
+                        placeholder="Or enter the other device&rsquo;s code" aria-label="Code from the other device" />
+                    <button id="syncJoinBtn" class="btn-ghost" type="button">Connect</button>
+                </div>
+            </div>
+
+            <div id="syncHost" class="syncBlock" hidden>
+                <button id="syncCode" class="syncCode" type="button" title="Press to copy the link"
+                    aria-label="Sync code. Press to copy the link">------</button>
+                <div id="syncQr" class="syncQr"></div>
+                <p id="syncLink" class="syncLink"></p>
+            </div>
+
+            <div id="syncLive" class="syncBlock" hidden>
+                <div id="syncTabs" class="syncTabs" role="tablist">
+                    <button class="syncTab active" type="button" role="tab" aria-selected="true"
+                        data-sync-tab="import">Import</button>
+                    <button class="syncTab" type="button" role="tab" aria-selected="false"
+                        data-sync-tab="export">Send</button>
+                </div>
+                <p id="syncListNote" class="mode-note"></p>
+                <label class="syncItem syncAll"><input id="syncAll" type="checkbox"> <span>Select all</span></label>
+                <div id="syncList" class="syncList"></div>
+                <button id="syncGo" class="btn-primary" type="button" disabled></button>
+            </div>
+
+            <p id="syncNote" class="mode-note syncNote" role="status" hidden></p>
+            <div id="syncControls" class="syncControls" hidden>
+                <button id="syncNewCode" class="btn-ghost" type="button">New code</button>
+                <button id="syncEnd" class="btn-ghost" type="button">Stop</button>
+            </div>
+            <p class="mode-note syncPrivacy">A free public service (PeerJS) introduces the two devices and sees their
+                IP addresses. Your boards go straight from one device to the other.</p>
+        </div>
+    </div>
+
+    <!-- Show me around (js/tour.js, docs/page-tour-spec.md) -->
+    <div class="modal-backdrop hidden" id="tourModal" style="z-index:170">
+        <div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="tourModalTitle">
+            <div class="modal-head">
+                <h2 id="tourModalTitle">Show me around</h2>
+                <button class="icon-btn small" type="button" data-close-modal="tourModal" aria-label="Close">
+                    <span data-icon="close"></span>
+                </button>
+            </div>
+            <div id="tourPicks" class="tourPicks"></div>
+            <p class="mode-note">Each part of uwuBoard shows you around the first time you open it. Pick one to see
+                its tour again.</p>
+        </div>
+    </div>
+
     <script src="/js/icons.js"></script>
     <script src="/js/ui.js"></script>
     <script src="/js/theme.js"></script>
+    <script src="/js/images.js"></script>
+    <script src="/js/tray.js"></script>
+    <script src="/js/qr.js"></script>
+    <script src="/js/p2p.js"></script>
+    <script src="/js/sync.js"></script>
+    <script src="/js/tour.js"></script>
     <script src="/script.js"></script>
     <script src="/js/sw-update.js"></script>
 

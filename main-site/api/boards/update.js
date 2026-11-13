@@ -3,6 +3,7 @@ module.exports = async (req, res) => {
   try {
     const { requireAuth } = require('../lib/auth');
     const supabase3 = require('../lib/supabase');
+    const { boardData } = require('../lib/images');
     const { userId } = await requireAuth(req);
     const { board } = req.body || {};
     if (!board?.id) return res.status(400).json({ error: 'Invalid board' });
@@ -12,7 +13,7 @@ module.exports = async (req, res) => {
       id: board.id,
       user_id: userId,
       name: board.name,
-      data: { columns: board.columns || [] },
+      data: boardData(board, userId),
     }, { onConflict: 'id' });
     if (error) throw error;
     return res.status(200).json({ ok: true });

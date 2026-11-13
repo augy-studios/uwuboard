@@ -24,8 +24,8 @@ module.exports = async (req, res) => {
 
     await supabase.from('uwu_users').update({ avatar_url: publicUrl }).eq('id', userId);
 
-    // Return with cache-buster so the browser shows the new image immediately
-    return res.status(200).json({ avatarUrl: `${publicUrl}?v=${Date.now()}` });
+    // Not the address: the page fetches the bytes from api/auth/avatar.js.
+    return res.status(200).json({ ok: true });
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message });
   }
