@@ -85,7 +85,12 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
                 final mq = MediaQuery.of(context);
                 Widget app = MediaQuery(
                   data: mq.copyWith(textScaler: mq.textScaler.clamp(minScaleFactor: 1, maxScaleFactor: 2)),
+                  // Fills what it's given, as the navigator did on its own. The desktop's title bar
+                  // puts the app in a Column, whose width is loose: sized by its children, the
+                  // Stack would be as wide as the hidden bar's SizedBox.shrink, 0, and the window
+                  // black (1.0.2).
                   child: Stack(
+                    fit: StackFit.expand,
                     children: [
                       Positioned.fill(child: RepaintBoundary(key: AppNav.repaintKey, child: child ?? const SizedBox.shrink())),
                       // A bug report's Screenshot a page: outside what's taken, so not in the picture.
