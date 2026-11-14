@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en-GB">
+
+<head>
+    <!-- Google tag (gtag.js): the site's own, as on every page (said in "The website" below). -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FMCYFTFPEL"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-FMCYFTFPEL');
+    </script>
+
+    <meta charset="utf-8">
+    <title>Privacy | uwuBoard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="What uwuBoard keeps about you, where it goes, and how to delete it." />
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Privacy | uwuBoard" />
+    <meta property="og:site_name" content="UwU Apps" />
+    <meta property="og:description" content="What uwuBoard keeps about you, where it goes, and how to delete it." />
+
+    <script>
+        // The reader's light or dark mode and colour, as the app has them (index.html does the
+        // same before first paint; keep the hours in step with js/theme.js).
+        (function () {
+            var k = "uwuboard";
+            var m = "light", c = "classic";
+            try {
+                m = localStorage.getItem(k + ".mode") || "light";
+                c = localStorage.getItem(k + ".colorTheme") || "classic";
+            } catch (e) {}
+            if (m === "time") {
+                var h = new Date().getHours();
+                m = h >= 9 && h < 18 ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-mode", m);
+            document.documentElement.setAttribute("data-color-theme", c);
+        })();
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" crossorigin="anonymous" />
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/privacy.css">
+    <meta name="theme-color" content="#ccffcc" />
+
+    <link rel="apple-touch-icon" href="/uwuboard-main.png">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <meta property="og:image" content="/uwuboard-main.png" />
+</head>
+
+<body class="legal">
+    <main class="glass-panel legal-page">
+        <a class="legal-home" href="/">
+            <img src="/uwuboard-main.png" width="32" height="32" alt="" />
+            <span class="logo-text">uwuBoard</span>
+        </a>
+
+        <h1>Privacy</h1>
+        <p class="legal-date">Last updated 15 November 2026</p>
+
+        <p>uwuBoard is made by Augy Studios. This page says what uwuBoard keeps about you, where it
+            goes, and how to delete it. It covers the website at board.uwuapps.org, the Android app
+            (from Google Play or GitHub), and the Windows, macOS and Linux apps.</p>
+
+        <section class="legal-short" aria-labelledby="short">
+            <h2 id="short">The short version</h2>
+            <ul>
+                <li>No ads, and nothing about you is sold. The apps don't use your device's advertising ID
+                    and have no analytics or tracking.</li>
+                <li>As a guest, your boards stay on your device. Nothing is sent to us.</li>
+                <li>With an account, we keep your username, email address, a scrambled form of your
+                    password and your boards, so you can open them anywhere.</li>
+                <li><strong>Delete Account</strong> removes all of it, straight away.</li>
+                <li>The website (not the apps) uses Google Analytics to count visits.</li>
+            </ul>
+        </section>
+
+        <nav class="legal-toc" aria-label="On this page">
+            <ol>
+                <li><a href="#guest">Using uwuBoard as a guest</a></li>
+                <li><a href="#account">With an account</a></li>
+                <li><a href="#sync">Sync with another device</a></li>
+                <li><a href="#bug">Report a bug</a></li>
+                <li><a href="#updates">Updates and notifications</a></li>
+                <li><a href="#website">The website</a></li>
+                <li><a href="#android">Android permissions</a></li>
+                <li><a href="#providers">Who else handles your data</a></li>
+                <li><a href="#delete">Keeping and deleting your data</a></li>
+                <li><a href="#rights">Your choices and rights</a></li>
+                <li><a href="#security">Keeping it safe</a></li>
+                <li><a href="#children">Children</a></li>
+                <li><a href="#changes">Changes to this page</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ol>
+        </nav>
+
+        <h2 id="guest">1. Using uwuBoard as a guest</h2>
+        <p>As a guest, you don't need an account. Your boards, columns, cards, pictures, theme and
+            settings are kept on your device only: in your browser's storage on the website, and in the
+            app's own storage in the apps. They aren't sent to us. To move them, you can export a board
+            to a file yourself, or use Sync (section 3).</p>
+
+        <h2 id="account">2. With an account</h2>
+        <p>An account keeps your boards on uwuBoard's server, so you can open them on any device. We
+            keep:</p>
+        <ul>
+            <li><strong>Your username and email address</strong>, given when you register. The email
+                address is only used to keep accounts apart: we don't send you email.</li>
+            <li><strong>Your password</strong>, only in a scrambled form (a bcrypt hash), which can't be
+                turned back into the password.</li>
+            <li><strong>A display name and a profile picture</strong>, if you add them.</li>
+            <li><strong>Your boards</strong>: their columns, cards, dates, labels, checklists and the
+                pictures you add to cards.</li>
+            <li><strong>A sign-in token</strong> for each device you sign in on, so you stay signed in.
+                It lasts 30 days, and ends when you sign out.</li>
+        </ul>
+        <p>We use these only to run your account and show you your boards. Your card pictures and
+            profile picture are private: they're only shown to you, through uwuBoard's server, once
+            you're signed in.</p>
+
+        <h2 id="sync">3. Sync with another device</h2>
+        <p>Sync copies boards straight from one of your devices to another, with a code or QR code,
+            account or not. To connect the two devices:</p>
+        <ul>
+            <li>A free public service, <strong>PeerJS</strong> (0.peerjs.com), introduces them. It sees
+                both devices' IP addresses and a random code, but not your boards.</li>
+            <li><strong>Google's and Cloudflare's STUN servers</strong> tell each device its own public
+                address. They see your IP address.</li>
+        </ul>
+        <p>Your boards then go straight from one device to the other, encrypted on the way (WebRTC with
+            DTLS). They don't pass through uwuBoard's server.</p>
+
+        <h2 id="bug">4. Report a bug</h2>
+        <p>If you use <strong>Report a bug</strong> (in the edge tray), what you send goes to
+            uwuBoard's server and on to Augy Studios as a message from a Telegram bot. It contains:</p>
+        <ul>
+            <li>what you typed, and a way to reach you, if you give one;</li>
+            <li>up to three pictures, if you add them: from your device, or a screenshot of a page of
+                the app. A screenshot shows whatever is on that page, which can include your boards;</li>
+            <li>what helps find the bug, all shown to you before it's sent: the app's version, which app
+                (website, Android, desktop), your device and system as your browser or app describes
+                them, and the kind of page you were on. Never a board's or a card's name, unless a
+                picture you add shows it.</li>
+        </ul>
+        <p>uwuBoard's server doesn't store reports. They're kept in Augy Studios' Telegram chats, which
+            Telegram stores under <a href="https://telegram.org/privacy">its own privacy policy</a>. To
+            limit misuse, the server counts reports from each IP address, for a minute and, where
+            set up, for an hour; then the count is gone. Each report gets an ID (like 20261114-7K3Q):
+            quote it to have that report deleted.</p>
+
+        <h2 id="updates">5. Updates and notifications</h2>
+        <ul>
+            <li><strong>The Android app from GitHub</strong> asks uwuBoard's server whether there's a
+                new version, and downloads it from GitHub, which sees your IP address.</li>
+            <li><strong>"New versions of the app"</strong> (Android, off unless you turn it on) uses
+                Firebase Cloud Messaging, Google's push service. Your phone joins a topic for uwuBoard's
+                new versions, and Google handles the address it sends notifications to. uwuBoard's
+                server keeps no list of phones.</li>
+            <li><strong>The Android app from Google Play</strong> is updated by Google Play, and has no
+                updater of its own.</li>
+            <li><strong>The Windows, macOS and Linux apps</strong> check GitHub for new versions
+                themselves, about once an hour.</li>
+        </ul>
+
+        <h2 id="website">6. The website</h2>
+        <ul>
+            <li><strong>Google Analytics</strong> counts visits to the website's pages: which pages are
+                opened, roughly where from, and on what kind of device and browser. It uses cookies to
+                tell visits apart. It's on the website only, not in the apps. Your browser's settings or
+                an ad blocker can stop it, and uwuBoard works the same without it.</li>
+            <li><strong>Google Fonts</strong> serves the website's font, so Google sees your IP address
+                when it loads. The apps carry the font themselves.</li>
+            <li>For Sync, the website loads the PeerJS library from <strong>cdnjs</strong>
+                (Cloudflare).</li>
+            <li><strong>Buy Augy a Coffee</strong> opens Stripe's page, only if you click it. What you
+                give there is handled by Stripe.</li>
+        </ul>
+
+        <h2 id="android">7. Android permissions</h2>
+        <ul>
+            <li><strong>Internet</strong>: for your account, Sync and Report a bug.</li>
+            <li><strong>Notifications</strong>: only asked for when you turn on "New versions of the
+                app".</li>
+            <li><strong>Install apps</strong>: the GitHub version only, to install its own updates when
+                you choose <strong>Update</strong>. The Google Play version doesn't have it.</li>
+            <li><strong>Storage</strong>: on Android 9 and older only, to save a board you export to
+                Downloads.</li>
+        </ul>
+        <p>uwuBoard doesn't use your location, contacts, camera, microphone or advertising ID.</p>
+
+        <h2 id="providers">8. Who else handles your data</h2>
+        <p>These companies run parts of uwuBoard for us. They handle your data only to provide that
+            part, under their own privacy policies. We don't sell or share your data with anyone else,
+            and nothing is used for advertising.</p>
+        <div class="legal-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Who</th>
+                        <th scope="col">What for</th>
+                        <th scope="col">What it handles</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td data-label="Who"><a href="https://vercel.com/legal/privacy-policy">Vercel</a></td>
+                        <td data-label="What for">Runs the website and uwuBoard's server, in Singapore</td>
+                        <td data-label="What it handles">Everything sent to the server, and its request logs (with IP addresses), kept
+                            for a short time</td>
+                    </tr>
+                    <tr>
+                        <td data-label="Who"><a href="https://supabase.com/privacy">Supabase</a></td>
+                        <td data-label="What for">The database and file storage behind accounts</td>
+                        <td data-label="What it handles">Your account, boards and pictures (section 2)</td>
+                    </tr>
+                    <tr>
+                        <td data-label="Who"><a href="https://telegram.org/privacy">Telegram</a></td>
+                        <td data-label="What for">Delivers bug reports to Augy Studios</td>
+                        <td data-label="What it handles">The reports you send (section 4)</td>
+                    </tr>
+                    <tr>
+                        <td data-label="Who"><a href="https://policies.google.com/privacy">Google</a></td>
+                        <td data-label="What for">Firebase Cloud Messaging, Google Analytics (website), Google Fonts (website),
+                            STUN for Sync</td>
+                        <td data-label="What it handles">Notification addresses, visit counts, IP addresses</td>
+                    </tr>
+                    <tr>
+                        <td data-label="Who"><a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a></td>
+                        <td data-label="What for">STUN for Sync, and cdnjs (website)</td>
+                        <td data-label="What it handles">IP addresses</td>
+                    </tr>
+                    <tr>
+                        <td data-label="Who"><a href="https://peerjs.com/">PeerJS</a></td>
+                        <td data-label="What for">Introduces two devices for Sync</td>
+                        <td data-label="What it handles">IP addresses and a random code</td>
+                    </tr>
+                    <tr>
+                        <td data-label="Who"><a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub</a></td>
+                        <td data-label="What for">Hosts the app downloads and their updates</td>
+                        <td data-label="What it handles">IP addresses</td>
+                    </tr>
+                    <tr>
+                        <td data-label="Who"><a href="https://upstash.com/trust/privacy.pdf">Upstash</a></td>
+                        <td data-label="What for">Counts bug reports, to limit misuse, where set up</td>
+                        <td data-label="What it handles">IP addresses, for up to an hour</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p>Some of these are outside your country, so your data may be handled in other countries,
+            such as Singapore and the United States.</p>
+
+        <h2 id="delete">9. Keeping and deleting your data</h2>
+        <p>Your account and boards are kept until you delete them. To delete your account and
+            everything in it:</p>
+        <ul>
+            <li><strong>In the apps</strong>: open the sidebar, your picture, <strong>Profile</strong>,
+                then <strong>Delete Account</strong>.</li>
+            <li><strong>On the website</strong>: sign in at <a href="/">board.uwuapps.org</a>, click
+                your picture, then <strong>Delete Account</strong>.</li>
+        </ul>
+        <p>You'll be asked for your password. Then your card pictures, your profile picture, your
+            sign-in tokens, your boards and your account are all deleted from uwuBoard's server straight
+            away. This can't be undone, so export any board you want to keep first.</p>
+        <p>Can't sign in? Email <a href="mailto:augy@augystudios.com">augy@augystudios.com</a> from
+            the address on your account, and we'll delete it for you.</p>
+        <p>Guest boards are deleted by clearing the website's data in your browser, or by uninstalling
+            the app. Bug reports can be deleted on request: quote the report's ID.</p>
+
+        <h2 id="rights">10. Your choices and rights</h2>
+        <p>You can use uwuBoard without an account, and leave out the display name, profile picture
+            and contact details in bug reports. You can change your display name, password and
+            picture in <strong>Profile</strong>, and export any board to a file.</p>
+        <p>Depending on where you live (for example under the UK or EU GDPR, or Singapore's PDPA), you
+            may have the right to see the data we hold about you, have it corrected or deleted, take
+            a copy, or object to how it's used. Email us to ask, and we'll answer within 30 days. You
+            can also complain to your local data protection authority.</p>
+
+        <h2 id="security">11. Keeping it safe</h2>
+        <p>Everything between the apps and uwuBoard's server is sent over HTTPS, and Sync is
+            encrypted from device to device. Passwords are stored only as hashes. Pictures are kept
+            private, and the keys to the database stay on the server. No service is perfectly secure,
+            but if something goes wrong that affects your data, we'll tell you.</p>
+
+        <h2 id="children">12. Children</h2>
+        <p>uwuBoard isn't made for children under 13, and we don't knowingly keep their data. If you
+            think a child under 13 has made an account, email us and we'll delete it.</p>
+
+        <h2 id="changes">13. Changes to this page</h2>
+        <p>If what uwuBoard does with your data changes, this page changes with it, and the date at
+            the top says when. Bigger changes are also said in the apps' release notes.</p>
+
+        <h2 id="contact">14. Contact</h2>
+        <p>Augy Studios, <a href="mailto:augy@augystudios.com">augy@augystudios.com</a>.</p>
+
+        <p class="legal-back"><a href="/">Back to uwuBoard</a></p>
+    </main>
+</body>
+
+</html>

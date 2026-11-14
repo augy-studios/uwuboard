@@ -64,7 +64,7 @@ Target SDK: Flutter 3.47's default (36), which Play requires for new apps from 3
 | D1 | **Which key Play signs with.** Your existing key, uploaded once to Play App Signing, keeps the GitHub APK and the Play app able to update each other, and keeps `main-site/.well-known/assetlinks.json` as it is. A key Play makes means a Play install can't update a GitHub install (and the other way round): people would uninstall first, and lose guest boards they hadn't synced. | Your existing key |
 | D2 | **Personal or organisation account.** Personal is quicker, but has the 12-tester rule. Organisation needs a registered business (a D-U-N-S number). | Personal |
 | D3 | **Countries.** uwuBoard isn't tied to a place. | Every country |
-| D4 | **Privacy policy URL.** Play requires one, and the site has none yet. A short page at `https://board.uwuapps.org/privacy` saying what section 9 says is enough. | Write one before step 5 |
+| D4 | **Privacy policy URL.** Play requires one: `https://board.uwuapps.org/privacy` (`main-site/privacy.html`, linked from the sign-in screen). Keep it and section 9 saying the same things. | Done |
 
 ## 4. Step 1: Build the App Bundle
 
@@ -197,20 +197,24 @@ leaves the phone except what Sync sends to your own other device.
 | Data type | What happens | Declare |
 |---|---|---|
 | Name (username, display name) | Sent to uwuBoard's server when you register or sign in | Collected, **optional** (guest mode needs none), App functionality, Account management |
-| Email address | Sent when you register | Collected, optional, Account management |
-| Photos | Card images and the avatar, uploaded to your account's private storage when signed in | Collected, optional, App functionality |
-| Other user-generated content | Your boards, columns and cards, stored on the server when signed in | Collected, optional, App functionality |
+| Email address | Sent when you register. Also in Report a bug, if someone leaves an email as the way to reach them | Collected, optional, Account management, App functionality |
+| Photos | Card images and the avatar, uploaded to your account's private storage when signed in. Also up to three pictures added to Report a bug, sent on to Telegram | Collected, optional, App functionality |
+| Other user-generated content | Your boards, columns and cards, stored on the server when signed in. Also what's typed in Report a bug, sent on to Telegram | Collected, optional, App functionality |
+| Diagnostics (App info and performance) | Report a bug adds the app's version, the device and system as the app describes them, and the kind of page on show, all shown before it's sent | Collected, optional (only when someone sends a report), Analytics |
 | Device or other IDs | Only with "New versions of the app" on: Firebase subscribes the phone to a topic, through Google's servers; uwuBoard's server keeps no ID | Collected, optional, App functionality (Firebase Cloud Messaging) |
-| IP address | Sync's free introduction service (PeerJS) sees both devices' IP addresses while it connects them | Disclose under the privacy policy; the boards themselves go straight from device to device |
+| IP address | Sync's free introduction service (PeerJS) sees both devices' IP addresses while it connects them. Report a bug counts reports per IP address, for a minute (and an hour, with Redis), to stop floods | Disclose under the privacy policy; the boards themselves go straight from device to device |
 | Location, contacts, calendar, messages, health, financial info, web history | Not used | Not collected |
 
 Other answers:
 
 - **Encrypted in transit**: **Yes** (HTTPS for the API, DTLS for Sync's WebRTC channel).
 - **Can people ask for data to be deleted?** **Yes**: Delete Account removes the account, its
-  boards and images (section 8).
-- **Shared with third parties?** No: Supabase (the database), Vercel (the server) and Firebase are
-  service providers working for uwuBoard, which Play doesn't count as sharing.
+  sessions, its boards, its card images and its avatar (section 8;
+  `main-site/api/auth/delete-account.js`). Someone who can't sign in can email
+  <augy@augystudios.com>, as the Privacy page says.
+- **Shared with third parties?** No: Supabase (the database), Vercel (the server), Firebase and
+  Telegram (which delivers bug reports to you) are service providers working for uwuBoard, which
+  Play doesn't count as sharing.
 - Check the SDKs' own notes in the [Play SDK Index](https://play.google.com/sdks): Firebase
   Messaging, flutter_webrtc.
 

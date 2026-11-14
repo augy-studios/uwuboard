@@ -457,6 +457,23 @@ body.modal-open {
   margin-bottom: 1.5rem;
 }
 
+/* The Privacy link under the sign-in panel's tabs (privacy.html). */
+.auth-legal {
+  margin-top: 1.25rem;
+  text-align: center;
+  font-size: 12.5px;
+}
+
+.auth-legal a {
+  color: var(--muted-strong);
+  text-underline-offset: 2px;
+}
+
+.auth-legal a:hover,
+.auth-legal a:focus-visible {
+  color: var(--ink);
+}
+
 .logo-text {
   font-size: 20px;
   font-weight: 600;
