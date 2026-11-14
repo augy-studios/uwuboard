@@ -68,12 +68,9 @@ class Sidebar extends StatelessWidget {
     ];
 
     if (collapsed) {
-      return Container(
-        width: 64,
-        decoration: BoxDecoration(
-          color: c.surface,
-          border: Border(right: BorderSide(color: c.border)),
-        ),
+      return _frame(
+        context,
+        c,
         child: SafeArea(
           right: false,
           child: Column(
@@ -121,12 +118,9 @@ class Sidebar extends StatelessWidget {
       );
     }
 
-    return Container(
-      width: Env.desktop && MediaQuery.sizeOf(context).width > Env.splitWidth ? 300 : 260,
-      decoration: BoxDecoration(
-        color: inDrawer ? Color.alphaBlend(c.surfaceStrong, c.bg) : c.surface,
-        border: Border(right: BorderSide(color: c.border)),
-      ),
+    return _frame(
+      context,
+      c,
       child: SafeArea(
         right: false,
         child: Column(
@@ -281,6 +275,48 @@ class Sidebar extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// The rail's width.
+  static const railWidth = 64.0;
+
+  /// What holds the sidebar: its width, its surface and the line along its right side.
+  ///
+  /// Beside the board it folds and unfolds as the site's does (main-site/style.css, .sidebar):
+  /// the width eased over 250 ms with CSS's own `ease`, what's in it switched at once and clipped
+  /// to the width while it changes. Folding, the rail shows at once and the empty surface beside
+  /// it narrows; unfolding, the panel is laid out at its full width at once and uncovered as the
+  /// sidebar widens. With animations turned off, it snaps, as the site does.
+  Widget _frame(BuildContext context, UwuColors c, {required Widget child}) {
+    final full = Env.desktop && MediaQuery.sizeOf(context).width > Env.splitWidth ? 300.0 : 260.0;
+    if (inDrawer) {
+      return Container(
+        width: full,
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(c.surfaceStrong, c.bg),
+          border: Border(right: BorderSide(color: c.border)),
+        ),
+        child: child,
+      );
+    }
+    final width = collapsed ? railWidth : full;
+    return AnimatedContainer(
+      key: const ValueKey('sidebar'),
+      duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 250),
+      curve: Curves.ease,
+      width: width,
+      color: c.surface,
+      // Drawn over what's in it, so it's on the edge at every width and takes no room.
+      foregroundDecoration: BoxDecoration(border: Border(right: BorderSide(color: c.border))),
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: Alignment.topLeft,
+          minWidth: width,
+          maxWidth: width,
+          child: child,
         ),
       ),
     );
