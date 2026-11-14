@@ -338,6 +338,14 @@ main, .brand {
 Full-bleed surfaces (maps, canvases) do not get the padding. They keep their
 own on-screen controls away from the top right:
 
+> **uwuBoard on a phone** (720px and narrower, the site and the apps): the board
+> is such a surface. A strip kept clear for the tray there is a fifth of the
+> screen, so the board takes the full width, open or closed, and the tray floats
+> over its right edge. Instead, the board's sideways scroll gets room at its end
+> as wide as the open tray, so its last column (or the end of the Timeline) can
+> be scrolled out from under it. The top bar still stops short of the tab, or of
+> the open tray. Wider than that, the board keeps the strip as above.
+
 - Put the surface's own controls top left or bottom right, never top right.
 - When fitting a map to bounds, pad the right side by at least
   `button + edge + ~10px` (about 70 px) and the top by enough to clear the

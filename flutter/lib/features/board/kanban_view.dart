@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app/edge_tray.dart' show TrayClearance;
 import '../../app/env.dart';
 import '../../app/nav.dart';
 import '../../app/state.dart';
@@ -69,7 +70,8 @@ class _KanbanViewState extends State<KanbanView> {
         key: const ValueKey('columns'),
         controller: _scroll,
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.fromLTRB(narrow ? 12 : 20, 4, 20, 16),
+        // On a phone, room at the end for the last column to come out from under the open tray.
+        padding: EdgeInsets.fromLTRB(narrow ? 12 : 20, 4, 20 + TrayClearance.of(context), 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -2224,6 +2224,28 @@ body.tray-open .main {
   padding-right: calc(var(--glass-btn) + var(--edge) + 12px);
 }
 
+/* On a phone that strip is a fifth of the screen, so the board doesn't keep it: it takes the
+   whole width, open or closed, and the tray floats over its right edge, as in the apps
+   (flutter/lib/app/home.dart). The board scrolls sideways far enough for its last column, or
+   the end of the Timeline, to come out from under the open tray. The top bar still stops short
+   of the tray (.topbar above). */
+@media (max-width: 720px) {
+  body.tray-open .main {
+    padding-right: 0;
+  }
+
+  /* The room at the end: as wide as the open tray, less the gap the columns already have. */
+  body.tray-open .columns-container::after {
+    content: "";
+    flex: 0 0 calc(var(--glass-btn) + var(--edge) + 12px - 14px);
+    height: 1px;
+  }
+
+  body.tray-open .tl-grid {
+    padding-right: calc(var(--glass-btn) + var(--edge) + 12px);
+  }
+}
+
 /* A tray left collapsed starts collapsed, with no slide on load (the head script in
    index.html sets the class; js/tray.js removes it). */
 .tray-start-collapsed .tray {

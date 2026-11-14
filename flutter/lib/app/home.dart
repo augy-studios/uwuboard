@@ -125,11 +125,14 @@ class _HomeScreenState extends State<HomeScreen> {
             Positioned.fill(
               child: ValueListenableBuilder<bool>(
                 valueListenable: EdgeTray.open,
-                // A strip kept clear for the open tray, as the site does, so it never covers a column.
+                // On a wider screen, a strip kept clear for the tray, so it never covers a column.
+                // On a phone that strip is a fifth of the screen: the board takes the whole width
+                // and the tray floats over its right edge, the board scrolling far enough for its
+                // last column to come out from under the open tray (TrayClearance).
                 builder: (context, trayOpen, child) => AnimatedPadding(
                   duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 220),
-                  padding: EdgeInsets.only(right: trayOpen ? 84 : 30),
-                  child: child,
+                  padding: EdgeInsets.only(right: phone ? 0 : (trayOpen ? 84 : 30)),
+                  child: TrayClearance(end: phone && trayOpen ? EdgeTray.openWidth : 0, child: child!),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -152,7 +155,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            Positioned(top: 10, left: phone ? 10 : 16, right: 90, child: _topBar(c, board, phone, collapsed)),
+            // Level with the tray, so it stops short of it: on a phone just short of the tab, or
+            // of the open tray, following it as it opens and closes.
+            ValueListenableBuilder<bool>(
+              valueListenable: EdgeTray.open,
+              builder: (context, trayOpen, _) => AnimatedPositioned(
+                duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 220),
+                curve: Curves.easeOutCubic,
+                top: 10,
+                left: phone ? 10 : 16,
+                right: phone ? (trayOpen ? EdgeTray.openWidth + 6 : EdgeTray.tabWidth + 8) : 90,
+                child: _topBar(c, board, phone, collapsed),
+              ),
+            ),
             const Positioned(top: 10, right: 0, child: EdgeTray()),
           ],
         );

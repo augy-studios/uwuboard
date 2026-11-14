@@ -8,6 +8,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app/edge_tray.dart' show TrayClearance;
 import '../../app/env.dart';
 import '../../app/nav.dart';
 import '../../app/state.dart';
@@ -182,6 +183,9 @@ class _TimelineViewState extends State<TimelineView> {
                           child: SingleChildScrollView(
                             controller: _h,
                             scrollDirection: Axis.horizontal,
+                            // On a phone, room at the end for the chart to come out from under
+                            // the open tray.
+                            padding: EdgeInsets.only(right: TrayClearance.of(context)),
                             child: SizedBox(
                               width: chartW,
                               child: Column(

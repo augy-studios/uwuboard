@@ -20,11 +20,32 @@ const _trayKey = 'uwuboard.trayOpen';
 class EdgeTray extends StatefulWidget {
   const EdgeTray({super.key});
 
-  /// Whether it's open: the page keeps a strip clear for it while it is, as the site does.
+  /// Whether it's open. On a wider screen the page keeps a strip clear for it while it is; on a
+  /// phone it floats over the board instead (home.dart).
   static final ValueNotifier<bool> open = ValueNotifier(true);
+
+  /// How far it reaches in from the right edge: just the tab when it's closed, and the tab, its
+  /// gap, a button and the edge's margin when it's open.
+  static const tabWidth = 26.0;
+  static const openWidth = tabWidth + 6 + 44 + 10;
 
   @override
   State<EdgeTray> createState() => _EdgeTrayState();
+}
+
+/// How much further the board's sideways scroll runs at its end, so its last column (or the end
+/// of the Timeline) can come out from under the open tray. On a phone the board takes the whole
+/// width and the tray floats over its right edge (home.dart); elsewhere it's 0, as the page keeps
+/// a strip clear instead, and a board drawn off screen for a screenshot has none.
+class TrayClearance extends InheritedWidget {
+  const TrayClearance({super.key, required this.end, required super.child});
+
+  final double end;
+
+  static double of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<TrayClearance>()?.end ?? 0;
+
+  @override
+  bool updateShouldNotify(TrayClearance oldWidget) => oldWidget.end != end;
 }
 
 class _EdgeTrayState extends State<EdgeTray> {
