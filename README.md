@@ -129,23 +129,13 @@ text with the pictures replying to it.
   `vendor/html-to-image`; the apps draw the open board whole, every column top to bottom (or the
   screen as it is, with a window open). A picture bigger than the screen also goes to Telegram as a
   file, at its full size, as Telegram shrinks a long photo till it can't be read.
-- **Set up:** set `BUG_REPORT_BOT_TOKEN` and `BUG_REPORT_CHAT_ID` in Vercel (Production), then
-  redeploy. Without them, or if every chat fails, the form offers email instead.
-- **The bot:** BotFather, `/newbot`; its token is `BUG_REPORT_BOT_TOKEN`. It only sends, so it
-  runs nowhere and needs no webhook.
-- **`BUG_REPORT_CHAT_ID`:** one or more chats split by commas, e.g. `424242,-1001234567890,-1001234567890/17`.
-  Each gets the report at once, and it counts as sent if one took it (one that didn't is in
-  Vercel's log as `bug-report: chat 2: …` with Telegram's reason). To find a chat's ID, do the step
-  for it, then open `https://api.telegram.org/bot<token>/getUpdates` in your own browser (the
-  token is a password: never paste it anywhere else) and find `"chat":{"id": …}` in the newest
-  update:
-  - **You, or anyone, in a private chat:** open the bot and press **Start**. The ID is a positive
-    number. Each person has to start the bot first, or Telegram won't let it message them.
-  - **A group:** add the bot, then send `/start@<botname>` in it. A supergroup's ID starts `-100`.
-  - **A topic in a group with topics:** the group's `-100…` ID, a `/`, and the topic's ID (from
-    the topic's link: `t.me/c/1234567890/17` is `-1001234567890/17`).
-  - **A channel:** add the bot as an admin with **Post messages**, then post in the channel; the ID
-    is in `channel_post`. A public channel can be given as `@channelname`.
+- **Set up:** [BUG-REPORT-SETUP.md](BUG-REPORT-SETUP.md) goes through it step by step: a bot
+  from BotFather (`BUG_REPORT_BOT_TOKEN`), and the chats it sends to (`BUG_REPORT_CHAT_ID`, one or
+  more split by commas, e.g. `424242,-1001234567890,-1001234567890/17`), set in Vercel
+  (Production), then a redeploy. The bot only sends, so it runs nowhere and needs no webhook.
+  Each chat gets the report at once, and it counts as sent if one took it (one that didn't is in
+  Vercel's log as `bug-report: chat 2: …` with Telegram's reason). Without them, or if every chat
+  fails, the form offers email instead.
 - **Limits:** a public endpoint, so 2 reports a minute from one IP, and with Redis
   (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) 6 an hour from one IP and 60 an hour in all; at most
   2,000 characters and three pictures of about 1 MB.
