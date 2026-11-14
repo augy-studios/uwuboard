@@ -2,6 +2,8 @@
 // Native.call / Native.has as they would on a phone, and this answers in Dart, so the screens
 // need no desktop branches. Anything not here fails like an absent plugin ('unavailable'), and
 // the screen's plain path runs.
+import 'dart:io';
+
 import '../app/env.dart';
 import '../native/bridge.dart';
 import 'desk.dart';
@@ -16,6 +18,8 @@ class DesktopHost implements NativeHost {
         return {
           'platform': 'desktop',
           'version': Env.version,
+          // For a bug report (lib/features/bug/bug_report.dart): the system and its version.
+          'os': '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
           // What the desktop does; never a phone-only feature.
           'features': ['notifications', 'links', 'glance', 'widgets', 'checkUpdate'],
         };

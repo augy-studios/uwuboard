@@ -18,6 +18,7 @@ and the ported logic against the site's JavaScript.
 | `js/images.js` images by bytes, never addresses | `lib/data/images.dart` | Done. New pictures are JPEG or PNG (Dart has no WebP writer); the site and server take both |
 | `js/tour.js` first-visit tours, Show me around | `lib/features/tour/tour.dart` | Done |
 | `js/tray.js` edge tray, press and hold for a label | `lib/app/edge_tray.dart` | Done |
+| `js/bug-report.js` Report a bug, Screenshot a page, sent to Telegram by `api/bug-report.js` | `lib/features/bug/bug_report.dart`, `lib/features/board/whole_board.dart` | Done. Screenshot a page takes the open board whole, or the screen with a window open |
 | `js/sw-update.js` update bar | `lib/features/update/update_bar.dart` | Done, as the app's own updater and Updates page (Android), and `lib/desktop/updater.dart` |
 | `sw.js` offline | `lib/api/api.dart`, `lib/app/state.dart` (`app.boardsCache`) | Done: the boards as last fetched, and an offline bar |
 | `index.html` `#sync/CODE` links | `lib/app/links.dart`, `AndroidManifest.xml` (verified links) | Done |

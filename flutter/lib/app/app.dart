@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../desktop/adaptive.dart';
 import '../features/auth/auth_screen.dart';
+import '../features/bug/bug_report.dart';
 import '../features/update/update_bar.dart';
 import '../theme/theme.dart';
 import '../widgets/sheet.dart';
@@ -84,7 +85,16 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
                 final mq = MediaQuery.of(context);
                 Widget app = MediaQuery(
                   data: mq.copyWith(textScaler: mq.textScaler.clamp(minScaleFactor: 1, maxScaleFactor: 2)),
-                  child: RepaintBoundary(key: AppNav.repaintKey, child: child ?? const SizedBox.shrink()),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: RepaintBoundary(key: AppNav.repaintKey, child: child ?? const SizedBox.shrink())),
+                      // A bug report's Screenshot a page: outside what's taken, so not in the picture.
+                      ValueListenableBuilder<bool>(
+                        valueListenable: BugShot.shooting,
+                        builder: (context, shooting, _) => shooting ? const BugShotBar() : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
                 );
                 final chrome = desktopChrome;
                 if (chrome != null) app = chrome(context, app);

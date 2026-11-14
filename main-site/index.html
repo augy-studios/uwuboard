@@ -58,7 +58,7 @@
         })();
     </script>
 
-    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" crossorigin="anonymous" />
     <link rel="stylesheet" href="/style.css">
     <meta name="theme-color" content="#ccffcc" />
 
@@ -94,6 +94,10 @@
                 <button class="glass-btn" id="tourBtn" type="button" aria-haspopup="dialog" aria-label="Show me around"
                     title="Show me around">
                     <span data-icon="help"></span>
+                </button>
+                <button class="glass-btn" id="bugBtn" type="button" aria-haspopup="dialog" aria-label="Report a bug"
+                    title="Report a bug">
+                    <span data-icon="bug"></span>
                 </button>
 
                 <!-- The open board's actions, shown while a board is open. -->
@@ -692,6 +696,48 @@
         </div>
     </div>
 
+    <!-- Report a bug, from the edge tray: js/bug-report.js, sent to Telegram by api/bug-report.js -->
+    <div id="bugModal" class="modal-backdrop hidden" style="z-index:170">
+        <form class="modal glass bug-modal" id="bugForm" role="dialog" aria-modal="true" aria-labelledby="bugTitle" novalidate>
+            <div class="modal-head">
+                <h2 id="bugTitle">Report a bug</h2>
+                <button class="icon-btn small" type="button" data-close-modal="bugModal" aria-label="Close">
+                    <span data-icon="close"></span>
+                </button>
+            </div>
+            <label class="modal-section-label" for="bugText">What went wrong?</label>
+            <textarea id="bugText" class="bugText" rows="5" maxlength="2000" required
+                placeholder="What you did, what happened, and what you expected"></textarea>
+            <label class="modal-section-label" for="bugContact">How to reach you (optional)</label>
+            <input id="bugContact" type="text" maxlength="200" autocomplete="off" spellcheck="false"
+                placeholder="Telegram @name or email, for an answer" />
+            <!-- Pictures, up to three: from the device, or a page of the app (js/bug-report.js) -->
+            <p class="modal-section-label">Pictures (optional)</p>
+            <div id="bugShots" class="bugShots" hidden></div>
+            <div class="bugShotBtns">
+                <button id="bugAddPic" class="btn-ghost" type="button"><span data-icon="image"></span> Add pictures</button>
+                <button id="bugScreenshot" class="btn-ghost" type="button"><span data-icon="screenshot"></span> Screenshot a page</button>
+            </div>
+            <input id="bugPicFile" type="file" accept="image/*" multiple hidden />
+            <p class="mode-note">Up to 3. Screenshot a page puts this away: go to the page you want (open a card,
+                or switch to the Timeline), then press Screenshot this page. It takes the whole page, top to bottom,
+                and brings you back here.</p>
+            <!-- Only a bot fills this in (api/bug-report.js) -->
+            <div class="bugTrap" aria-hidden="true"><label>Website <input id="bugWebsite" type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+            <p class="mode-note">Sent with it, to help find the bug: <span id="bugDetails"></span></p>
+            <p id="bugStatus" class="mode-note bugStatus" role="status" hidden></p>
+            <div class="bugFoot">
+                <button id="bugSend" class="btn-primary" type="submit"><span data-icon="send"></span> Send</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Screenshot a page: floats over the page while you find what to take (js/bug-report.js) -->
+    <div id="bugShotBar" class="bugShotBar" role="region" aria-label="Screenshot a page" hidden>
+        <button id="bugShotTake" class="btn-primary" type="button"><span data-icon="screenshot"></span> <span id="bugShotTakeLabel">Screenshot this page</span></button>
+        <button id="bugShotCancel" class="icon-btn small" type="button" aria-label="Cancel" title="Cancel"><span data-icon="close"></span></button>
+    </div>
+
     <script src="/js/icons.js"></script>
     <script src="/js/ui.js"></script>
     <script src="/js/theme.js"></script>
@@ -702,6 +748,7 @@
     <script src="/js/sync.js"></script>
     <script src="/js/tour.js"></script>
     <script src="/js/timeline.js"></script>
+    <script src="/js/bug-report.js"></script>
     <script src="/script.js"></script>
     <script src="/js/sw-update.js"></script>
 

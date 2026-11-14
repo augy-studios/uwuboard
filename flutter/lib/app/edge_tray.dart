@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
+import '../features/bug/bug_report.dart';
 import '../features/card/card_sheet.dart';
 import '../features/sync/sync_sheet.dart';
 import '../features/theme/theme_sheet.dart';
@@ -113,6 +114,7 @@ class _EdgeTrayState extends State<EdgeTray> {
                         _button('tray-theme', ThemeController.I.mode == 'dark' ? 'moon' : 'sun', 'Theme: colour, light or dark', () => openThemeSheet(context)),
                         _button('tray-sync', 'sync', 'Sync with another device', () => openSync(context)),
                         _button('tray-tour', 'help', 'Show me around', () => openTourPicker(context)),
+                        _button('tray-bug', 'bug', 'Report a bug', () => openBugReport(context)),
                         if (board != null) ...[
                           Container(width: 22, height: 1, margin: const EdgeInsets.only(bottom: 8), color: c.border),
                           _button('tray-view', timeline ? 'kanban' : 'timeline', timeline ? 'Show as Kanban' : 'Show as Timeline', app.toggleView),

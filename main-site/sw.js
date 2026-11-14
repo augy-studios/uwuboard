@@ -1,7 +1,7 @@
 // Bump on every change to anything this worker serves. The browser only sees
 // an update when this file changes byte for byte, so a deploy that leaves this
 // alone never reaches anyone who already has the site cached.
-const VERSION = "v14";
+const VERSION = "v15";
 const CACHE = `uwuboard-${VERSION}`;
 // The last answer from each API route, for opening the app offline. Versioned
 // too, so copies from before a deploy (which may carry what it removed, such as
@@ -24,6 +24,8 @@ const ASSETS = [
   "/js/tour.js",
   "/js/timeline.js",
   "/js/sw-update.js",
+  // Report a bug, from the edge tray (js/bug-report.js).
+  "/js/bug-report.js",
   "/uwuboard-main.png",
   "/favicon.ico",
   "/manifest.json"
@@ -62,6 +64,9 @@ self.addEventListener("message", (event) => {
   if (type === "skip-waiting") {
     event.waitUntil(self.skipWaiting().then(() => self.clients.claim()));
   }
+
+  // This worker's version, for a bug report (js/bug-report.js), answered on the port sent.
+  if (type === "version") event.ports[0]?.postMessage(VERSION);
 
   // Signing out: the API copies are keyed by URL alone, so the next person to
   // sign in on this device must not be handed them.

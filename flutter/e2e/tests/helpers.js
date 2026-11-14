@@ -37,6 +37,11 @@ export async function mockApi(page, db = {}) {
         return json(200, { ok: true });
       case "/app-release":
         return json(200, db.release);
+      // Report a bug (main-site/api/bug-report.js): kept in db.bugReports; db.bugStatus sets the answer.
+      case "/bug-report":
+        (db.bugReports ??= []).push(body);
+        if (db.bugStatus && db.bugStatus !== 200) return json(db.bugStatus, { error: "Bug reports can't be sent from the app yet." });
+        return json(200, { id: "20261114-7K3Q" });
       default:
         return json(404, { error: "Not found" });
     }

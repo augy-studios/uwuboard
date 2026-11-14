@@ -171,6 +171,9 @@ public class MainActivity extends FlutterActivity {
                 a.put("build", BuildConfig.VERSION_CODE);
                 a.put("play", BuildConfig.PLAY);
                 a.put("sdk", Build.VERSION.SDK_INT);
+                // For a bug report (lib/features/bug/bug_report.dart): "Android 14 · Google Pixel 8".
+                a.put("release", Build.VERSION.RELEASE);
+                a.put("model", (Build.MANUFACTURER + " " + Build.MODEL).trim());
                 a.put("features", features);
                 ok(result, a);
                 return;

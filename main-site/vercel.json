@@ -70,6 +70,10 @@
         {
             "source": "/api/push/release",
             "destination": "/api/push/release.js"
+        },
+        {
+            "source": "/api/bug-report",
+            "destination": "/api/bug-report.js"
         }
     ]
 }

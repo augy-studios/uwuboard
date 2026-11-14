@@ -7,7 +7,6 @@
 // A notification says it's saved; clicking it shows it in its folder.
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -16,8 +15,7 @@ import 'package:pasteboard/pasteboard.dart';
 
 import '../app/nav.dart';
 import '../app/state.dart';
-import '../features/board/kanban_view.dart';
-import '../features/timeline/timeline_view.dart';
+import '../features/board/whole_board.dart';
 import 'desk.dart';
 import 'notify.dart';
 
@@ -69,67 +67,19 @@ class Screenshots {
     }
   }
 
-  /// The open board drawn whole, off to the side of the window, then captured.
+  /// The open board drawn whole (lib/features/board/whole_board.dart), then saved.
   static Future<void> takeLong(BuildContext context) async {
     final board = AppState.I.activeBoard;
     if (board == null) return take(context);
     if (busy.value) return;
     busy.value = true;
-    // Called from the title bar, above the navigator: the navigator's overlay.
-    final overlay = AppNav.navigatorKey.currentState?.overlay;
-    final key = GlobalKey();
-    OverlayEntry? entry;
     try {
-      if (overlay == null) throw StateError('no overlay');
-      final size = MediaQuery.sizeOf(context);
-      final timeline = AppState.I.isTimeline(board);
-      final theme = Theme.of(context);
-      final ratio = MediaQuery.devicePixelRatioOf(context);
-      final mq = MediaQuery.of(context).copyWith(size: Size(size.width, maxHeight));
-      entry = OverlayEntry(
-        builder: (_) => Positioned(
-          // Far off the window, where it's drawn but never seen.
-          left: -size.width * 4 - 20000,
-          top: 0,
-          child: OverflowBox(
-            alignment: Alignment.topLeft,
-            minWidth: 0,
-            maxWidth: timeline ? size.width : double.infinity,
-            minHeight: 0,
-            maxHeight: maxHeight,
-            child: RepaintBoundary(
-              key: key,
-              child: Theme(
-                data: theme,
-                child: Material(
-                  color: theme.scaffoldBackgroundColor,
-                  child: MediaQuery(
-                    data: mq,
-                    child: timeline
-                        ? SizedBox(
-                            width: size.width,
-                            child: TimelineView(board: board, fullHeight: true),
-                          )
-                        : KanbanView(board: board, fullHeight: true),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-      overlay.insert(entry);
-      // Long enough for the cards' pictures to arrive.
-      await Future<void>.delayed(const Duration(milliseconds: 900));
-      final box = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (box == null) throw StateError('nothing drawn');
-      final r = math.min(ratio, maxHeight / math.max(box.size.height, 1));
-      final image = await box.toImage(pixelRatio: r);
+      final image = await drawWholeBoard(context, board, maxHeight: maxHeight);
+      if (image == null) throw StateError('nothing drawn');
       await _save(image, '${Desktop.name} ${_stamp()} (long).png', 'Long screenshot saved');
     } catch (_) {
       AppNav.toast('Couldn’t take a screenshot', error: true);
     } finally {
-      entry?.remove();
       busy.value = false;
     }
   }

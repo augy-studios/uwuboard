@@ -9,5 +9,6 @@ A ClickUp × Trello-style kanban web app
 - **Boards** — unlimited boards per user; rename, delete
 - **Columns** — editable number of columns; rename, delete, reorder via drag
 - **Cards** — titles, descriptions, due dates, priority flags, colour labels, checklists, drag-and-drop between columns
+- **Report a bug** — from the edge tray, with Screenshot a page and a report ID, sent through a Telegram bot (`js/bug-report.js`, `api/bug-report.js`; the top-level README's "Report a bug" says how to set it up)
 - **PWA** — installable and offline-capable
 - **Liquid glass UI** — `#ccffcc` brand, specular highlights, backdrop blur

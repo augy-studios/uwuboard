@@ -21,6 +21,7 @@ import '../app/nav.dart';
 import '../app/state.dart';
 import '../data/board.dart';
 import '../features/board/column_sheets.dart';
+import '../features/bug/bug_report.dart';
 import '../features/card/card_sheet.dart';
 import '../features/sync/sync_sheet.dart';
 import '../features/theme/theme_sheet.dart';
@@ -184,6 +185,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
       _Hit('sync', 'Sync with another device', 'Command', () => ctx == null ? null : openSync(ctx)),
       _Hit('sun', 'Theme', 'Command · Ctrl+,', () => ctx == null ? null : openThemeSheet(ctx)),
       _Hit('help', 'Show me around', 'Command', () => ctx == null ? null : openTourPicker(ctx)),
+      _Hit('bug', 'Report a bug', 'Command', () => ctx == null ? null : openBugReport(ctx)),
       if (app.activeBoard != null) ...[
         _Hit(
           app.isTimeline(app.activeBoard) ? 'kanban' : 'timeline',
@@ -649,6 +651,7 @@ class _MacMenus extends StatelessWidget {
           label: 'Help',
           menus: [
             item('Show Me Around', () => ctx == null ? null : openTourPicker(ctx)),
+            item('Report a Bug…', () => ctx == null ? null : openBugReport(ctx)),
             item('uwuBoard on the Web', () => Desktop.openExternal(Desktop.site)),
           ],
         ),

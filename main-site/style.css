@@ -3304,3 +3304,131 @@ body.touring {
     pointer-events: auto;
   }
 }
+
+/* ── Report a bug (js/bug-report.js) ── */
+.bug-modal {
+  max-width: 460px;
+}
+
+.bugText {
+  min-height: 120px;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.bug-modal [data-icon],
+.bug-modal [data-icon] svg,
+.bugShotBar .btn-primary [data-icon],
+.bugShotBar .btn-primary [data-icon] svg {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+/* The field only a bot fills in: off the screen, not display: none, which some bots skip. */
+.bugTrap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.bugStatus {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bugStatus a {
+  color: var(--brand-ink);
+}
+
+.bugShots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bugShots[hidden] {
+  display: none;
+}
+
+.bugShot {
+  position: relative;
+  width: 72px;
+  height: 96px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+}
+
+.bugShot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+}
+
+.bugShotX {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 16px;
+  line-height: 24px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.bugShotBtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bugShotBtns button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.bug-modal .mode-note {
+  margin-top: 0;
+}
+
+.bugFoot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Screenshot a page: over everything, windows included, at the bottom of the screen. */
+.bugShotBar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 280;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow);
+  max-width: calc(100vw - 32px);
+}
+
+.bugShotBar[hidden] {
+  display: none;
+}
+
+.bugShotBar .btn-primary {
+  white-space: nowrap;
+}

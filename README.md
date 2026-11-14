@@ -30,6 +30,10 @@ device.
 - **Themes:** seven brand colour swatches and a light, dark or time-based mode.
 - **Sync between devices:** boards and theme copied straight from one device to another over
   WebRTC, with a code or QR code.
+- **Report a bug:** from the edge tray, in the site and the apps. What went wrong, a way to reach
+  you, and up to three pictures, from the device or **Screenshot a page**: go to the page with the
+  bug and take it whole, top to bottom. It reaches Augy through a Telegram bot, and you get the
+  report's ID (like `20261114-7K3Q`) to quote. See "Report a bug" below.
 - **PWA:** installable and works offline. When a new version is ready, a bar at the top offers to
   reload.
 
@@ -102,6 +106,52 @@ Set these in the Vercel project, or in `main-site/.env.local` for `vercel dev`.
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_SERVICE_KEY` | The service role key. It is only used server side, so never expose it to the browser. |
 | `FIREBASE_SERVICE_ACCOUNT`, `GITHUB_WEBHOOK_SECRET`, `GITHUB_TOKEN` | Optional: notifications of new app versions (`flutter/FIREBASE-SETUP.md`) |
+| `BUG_REPORT_BOT_TOKEN`, `BUG_REPORT_CHAT_ID` | Optional: where Report a bug sends reports ("Report a bug" below). Without them the form offers email instead |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Optional: Vercel KV or Upstash Redis, for Report a bug's hourly limits |
+
+### Report a bug
+
+The edge tray's **Report a bug** (`main-site/js/bug-report.js`, and `flutter/lib/features/bug/bug_report.dart`
+in the apps) sends what went wrong, an optional contact, up to three pictures, and what helps find
+the bug (the app and its version, the device, and the kind of page and window on show: never a
+board's or a card's name), all shown before it's sent. `POST /api/bug-report`
+(`main-site/api/bug-report.js`) sends it on through a Telegram bot, as a rich message (Bot API
+`sendRichMessage`): a heading with the report's ID, a table of the details, what was typed
+(escaped, so it reads as typed) and the pictures. A chat that won't take a rich message gets plain
+text with the pictures replying to it.
+
+- **Report IDs:** each report gets one, the day in Singapore and four letters, e.g. `20261114-7K3Q`
+  (no 0, O, 1, I or L, so it can be read out). It's in the message's heading and shown to the
+  person once it's sent, so a report can be talked about by it. Nothing is stored.
+- **Screenshot a page:** puts the form away and leaves a **Screenshot this page** bar floating at
+  the bottom. Go to the page with the bug (open a card, switch to the Timeline), press it, and the
+  form comes back with the picture. The bar isn't in it. The site draws the whole page with
+  `vendor/html-to-image`; the apps draw the open board whole, every column top to bottom (or the
+  screen as it is, with a window open). A picture bigger than the screen also goes to Telegram as a
+  file, at its full size, as Telegram shrinks a long photo till it can't be read.
+- **Set up:** set `BUG_REPORT_BOT_TOKEN` and `BUG_REPORT_CHAT_ID` in Vercel (Production), then
+  redeploy. Without them, or if every chat fails, the form offers email instead.
+- **The bot:** BotFather, `/newbot`; its token is `BUG_REPORT_BOT_TOKEN`. It only sends, so it
+  runs nowhere and needs no webhook.
+- **`BUG_REPORT_CHAT_ID`:** one or more chats split by commas, e.g. `424242,-1001234567890,-1001234567890/17`.
+  Each gets the report at once, and it counts as sent if one took it (one that didn't is in
+  Vercel's log as `bug-report: chat 2: …` with Telegram's reason). To find a chat's ID, do the step
+  for it, then open `https://api.telegram.org/bot<token>/getUpdates` in your own browser (the
+  token is a password: never paste it anywhere else) and find `"chat":{"id": …}` in the newest
+  update:
+  - **You, or anyone, in a private chat:** open the bot and press **Start**. The ID is a positive
+    number. Each person has to start the bot first, or Telegram won't let it message them.
+  - **A group:** add the bot, then send `/start@<botname>` in it. A supergroup's ID starts `-100`.
+  - **A topic in a group with topics:** the group's `-100…` ID, a `/`, and the topic's ID (from
+    the topic's link: `t.me/c/1234567890/17` is `-1001234567890/17`).
+  - **A channel:** add the bot as an admin with **Post messages**, then post in the channel; the ID
+    is in `channel_post`. A public channel can be given as `@channelname`.
+- **Limits:** a public endpoint, so 2 reports a minute from one IP, and with Redis
+  (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) 6 an hour from one IP and 60 an hour in all; at most
+  2,000 characters and three pictures of about 1 MB.
+- **Test:** `node scripts/bug-report-test.cjs` runs the function on made-up requests with Telegram
+  stood in for, and drives the form in Chromium with Playwright (`API_ONLY=1` skips the form). The
+  apps' form is in `flutter/e2e/tests/bug-report.spec.js`.
 
 ### Supabase
 
