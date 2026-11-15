@@ -41,7 +41,8 @@ or a script calling `getUpdates`) gets in the way of finding chat IDs in step 2.
 > The token is a password. Don't commit it, paste it into chats or put it anywhere but Vercel. If
 > it ever leaks, see [If the token leaks](#if-the-token-leaks).
 
-Optional, in BotFather: `/setuserpic` gives it uwuBoard's icon (`main-site/uwuboard-512.png`), and
+Optional, in BotFather: `/setuserpic` gives it its icon (`docs/assets/uwuboard-bug-report-bot-icon.png`;
+the SVG beside it is the source), and
 `/setdescription` says what it is. Leave **Group Privacy** on (the default): the bot needs to read
 nothing in a group.
 
