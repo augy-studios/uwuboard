@@ -106,6 +106,7 @@ class _EdgeTrayState extends State<EdgeTray> {
                     side: BorderSide(color: c.border),
                   ),
                   child: InkWell(
+                    mouseCursor: WidgetStateMouseCursor.clickable,
                     borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
                     onTap: _toggle,
                     child: SizedBox(

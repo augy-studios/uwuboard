@@ -51,6 +51,7 @@ class ThemeSheet extends StatelessWidget {
                     selected: o.$1 == value,
                     button: true,
                     child: InkWell(
+                      mouseCursor: WidgetStateMouseCursor.clickable,
                       key: ValueKey('$key-${o.$1}'),
                       borderRadius: BorderRadius.circular(9),
                       onTap: () => pick(o.$1),
@@ -130,6 +131,7 @@ class ThemeSheet extends StatelessWidget {
                           button: true,
                           excludeSemantics: true,
                           child: InkWell(
+                            mouseCursor: WidgetStateMouseCursor.clickable,
                             key: ValueKey('swatch-${ct.id}'),
                             customBorder: const CircleBorder(),
                             onTap: accent ? null : () => t.setColorTheme(ct.id),

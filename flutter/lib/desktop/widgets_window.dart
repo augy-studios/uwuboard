@@ -226,6 +226,7 @@ class _WidgetAppState extends State<_WidgetApp> with WindowListener {
       excludeFromSemantics: true,
       message: label,
       child: InkWell(
+        mouseCursor: WidgetStateMouseCursor.clickable,
         onTap: onTap,
         borderRadius: BorderRadius.circular(6),
         child: Padding(
@@ -330,6 +331,7 @@ class _WidgetAppState extends State<_WidgetApp> with WindowListener {
         final d = due[i];
         final colour = d.days < 0 ? c.error : (d.days == 0 ? c.warn : c.muted);
         return InkWell(
+          mouseCursor: WidgetStateMouseCursor.clickable,
           onTap: () => widgetChannel.invokeMethod('open', 'uwu://board/b/${board['id']}').catchError((Object _) => null),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

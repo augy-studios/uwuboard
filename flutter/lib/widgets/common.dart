@@ -68,6 +68,7 @@ class GlassButton extends StatelessWidget {
           shape: CircleBorder(side: BorderSide(color: c.border)),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
+            mouseCursor: WidgetStateMouseCursor.clickable,
             onTap: onPressed,
             child: SizedBox(
               width: size,
@@ -104,6 +105,7 @@ class MiniButton extends StatelessWidget {
         label: label,
         excludeSemantics: true,
         child: InkWell(
+          mouseCursor: WidgetStateMouseCursor.clickable,
           borderRadius: BorderRadius.circular(8),
           onTap: onPressed,
           child: SizedBox(
@@ -287,6 +289,7 @@ class LabelChip extends StatelessWidget {
           ),
           if (onRemove != null)
             InkWell(
+              mouseCursor: WidgetStateMouseCursor.clickable,
               onTap: onRemove,
               customBorder: const CircleBorder(),
               child: Padding(

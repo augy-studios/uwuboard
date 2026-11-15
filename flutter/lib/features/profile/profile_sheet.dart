@@ -84,6 +84,7 @@ class _ProfileState extends State<_Profile> {
           child: Tooltip(
             message: 'Click to change photo',
             child: InkWell(
+              mouseCursor: WidgetStateMouseCursor.clickable,
               customBorder: const CircleBorder(),
               onTap: _pickAvatar,
               child: Stack(

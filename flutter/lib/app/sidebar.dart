@@ -78,7 +78,7 @@ class Sidebar extends StatelessWidget {
               const SizedBox(height: 10),
               MiniButton(icon: 'chevron-right', label: 'Expand sidebar', onPressed: onToggle, size: 36),
               const SizedBox(height: 8),
-              InkWell(customBorder: const CircleBorder(), onTap: () => openProfile(context), child: const Avatar(size: 34)),
+              InkWell(mouseCursor: WidgetStateMouseCursor.clickable, customBorder: const CircleBorder(), onTap: () => openProfile(context), child: const Avatar(size: 34)),
               const SizedBox(height: 12),
               Expanded(
                 child: ListView(
@@ -159,7 +159,7 @@ class Sidebar extends StatelessWidget {
                   children: [
                     Tooltip(
                       message: app.isGuest ? 'Guest' : 'Profile',
-                      child: InkWell(customBorder: const CircleBorder(), onTap: () => openProfile(context), child: const Avatar(size: 36)),
+                      child: InkWell(mouseCursor: WidgetStateMouseCursor.clickable, customBorder: const CircleBorder(), onTap: () => openProfile(context), child: const Avatar(size: 36)),
                     ),
                     const SizedBox(width: 10),
                     Expanded(

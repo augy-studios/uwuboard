@@ -172,6 +172,7 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
             excludeFromSemantics: true,
             message: 'Press to copy the link',
             child: InkWell(
+              mouseCursor: WidgetStateMouseCursor.clickable,
               borderRadius: BorderRadius.circular(12),
               onTap: () async {
                 try {
@@ -220,6 +221,7 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
         selected: s.tab == id,
         button: true,
         child: InkWell(
+          mouseCursor: WidgetStateMouseCursor.clickable,
           borderRadius: BorderRadius.circular(9),
           onTap: () => s.setTab(id),
           child: Container(

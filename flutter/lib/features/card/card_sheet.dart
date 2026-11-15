@@ -249,6 +249,8 @@ class _CardSheetState extends State<CardSheet> {
                 children: [
                   const FieldLabel('Priority'),
                   DropdownButtonFormField<String>(
+                    mouseCursor: WidgetStateMouseCursor.clickable,
+                    dropdownMenuItemMouseCursor: WidgetStateMouseCursor.clickable,
                     initialValue: priorities.contains(_draft['priority']) ? '${_draft['priority']}' : '',
                     items: const [
                       DropdownMenuItem(value: '', child: Text('None')),
@@ -347,6 +349,7 @@ class _CardSheetState extends State<CardSheet> {
               ),
               if (v.isNotEmpty && enabled)
                 InkWell(
+                  mouseCursor: WidgetStateMouseCursor.clickable,
                   onTap: () => setState(() => _draft[key] = ''),
                   child: AppIcon('close', size: 14, color: c.muted),
                 )
@@ -381,6 +384,7 @@ class _CardSheetState extends State<CardSheet> {
               children: [
                 const FieldLabel('Milestone'),
                 InkWell(
+                  mouseCursor: WidgetStateMouseCursor.clickable,
                   onTap: () => setState(() => _draft['milestone'] = !milestone),
                   child: Row(
                     children: [
@@ -408,6 +412,7 @@ class _CardSheetState extends State<CardSheet> {
                 final other = all.firstWhere((k) => k['id'] == id);
                 final clash = tl.clashes(other, probe);
                 return InputChip(
+                  mouseCursor: WidgetStateMouseCursor.clickable,
                   label: Text('${other['title']}'),
                   tooltip: clash ? 'Its dates clash with this task' : null,
                   backgroundColor: clash ? c.errorFill : c.surfaceStrong,
@@ -424,6 +429,8 @@ class _CardSheetState extends State<CardSheet> {
       const SizedBox(height: 8),
       DropdownButtonFormField<String>(
         key: ValueKey('deps-${deps.length}'),
+        mouseCursor: WidgetStateMouseCursor.clickable,
+        dropdownMenuItemMouseCursor: WidgetStateMouseCursor.clickable,
         initialValue: null,
         isExpanded: true,
         hint: Text(choices.isEmpty ? 'No other tasks to wait for' : 'Add a task this one waits for…'),
@@ -496,6 +503,7 @@ class _CardSheetState extends State<CardSheet> {
                   child: Column(
                     children: [
                       InkWell(
+                        mouseCursor: WidgetStateMouseCursor.clickable,
                         onTap: () => _openImage(img),
                         child: SizedBox(height: 96, width: 150, child: CardImage(img)),
                       ),
@@ -548,6 +556,7 @@ class _CardSheetState extends State<CardSheet> {
             children: [
               for (final hex in labelColours)
                 InkWell(
+                  mouseCursor: WidgetStateMouseCursor.clickable,
                   onTap: () {
                     setState(() => _labelColour = hex);
                     Navigator.pop(context);
@@ -566,13 +575,17 @@ class _CardSheetState extends State<CardSheet> {
           ),
         ),
       ],
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Color(0xFF000000 | parseHex(_labelColour)!),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: c.border, width: 1.5),
+      // PopupMenuButton's own InkWell can't be given a cursor, so the swatch asks for the hand.
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Color(0xFF000000 | parseHex(_labelColour)!),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.border, width: 1.5),
+          ),
         ),
       ),
     );

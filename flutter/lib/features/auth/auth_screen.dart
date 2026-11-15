@@ -129,6 +129,7 @@ class _AuthScreenState extends State<AuthScreen> {
           selected: on,
           button: true,
           child: InkWell(
+            mouseCursor: WidgetStateMouseCursor.clickable,
             borderRadius: BorderRadius.circular(9),
             onTap: () => setState(() => _tab = id),
             child: AnimatedContainer(

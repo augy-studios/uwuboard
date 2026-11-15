@@ -403,6 +403,9 @@ ThemeData buildTheme({
         borderSide: BorderSide(color: colors.brandInk, width: 2),
       ),
     ),
+    // Flutter gives buttons a pointing hand only on the web, and the arrow everywhere else; the
+    // site points at what can be pressed, so every button here does the same, on the desktop too.
+    // InkWells, dropdowns and chips can't take this from the theme, so they name it themselves.
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: material ? null : colors.brandFill,
@@ -413,6 +416,8 @@ ThemeData buildTheme({
         ),
         padding: EdgeInsets.symmetric(horizontal: 18, vertical: desktop ? 12 : 14),
         textStyle: TextStyle(fontFamily: material ? null : 'Jua', fontSize: 14, fontWeight: material ? FontWeight.w600 : FontWeight.w400),
+        enabledMouseCursor: SystemMouseCursors.click,
+        disabledMouseCursor: SystemMouseCursors.basic,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -423,18 +428,25 @@ ThemeData buildTheme({
         shape: RoundedRectangleBorder(borderRadius: radius),
         padding: EdgeInsets.symmetric(horizontal: 14, vertical: desktop ? 10 : 12),
         textStyle: TextStyle(fontFamily: material ? null : 'Jua', fontSize: 13),
+        enabledMouseCursor: SystemMouseCursors.click,
+        disabledMouseCursor: SystemMouseCursors.basic,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: colors.brandInk,
         textStyle: TextStyle(fontFamily: material ? null : 'Jua', fontSize: 13),
+        enabledMouseCursor: SystemMouseCursors.click,
+        disabledMouseCursor: SystemMouseCursors.basic,
       ),
     ),
+    iconButtonTheme: const IconButtonThemeData(style: ButtonStyle(mouseCursor: WidgetStateMouseCursor.clickable)),
+    popupMenuTheme: const PopupMenuThemeData(mouseCursor: WidgetStateMouseCursor.clickable),
     checkboxTheme: CheckboxThemeData(
       fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? colors.brandInk : null),
       checkColor: WidgetStatePropertyAll(colors.bg),
       side: BorderSide(color: colors.muted, width: 1.5),
+      mouseCursor: WidgetStateMouseCursor.clickable,
     ),
     switchTheme: material
         ? null

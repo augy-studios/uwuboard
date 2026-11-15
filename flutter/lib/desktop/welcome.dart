@@ -230,6 +230,8 @@ class _WelcomeAppState extends State<WelcomeApp> with WindowListener {
                   'moon',
                   'Theme',
                   DropdownButton<String>(
+                    mouseCursor: WidgetStateMouseCursor.clickable,
+                    dropdownMenuItemMouseCursor: WidgetStateMouseCursor.clickable,
                     value: c.mode,
                     underline: const SizedBox.shrink(),
                     onChanged: c.followSystem ? null : (v) => setState(() => c.mode = v ?? 'light'),
@@ -285,6 +287,7 @@ class _WelcomeAppState extends State<WelcomeApp> with WindowListener {
         checked: picked,
         button: true,
         child: InkWell(
+          mouseCursor: WidgetStateMouseCursor.clickable,
           customBorder: const CircleBorder(),
           onTap: () => setState(() {
             if (id == 'system') {

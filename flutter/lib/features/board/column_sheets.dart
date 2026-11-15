@@ -151,6 +151,7 @@ class _NewBoardState extends State<_NewBoard> {
           checked: on,
           button: true,
           child: InkWell(
+            mouseCursor: WidgetStateMouseCursor.clickable,
             key: ValueKey('type-$type'),
             borderRadius: BorderRadius.circular(12),
             onTap: () => _setType(type),
@@ -220,6 +221,7 @@ class _NewBoardState extends State<_NewBoard> {
           children: [
             for (var i = 0; i < _cols.length; i++)
               InputChip(
+                mouseCursor: WidgetStateMouseCursor.clickable,
                 label: Text(_cols[i]),
                 onDeleted: () => setState(() => _cols.removeAt(i)),
                 onPressed: () => setState(() => _cols.removeAt(i)),

@@ -237,6 +237,7 @@ class _TimelineViewState extends State<TimelineView> {
         final firstPhase = identical(r.col, columnsOf(widget.board).firstOrNull);
         return pos(
           InkWell(
+            mouseCursor: WidgetStateMouseCursor.clickable,
             key: firstPhase ? TourTargets.key('tl-phase') : ValueKey('tl-phase-${r.col!['id']}'),
             onTap: () => openRenameColumn(context, widget.board, r.col!),
             child: Tooltip(excludeFromSemantics: true, 
@@ -271,6 +272,7 @@ class _TimelineViewState extends State<TimelineView> {
         final undated = spanOf(card) == null;
         return pos(
           InkWell(
+            mouseCursor: WidgetStateMouseCursor.clickable,
             onTap: () => openCardSheet(context, widget.board, '${card['id']}'),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -355,6 +357,7 @@ class _ZoomPicker extends StatelessWidget {
               selected: z.id == zoom,
               button: true,
               child: InkWell(
+                mouseCursor: WidgetStateMouseCursor.clickable,
                 key: ValueKey('zoom-${z.id}'),
                 borderRadius: BorderRadius.circular(8),
                 onTap: () => onPick(z.id),

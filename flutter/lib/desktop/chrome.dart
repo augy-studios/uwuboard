@@ -397,6 +397,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
         label: label,
         excludeSemantics: true,
         child: InkWell(
+          mouseCursor: WidgetStateMouseCursor.clickable,
           onTap: onTap,
           borderRadius: BorderRadius.circular(6),
           child: SizedBox(
@@ -569,6 +570,7 @@ class _WinButtonState extends State<_WinButton> {
       label: widget.label,
       excludeSemantics: true,
       child: MouseRegion(
+        cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _over = true),
         onExit: (_) => setState(() => _over = false),
         child: GestureDetector(
