@@ -404,25 +404,34 @@ class _BugReportState extends State<BugReport> {
         ),
       ],
       children: [
-        const FieldLabel('What went wrong?'),
-        TextField(
-          key: const ValueKey('bug-text'),
-          controller: _text,
-          minLines: 4,
-          maxLines: 10,
-          maxLength: 2000,
-          textCapitalization: TextCapitalization.sentences,
-          onChanged: (_) => _keep(),
-          decoration: const InputDecoration(hintText: 'What you did, what happened, and what you expected', counterText: ''),
+        // Each box carries its label as its name, so a screen reader still says what it is once
+        // there's text in it: its hint, the only name it had before, goes when it's filled in.
+        // The label above is the same words, so it isn't read twice.
+        const ExcludeSemantics(child: FieldLabel('What went wrong?')),
+        Semantics(
+          label: 'What went wrong?',
+          child: TextField(
+            key: const ValueKey('bug-text'),
+            controller: _text,
+            minLines: 4,
+            maxLines: 10,
+            maxLength: 2000,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => _keep(),
+            decoration: const InputDecoration(hintText: 'What you did, what happened, and what you expected', counterText: ''),
+          ),
         ),
-        const FieldLabel('How to reach you', note: '(optional)'),
-        TextField(
-          key: const ValueKey('bug-contact'),
-          controller: _contact,
-          maxLength: 200,
-          autocorrect: false,
-          onChanged: (_) => _keep(),
-          decoration: const InputDecoration(hintText: 'Telegram @name or email, for an answer', counterText: ''),
+        const ExcludeSemantics(child: FieldLabel('How to reach you', note: '(optional)')),
+        Semantics(
+          label: 'How to reach you (optional)',
+          child: TextField(
+            key: const ValueKey('bug-contact'),
+            controller: _contact,
+            maxLength: 200,
+            autocorrect: false,
+            onChanged: (_) => _keep(),
+            decoration: const InputDecoration(hintText: 'Telegram @name or email, for an answer', counterText: ''),
+          ),
         ),
         const FieldLabel('Pictures', note: '(optional)'),
         if (_shots.isNotEmpty)

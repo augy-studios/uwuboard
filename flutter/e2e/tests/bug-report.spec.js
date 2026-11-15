@@ -18,6 +18,14 @@ async function guestWithBoard(page, name, cards, query = "") {
   await expect(page.getByRole("heading", { name })).toBeVisible();
 }
 
+// What's in the report's "What went wrong?" box, found by its name, which it keeps once filled
+// in. The web build gives a text box its value only while it's focused, so it's focused first.
+async function expectTyped(page, text) {
+  const box = page.getByRole("textbox", { name: /What went wrong/ });
+  await box.click();
+  await expect(box).toHaveValue(text);
+}
+
 // Report a bug (lib/features/bug/bug_report.dart), as the site's form (main-site/js/bug-report.js).
 test("Report a bug: what it adds, Screenshot a page of a card's window, sent with its ID", async ({ page }) => {
   const db = await mockApi(page);
@@ -34,7 +42,7 @@ test("Report a bug: what it adds, Screenshot a page of a card's window, sent wit
   await expect(said(page, "Please say what went wrong first.")).toBeVisible();
   expect(db.bugReports ?? []).toHaveLength(0);
 
-  await fill(page, page.getByRole("textbox", { name: /What you did/ }), "The card's due date is wrong.");
+  await fill(page, page.getByRole("textbox", { name: /What went wrong/ }), "The card's due date is wrong.");
   await expect.poll(async () => JSON.parse((await stored(page, "uwuboard.bugDraft")) ?? "{}").text).toBe("The card's due date is wrong.");
 
   // Screenshot a page: the report goes, the bar comes, off to the card's window.
@@ -50,7 +58,7 @@ test("Report a bug: what it adds, Screenshot a page of a card's window, sent wit
   await expect(page.getByRole("heading", { name: "Report a bug" })).toBeVisible({ timeout: 20_000 });
   await expect(button(page, "Screenshot this page")).toHaveCount(0);
   await expect(page.getByRole("img", { name: "Picture 1" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: /What you did/ })).toHaveValue("The card's due date is wrong.");
+  await expectTyped(page, "The card's due date is wrong.");
   await expect(details).toContainText("Kanban board, card window");
 
   await button(page, "Send").click();
@@ -75,7 +83,7 @@ test("Report a bug: Screenshot a page of the board takes it whole; not set up of
   // Enough cards that the board is taller than the screen.
   await guestWithBoard(page, "Long board", 30);
   await button(page, "Report a bug").click();
-  await fill(page, page.getByRole("textbox", { name: /What you did/ }), "The whole board, please.");
+  await fill(page, page.getByRole("textbox", { name: /What went wrong/ }), "The whole board, please.");
   await button(page, "Screenshot a page").click();
   await button(page, "Screenshot this page").click();
   await expect(page.getByRole("img", { name: "Picture 1" })).toBeVisible({ timeout: 20_000 });
@@ -98,6 +106,6 @@ test("Report a bug: Screenshot a page of the board takes it whole; not set up of
   expect(size[0] + size[1]).toBeLessThanOrEqual(10000);
   expect(sent.images[0].length * 0.75).toBeLessThanOrEqual(900 * 1024 + 4);
   // What's typed stays when it couldn't go.
-  await expect(page.getByRole("textbox", { name: /What you did/ })).toHaveValue("The whole board, please.");
+  await expectTyped(page, "The whole board, please.");
   noErrors(page);
 });
