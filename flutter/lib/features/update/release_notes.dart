@@ -22,47 +22,90 @@ class ReleaseNotes {
   final String summary;
   final List<ReleaseGroup> groups;
 
-  int get count => groups.fold(0, (n, g) => n + g.items.length);
+  /// How many items there are across all the groups.
+  int get count {
+    return groups.fold(0, (total, group) {
+      return total + group.items.length;
+    });
+  }
 
-  static String plain(String s) => s
-      .replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m[1]!)
-      .replaceAllMapped(RegExp(r'`([^`]+)`'), (m) => m[1]!)
-      .replaceAllMapped(RegExp(r'\[([^\]]+)\]\([^)]*\)'), (m) => m[1]!)
-      .replaceAllMapped(RegExp(r'(^|[\s(])_([^_]+)_(?=[\s).,:;]|$)'), (m) => '${m[1]}${m[2]}')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
+  /// The Markdown in [markdown] taken out: bold, code, links and underscored emphasis become
+  /// their plain words, and runs of whitespace become one space.
+  static String plain(String markdown) {
+    return markdown
+        .replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (match) {
+          return match[1]!;
+        })
+        .replaceAllMapped(RegExp(r'`([^`]+)`'), (match) {
+          return match[1]!;
+        })
+        .replaceAllMapped(RegExp(r'\[([^\]]+)\]\([^)]*\)'), (match) {
+          return match[1]!;
+        })
+        .replaceAllMapped(RegExp(r'(^|[\s(])_([^_]+)_(?=[\s).,:;]|$)'), (match) {
+          return '${match[1]}${match[2]}';
+        })
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
 
+  /// Reads a release's Markdown notes: the first paragraph as the summary (unless it is a
+  /// heading or a table), then the groups and items under the "What's new" heading.
   static ReleaseNotes parse(String? body) {
-    final text = (body ?? '').replaceAll('\r\n', '\n');
-    final first = text.trim().split(RegExp(r'\n\s*\n')).first;
-    final summary = first.startsWith('#') || first.startsWith('|') ? '' : plain(first);
+    String bodyText;
+    if (body == null) {
+      bodyText = '';
+    } else {
+      bodyText = body;
+    }
+    final text = bodyText.replaceAll('\r\n', '\n');
+    final firstParagraph = text.trim().split(RegExp(r'\n\s*\n')).first;
+    String summary;
+    if (firstParagraph.startsWith('#') || firstParagraph.startsWith('|')) {
+      summary = '';
+    } else {
+      summary = plain(firstParagraph);
+    }
     final groups = <ReleaseGroup>[];
-    final at = RegExp(r"^##\s+What.s (new|fixed|changed)\s*$", multiLine: true, caseSensitive: false).firstMatch(text);
-    if (at != null) {
+    final whatsNewHeading = RegExp(r"^##\s+What.s (new|fixed|changed)\s*$", multiLine: true, caseSensitive: false).firstMatch(text);
+    if (whatsNewHeading != null) {
       ReleaseGroup? group;
-      for (final line in text.substring(at.end).split('\n')) {
-        if (RegExp(r'^##\s').hasMatch(line)) break;
-        final head = RegExp(r'^###\s+(.+)').firstMatch(line);
-        if (head != null) {
-          groups.add(group = ReleaseGroup(plain(head[1]!)));
+      for (final line in text.substring(whatsNewHeading.end).split('\n')) {
+        // The next "##" heading ends the section.
+        if (RegExp(r'^##\s').hasMatch(line)) {
+          break;
+        }
+        final groupHeading = RegExp(r'^###\s+(.+)').firstMatch(line);
+        if (groupHeading != null) {
+          group = ReleaseGroup(plain(groupHeading[1]!));
+          groups.add(group);
           continue;
         }
         final item = RegExp(r'^[-*]\s+(.+)').firstMatch(line);
         if (item != null) {
-          if (group == null) groups.add(group = ReleaseGroup('What’s new'));
+          // An item before any "###" heading goes in a group of its own.
+          if (group == null) {
+            group = ReleaseGroup('What’s new');
+            groups.add(group);
+          }
           final titled = RegExp(r'^\*\*(.+?)\*\*\s*[:.]?\s*(.*)$').firstMatch(item[1]!);
-          group.items.add(
-            titled != null
-                ? ReleaseItem(plain(titled[1]!).replaceFirst(RegExp(r'[:.]$'), ''), plain(titled[2]!))
-                : ReleaseItem('', plain(item[1]!)),
-          );
+          ReleaseItem releaseItem;
+          if (titled != null) {
+            releaseItem = ReleaseItem(plain(titled[1]!).replaceFirst(RegExp(r'[:.]$'), ''), plain(titled[2]!));
+          } else {
+            releaseItem = ReleaseItem('', plain(item[1]!));
+          }
+          group.items.add(releaseItem);
         } else if (group != null && group.items.isNotEmpty && RegExp(r'^\s+\S').hasMatch(line)) {
           // A line carried on, or a point under the item: part of the item.
-          final last = group.items.last;
-          last.text = '${last.text} ${plain(line.replaceFirst(RegExp(r'^\s*[-*]\s+'), ''))}'.trim();
+          final lastItem = group.items.last;
+          lastItem.text = '${lastItem.text} ${plain(line.replaceFirst(RegExp(r'^\s*[-*]\s+'), ''))}'.trim();
         }
       }
     }
-    return ReleaseNotes(summary, groups.where((g) => g.items.isNotEmpty).toList());
+    final nonEmptyGroups = groups.where((group) {
+      return group.items.isNotEmpty;
+    }).toList();
+    return ReleaseNotes(summary, nonEmptyGroups);
   }
 }

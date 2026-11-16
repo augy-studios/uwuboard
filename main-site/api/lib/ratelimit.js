@@ -8,21 +8,36 @@
 // UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN), redis() runs one command on it, for
 // limits that hold across instances. Without it, storeConfigured() is false and callers skip it.
 
-const REDIS_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const REDIS_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+// Vercel KV's names are used when they are set (not empty), otherwise Upstash's.
+let REDIS_URL = process.env.KV_REST_API_URL;
+if (!REDIS_URL) {
+  REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
+}
+let REDIS_TOKEN = process.env.KV_REST_API_TOKEN;
+if (!REDIS_TOKEN) {
+  REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+}
 
-const storeConfigured = () => Boolean(REDIS_URL && REDIS_TOKEN);
+const storeConfigured = () => {
+  return Boolean(REDIS_URL && REDIS_TOKEN);
+};
+
+// Runs one Redis command through the REST API, e.g. redis('INCR', 'some-key'), and returns its result.
 
 async function redis(...command) {
-  const res = await fetch(REDIS_URL, {
+  const response = await fetch(REDIS_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(command),
     signal: AbortSignal.timeout(5000),
   });
-  if (!res.ok) throw new Error(`Redis replied ${res.status}`);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
+  if (!response.ok) {
+    throw new Error(`Redis replied ${response.status}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
   return data.result;
 }
 
@@ -30,17 +45,21 @@ const rates = new Map();
 
 async function rateLimited(key, limit) {
   const now = Date.now();
-  let r = rates.get(key);
-  if (!r || r.until <= now) {
-    r = { count: 0, until: now + 60 * 1000 };
-    rates.set(key, r);
+  let rate = rates.get(key);
+  if (!rate || rate.until <= now) {
+    rate = { count: 0, until: now + 60 * 1000 };
+    rates.set(key, rate);
   }
-  r.count++;
+  rate.count = rate.count + 1;
   // Keep the map small: the ones whose minute is over go.
   if (rates.size > 5000) {
-    for (const [k, v] of rates) if (v.until <= now) rates.delete(k);
+    for (const [rateKey, rateValue] of rates) {
+      if (rateValue.until <= now) {
+        rates.delete(rateKey);
+      }
+    }
   }
-  return r.count > limit;
+  return rate.count > limit;
 }
 
 module.exports = { storeConfigured, redis, rateLimited };

@@ -30,47 +30,85 @@ class Sidebar extends StatelessWidget {
   final VoidCallback? onToggle;
   final bool inDrawer;
 
+  /// Closes the drawer the sidebar sits in, if there is one round [context].
+  static void _closeDrawerOf(BuildContext context) {
+    final scaffold = Scaffold.maybeOf(context);
+    if (scaffold != null) {
+      scaffold.closeDrawer();
+    }
+  }
+
+  /// Builds either the folded rail (the boards' initials) or the full panel: the account, the
+  /// coffee link, the list of boards, Updates on Android, and New Board.
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
+    final colors = UwuColors.of(context);
     final app = AppState.I;
+
+    /// Opens a board, and closes the drawer when the sidebar is in one.
     void pick(String id) {
       app.selectBoard(id);
-      if (inDrawer) Scaffold.maybeOf(context)?.closeDrawer();
+      if (inDrawer) {
+        _closeDrawerOf(context);
+      }
     }
 
     Future<void> newBoard() async {
       // From the drawer, the drawer goes first, and the window opens from the app's own context.
-      if (inDrawer) Scaffold.maybeOf(context)?.closeDrawer();
-      final ctx = inDrawer ? AppNav.context : context;
-      if (ctx != null) await openNewBoard(ctx);
+      if (inDrawer) {
+        _closeDrawerOf(context);
+      }
+      final BuildContext? windowContext;
+      if (inDrawer) {
+        windowContext = AppNav.context;
+      } else {
+        windowContext = context;
+      }
+      if (windowContext != null) {
+        await openNewBoard(windowContext);
+      }
     }
 
-    List<MenuAction> boardMenu(Map<String, dynamic> b) => [
-      MenuAction('Open', () => pick('${b['id']}'), icon: 'arrow-right'),
-      MenuAction('Rename', () async {
-        final name = await AppNav.prompt('Board name:', initial: '${b['name']}');
-        if (name != null) app.renameBoard(b, name);
-      }, icon: 'pencil'),
-      MenuAction('Copy link', () async {
-        await copyText(linkFor(boardId: '${b['id']}')!);
-        AppNav.toast('Link copied');
-      }, icon: 'link'),
-      ...?desktopBoardActions?.call(b),
-      MenuAction(
-        'Delete board',
-        () async {
-          if (await AppNav.confirm('Delete board "${b['name']}"?')) await app.deleteBoard(b);
-        },
-        icon: 'trash',
-        danger: true,
-      ),
-    ];
+    /// What a board's right-click (or long-press) menu offers.
+    List<MenuAction> boardMenu(Map<String, dynamic> board) {
+      final extraActionsFor = desktopBoardActions;
+      List<MenuAction> extraActions = const [];
+      if (extraActionsFor != null) {
+        extraActions = extraActionsFor(board);
+      }
+      return [
+        MenuAction('Open', () {
+          pick('${board['id']}');
+        }, icon: 'arrow-right'),
+        MenuAction('Rename', () async {
+          final name = await AppNav.prompt('Board name:', initial: '${board['name']}');
+          if (name != null) {
+            app.renameBoard(board, name);
+          }
+        }, icon: 'pencil'),
+        MenuAction('Copy link', () async {
+          await copyText(linkFor(boardId: '${board['id']}')!);
+          AppNav.toast('Link copied');
+        }, icon: 'link'),
+        ...extraActions,
+        MenuAction(
+          'Delete board',
+          () async {
+            if (await AppNav.confirm('Delete board "${board['name']}"?')) {
+              await app.deleteBoard(board);
+            }
+          },
+          icon: 'trash',
+          danger: true,
+        ),
+      ];
+    }
 
+    // Folded to a rail: one letter per board.
     if (collapsed) {
       return _frame(
         context,
-        c,
+        colors,
         child: SafeArea(
           right: false,
           child: Column(
@@ -78,34 +116,30 @@ class Sidebar extends StatelessWidget {
               const SizedBox(height: 10),
               MiniButton(icon: 'chevron-right', label: 'Expand sidebar', onPressed: onToggle, size: 36),
               const SizedBox(height: 8),
-              InkWell(mouseCursor: WidgetStateMouseCursor.clickable, customBorder: const CircleBorder(), onTap: () => openProfile(context), child: const Avatar(size: 34)),
+              InkWell(
+                mouseCursor: WidgetStateMouseCursor.clickable,
+                customBorder: const CircleBorder(),
+                onTap: () {
+                  openProfile(context);
+                },
+                child: const Avatar(size: 34),
+              ),
               const SizedBox(height: 12),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   children: [
-                    for (final b in app.boards)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Tooltip(
-                          message: '${b['name']}',
-                          child: ContextMenuRegion(
-                            actions: () => boardMenu(b),
-                            child: Hoverable(
-                              selected: b['id'] == app.activeBoardId,
-                              onTap: () => pick('${b['id']}'),
-                              child: SizedBox(
-                                height: 40,
-                                child: Center(
-                                  child: Text(
-                                    '${b['name']}'.isEmpty ? '?' : '${b['name']}'.characters.first.toUpperCase(),
-                                    style: TextStyle(fontSize: 16, color: b['id'] == app.activeBoardId ? c.onBrand : c.ink, fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                    for (final board in app.boards)
+                      _railTile(
+                        colors,
+                        board,
+                        board['id'] == app.activeBoardId,
+                        onTap: () {
+                          pick('${board['id']}');
+                        },
+                        actions: () {
+                          return boardMenu(board);
+                        },
                       ),
                   ],
                 ),
@@ -118,9 +152,27 @@ class Sidebar extends StatelessWidget {
       );
     }
 
+    // The full panel. In a drawer its chevron closes the drawer; beside the board it folds it.
+    final String foldLabel;
+    final VoidCallback? foldAction;
+    if (inDrawer) {
+      foldLabel = 'Close';
+      foldAction = () {
+        _closeDrawerOf(context);
+      };
+    } else {
+      foldLabel = 'Collapse sidebar';
+      foldAction = onToggle;
+    }
+    final String profileTooltip;
+    if (app.isGuest) {
+      profileTooltip = 'Guest';
+    } else {
+      profileTooltip = 'Profile';
+    }
     return _frame(
       context,
-      c,
+      colors,
       child: SafeArea(
         right: false,
         child: Column(
@@ -135,13 +187,13 @@ class Sidebar extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'uwuBoard',
-                      style: TextStyle(fontSize: 20, color: c.ink, fontWeight: FontWeight.w700),
+                      style: TextStyle(fontSize: 20, color: colors.ink, fontWeight: FontWeight.w700),
                     ),
                   ),
                   MiniButton(
                     icon: 'chevron-left',
-                    label: inDrawer ? 'Close' : 'Collapse sidebar',
-                    onPressed: inDrawer ? () => Scaffold.maybeOf(context)?.closeDrawer() : onToggle,
+                    label: foldLabel,
+                    onPressed: foldAction,
                   ),
                 ],
               ),
@@ -151,15 +203,22 @@ class Sidebar extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: c.surfaceStrong,
+                  color: colors.surfaceStrong,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: c.border),
+                  border: Border.all(color: colors.border),
                 ),
                 child: Row(
                   children: [
                     Tooltip(
-                      message: app.isGuest ? 'Guest' : 'Profile',
-                      child: InkWell(mouseCursor: WidgetStateMouseCursor.clickable, customBorder: const CircleBorder(), onTap: () => openProfile(context), child: const Avatar(size: 36)),
+                      message: profileTooltip,
+                      child: InkWell(
+                        mouseCursor: WidgetStateMouseCursor.clickable,
+                        customBorder: const CircleBorder(),
+                        onTap: () {
+                          openProfile(context);
+                        },
+                        child: const Avatar(size: 36),
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -169,9 +228,9 @@ class Sidebar extends StatelessWidget {
                           Text(
                             app.shownName,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: c.ink, fontWeight: FontWeight.w600),
+                            style: TextStyle(color: colors.ink, fontWeight: FontWeight.w600),
                           ),
-                          Text(app.role, style: TextStyle(color: c.muted, fontSize: 12)),
+                          Text(app.role, style: TextStyle(color: colors.muted, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -183,8 +242,10 @@ class Sidebar extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
               child: OutlinedButton.icon(
-                onPressed: () => launchUrl(_coffee, mode: LaunchMode.externalApplication),
-                icon: AppIcon('coffee', size: 14, color: c.ink),
+                onPressed: () {
+                  launchUrl(_coffee, mode: LaunchMode.externalApplication);
+                },
+                icon: AppIcon('coffee', size: 14, color: colors.ink),
                 label: const Text('Buy Augy a Coffee'),
               ),
             ),
@@ -192,7 +253,7 @@ class Sidebar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 6),
               child: Text(
                 'BOARDS',
-                style: TextStyle(color: c.muted, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.w600),
+                style: TextStyle(color: colors.muted, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.w600),
               ),
             ),
             Expanded(
@@ -201,45 +262,17 @@ class Sidebar extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   children: [
-                    for (final b in app.boards)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 2),
-                        child: ContextMenuRegion(
-                          actions: () => boardMenu(b),
-                          longPress: !Env.desktop,
-                          child: Semantics(
-                            selected: b['id'] == app.activeBoardId,
-                            button: true,
-                            child: Hoverable(
-                              key: ValueKey('board-${b['id']}'),
-                              selected: b['id'] == app.activeBoardId,
-                              onTap: () => pick('${b['id']}'),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: b['id'] == app.activeBoardId ? c.brandInk : c.muted.withValues(alpha: 0.5),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  AppIcon(b['view'] == 'timeline' ? 'timeline' : 'kanban', size: 15, color: b['id'] == app.activeBoardId ? c.onBrand : c.muted),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '${b['name']}',
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(color: b['id'] == app.activeBoardId ? c.onBrand : c.ink, fontSize: 14),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                    for (final board in app.boards)
+                      _boardTile(
+                        colors,
+                        board,
+                        board['id'] == app.activeBoardId,
+                        onTap: () {
+                          pick('${board['id']}');
+                        },
+                        actions: () {
+                          return boardMenu(board);
+                        },
                       ),
                   ],
                 ),
@@ -250,18 +283,8 @@ class Sidebar extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
                 child: ListenableBuilder(
                   listenable: AndroidUpdates.I,
-                  builder: (context, _) {
-                    final n = AndroidUpdates.I.newer;
-                    return TextButton.icon(
-                      key: const ValueKey('updates'),
-                      style: TextButton.styleFrom(foregroundColor: n != null ? c.brandInk : c.muted, alignment: Alignment.centerLeft),
-                      onPressed: () {
-                        if (inDrawer) Scaffold.maybeOf(context)?.closeDrawer();
-                        openUpdates();
-                      },
-                      icon: AppIcon('download', size: 15, color: n != null ? c.brandInk : c.muted),
-                      label: Text(n != null ? 'Update to ${n['version']}' : 'Updates · ${AndroidUpdates.I.mine}'),
-                    );
+                  builder: (context, child) {
+                    return _updatesButton(context, colors);
                   },
                 ),
               ),
@@ -270,13 +293,150 @@ class Sidebar extends StatelessWidget {
               child: OutlinedButton.icon(
                 key: const ValueKey('new-board'),
                 onPressed: newBoard,
-                icon: AppIcon('plus', size: 14, color: c.ink),
+                icon: AppIcon('plus', size: 14, color: colors.ink),
                 label: const Text('New Board'),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  /// One board on the folded rail: its first letter, with its name as a tooltip.
+  Widget _railTile(
+    UwuColors colors,
+    Map<String, dynamic> board,
+    bool selected, {
+    required VoidCallback onTap,
+    required List<MenuAction> Function() actions,
+  }) {
+    final String letter;
+    if ('${board['name']}'.isEmpty) {
+      letter = '?';
+    } else {
+      letter = '${board['name']}'.characters.first.toUpperCase();
+    }
+    final Color letterColor;
+    if (selected) {
+      letterColor = colors.onBrand;
+    } else {
+      letterColor = colors.ink;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Tooltip(
+        message: '${board['name']}',
+        child: ContextMenuRegion(
+          actions: actions,
+          child: Hoverable(
+            selected: selected,
+            onTap: onTap,
+            child: SizedBox(
+              height: 40,
+              child: Center(
+                child: Text(
+                  letter,
+                  style: TextStyle(fontSize: 16, color: letterColor, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// One board in the full list: a dot, its view's icon and its name.
+  Widget _boardTile(
+    UwuColors colors,
+    Map<String, dynamic> board,
+    bool selected, {
+    required VoidCallback onTap,
+    required List<MenuAction> Function() actions,
+  }) {
+    final Color dotColor;
+    final Color iconColor;
+    final Color nameColor;
+    if (selected) {
+      dotColor = colors.brandInk;
+      iconColor = colors.onBrand;
+      nameColor = colors.onBrand;
+    } else {
+      dotColor = colors.muted.withValues(alpha: 0.5);
+      iconColor = colors.muted;
+      nameColor = colors.ink;
+    }
+    final String viewIcon;
+    if (board['view'] == 'timeline') {
+      viewIcon = 'timeline';
+    } else {
+      viewIcon = 'kanban';
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: ContextMenuRegion(
+        actions: actions,
+        longPress: !Env.desktop,
+        child: Semantics(
+          selected: selected,
+          button: true,
+          child: Hoverable(
+            key: ValueKey('board-${board['id']}'),
+            selected: selected,
+            onTap: onTap,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                AppIcon(viewIcon, size: 15, color: iconColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${board['name']}',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: nameColor, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Android's Updates button: highlighted, with the version, when a newer release is out.
+  Widget _updatesButton(BuildContext context, UwuColors colors) {
+    final newerRelease = AndroidUpdates.I.newer;
+    final Color updateColor;
+    final String updateLabel;
+    if (newerRelease != null) {
+      updateColor = colors.brandInk;
+      updateLabel = 'Update to ${newerRelease['version']}';
+    } else {
+      updateColor = colors.muted;
+      updateLabel = 'Updates · ${AndroidUpdates.I.mine}';
+    }
+    return TextButton.icon(
+      key: const ValueKey('updates'),
+      style: TextButton.styleFrom(foregroundColor: updateColor, alignment: Alignment.centerLeft),
+      onPressed: () {
+        if (inDrawer) {
+          _closeDrawerOf(context);
+        }
+        openUpdates();
+      },
+      icon: AppIcon('download', size: 15, color: updateColor),
+      label: Text(updateLabel),
     );
   }
 
@@ -290,27 +450,43 @@ class Sidebar extends StatelessWidget {
   /// to the width while it changes. Folding, the rail shows at once and the empty surface beside
   /// it narrows; unfolding, the panel is laid out at its full width at once and uncovered as the
   /// sidebar widens. With animations turned off, it snaps, as the site does.
-  Widget _frame(BuildContext context, UwuColors c, {required Widget child}) {
-    final full = Env.desktop && MediaQuery.sizeOf(context).width > Env.splitWidth ? 300.0 : 260.0;
+  Widget _frame(BuildContext context, UwuColors colors, {required Widget child}) {
+    final double fullWidth;
+    if (Env.desktop && MediaQuery.sizeOf(context).width > Env.splitWidth) {
+      fullWidth = 300.0;
+    } else {
+      fullWidth = 260.0;
+    }
     if (inDrawer) {
       return Container(
-        width: full,
+        width: fullWidth,
         decoration: BoxDecoration(
-          color: Color.alphaBlend(c.surfaceStrong, c.bg),
-          border: Border(right: BorderSide(color: c.edge)),
+          color: Color.alphaBlend(colors.surfaceStrong, colors.bg),
+          border: Border(right: BorderSide(color: colors.edge)),
         ),
         child: child,
       );
     }
-    final width = collapsed ? railWidth : full;
+    final double width;
+    if (collapsed) {
+      width = railWidth;
+    } else {
+      width = fullWidth;
+    }
+    final int durationMilliseconds;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      durationMilliseconds = 0;
+    } else {
+      durationMilliseconds = 250;
+    }
     return AnimatedContainer(
       key: const ValueKey('sidebar'),
-      duration: Duration(milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 250),
+      duration: Duration(milliseconds: durationMilliseconds),
       curve: Curves.ease,
       width: width,
-      color: c.surface,
+      color: colors.surface,
       // Drawn over what's in it, so it's on the edge at every width and takes no room.
-      foregroundDecoration: BoxDecoration(border: Border(right: BorderSide(color: c.edge))),
+      foregroundDecoration: BoxDecoration(border: Border(right: BorderSide(color: colors.edge))),
       child: ClipRect(
         child: OverflowBox(
           alignment: Alignment.topLeft,

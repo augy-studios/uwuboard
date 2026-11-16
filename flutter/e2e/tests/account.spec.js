@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { button, fill, mockApi, noErrors, openApp, skipTour, stored , said } from "./helpers.js";
 
 test("signing in reads the account's boards with its token, saves to the API, and signs out", async ({ page }) => {
-  const db = await mockApi(page, {
+  const database = await mockApi(page, {
     boards: [{ id: "srv1", name: "Work", view: "kanban", updatedAt: 5, columns: [{ id: "c1", name: "To Do", updatedAt: 5, cards: [] }] }],
   });
   await openApp(page);
@@ -16,8 +16,10 @@ test("signing in reads the account's boards with its token, saves to the API, an
   await button(page, "Sign In").last().click();
   await skipTour(page);
   await expect(page.getByRole("heading", { name: "Work" })).toBeVisible();
-  const list = db.requests.find((r) => r.path === "/boards/list");
-  expect(list.auth).toBe("Bearer tok-123");
+  const listRequest = database.requests.find((request) => {
+    return request.path === "/boards/list";
+  });
+  expect(listRequest.auth).toBe("Bearer tok-123");
   expect(JSON.parse(await stored(page, "uwuboard_session"))).toMatchObject({ username: "sam", displayName: "Sam", session: { token: "tok-123" } });
 
   await page.getByRole("button", { name: "Boards" }).click();
@@ -26,15 +28,19 @@ test("signing in reads the account's boards with its token, saves to the API, an
   await page.keyboard.type("Personal");
   await button(page, "Create").click();
   await expect(page.getByRole("heading", { name: "Personal" })).toBeVisible();
-  const create = db.requests.find((r) => r.path === "/boards/create");
-  expect(create.body.board).toMatchObject({ name: "Personal", view: "kanban" });
-  expect(create.auth).toBe("Bearer tok-123");
+  const createRequest = database.requests.find((request) => {
+    return request.path === "/boards/create";
+  });
+  expect(createRequest.body.board).toMatchObject({ name: "Personal", view: "kanban" });
+  expect(createRequest.auth).toBe("Bearer tok-123");
 
   await page.getByRole("button", { name: "Boards" }).click();
   await button(page, "Sign out").click();
   await expect(button(page, "Guest")).toBeVisible();
   expect(await stored(page, "uwuboard_session")).toBeNull();
-  expect(db.requests.some((r) => r.path === "/auth/logout")).toBe(true);
+  expect(database.requests.some((request) => {
+    return request.path === "/auth/logout";
+  })).toBe(true);
   noErrors(page);
 });
 

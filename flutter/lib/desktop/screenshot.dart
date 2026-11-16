@@ -25,46 +25,77 @@ class Screenshots {
   Screenshots._();
 
   static final ValueNotifier<bool> busy = ValueNotifier(false);
-  static const maxHeight = 16384.0;
+  static const maximumHeight = 16384.0;
 
-  static String _stamp() {
-    final n = DateTime.now();
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${n.year}-${two(n.month)}-${two(n.day)} ${two(n.hour)}.${two(n.minute)}.${two(n.second)}';
+  /// The date and time now, as "YYYY-MM-DD HH.MM.SS", for the file's name.
+  static String _timestamp() {
+    final now = DateTime.now();
+    String twoDigits(int value) {
+      return value.toString().padLeft(2, '0');
+    }
+
+    return '${now.year}-${twoDigits(now.month)}-${twoDigits(now.day)} ${twoDigits(now.hour)}.${twoDigits(now.minute)}.${twoDigits(now.second)}';
   }
 
-  static Future<ui.Image?> _capture(GlobalKey key, double ratio) async {
-    final box = key.currentContext?.findRenderObject();
-    if (box is! RenderRepaintBoundary) return null;
-    if (box.debugNeedsPaint) await Future<void>.delayed(const Duration(milliseconds: 40));
-    return box.toImage(pixelRatio: ratio);
+  /// A picture of what's under the repaint boundary that `key` marks, or null if there's none.
+  static Future<ui.Image?> _capture(GlobalKey key, double pixelRatio) async {
+    final keyContext = key.currentContext;
+    RenderObject? renderObject;
+    if (keyContext != null) {
+      renderObject = keyContext.findRenderObject();
+    }
+    if (renderObject is! RenderRepaintBoundary) {
+      return null;
+    }
+    if (renderObject.debugNeedsPaint) {
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+    }
+    return renderObject.toImage(pixelRatio: pixelRatio);
   }
 
-  static Future<void> _save(ui.Image image, String name, String said) async {
+  /// Saves the picture as a PNG in Downloads, copies it to the clipboard, and says so with a
+  /// toast and a notification (titled `notificationTitle`) that shows the file in its folder.
+  static Future<void> _save(ui.Image image, String name, String notificationTitle) async {
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (data == null) throw StateError('no picture');
+    if (data == null) {
+      throw StateError('no picture');
+    }
     final bytes = data.buffer.asUint8List();
-    final dir = Directory(Desktop.downloads)..createSync(recursive: true);
-    final file = File('${dir.path}${Platform.pathSeparator}$name');
+    final downloadsFolder = Directory(Desktop.downloads);
+    downloadsFolder.createSync(recursive: true);
+    final file = File('${downloadsFolder.path}${Platform.pathSeparator}$name');
     await file.writeAsBytes(bytes);
     try {
       await Pasteboard.writeImage(bytes);
-    } catch (_) {}
+    } catch (error) {
+      // Not copied; it's still saved.
+    }
     AppNav.toast('Screenshot copied and saved');
-    DeskNotify.show(title: said, body: name, onClick: () => Desktop.showInFolder(file.path));
+    DeskNotify.show(
+      title: notificationTitle,
+      body: name,
+      onClick: () {
+        Desktop.showInFolder(file.path);
+      },
+    );
   }
 
+  /// A picture of the app's content, on its background colour, then saved.
   static Future<void> take(BuildContext context) async {
-    if (busy.value) return;
+    if (busy.value) {
+      return;
+    }
     busy.value = true;
     try {
-      final ratio = MediaQuery.devicePixelRatioOf(context);
-      final bg = UwuColors.of(context).bg;
-      final shot = await _capture(AppNav.repaintKey, ratio);
-      if (shot == null) throw StateError('nothing to capture');
-      final image = await flattenOnto(shot, bg);
-      await _save(image, '${Desktop.name} ${_stamp()}.png', 'Screenshot saved');
-    } catch (_) {
+      final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+      final background = UwuColors.of(context).bg;
+      final shot = await _capture(AppNav.repaintKey, pixelRatio);
+      if (shot == null) {
+        throw StateError('nothing to capture');
+      }
+      final image = await flattenOnto(shot, background);
+      await _save(image, '${Desktop.name} ${_timestamp()}.png', 'Screenshot saved');
+    } catch (error) {
       AppNav.toast('Couldn’t take a screenshot', error: true);
     } finally {
       busy.value = false;
@@ -74,14 +105,20 @@ class Screenshots {
   /// The open board drawn whole (lib/features/board/whole_board.dart), then saved.
   static Future<void> takeLong(BuildContext context) async {
     final board = AppState.I.activeBoard;
-    if (board == null) return take(context);
-    if (busy.value) return;
+    if (board == null) {
+      return take(context);
+    }
+    if (busy.value) {
+      return;
+    }
     busy.value = true;
     try {
-      final image = await drawWholeBoard(context, board, maxHeight: maxHeight);
-      if (image == null) throw StateError('nothing drawn');
-      await _save(image, '${Desktop.name} ${_stamp()} (long).png', 'Long screenshot saved');
-    } catch (_) {
+      final image = await drawWholeBoard(context, board, maxHeight: maximumHeight);
+      if (image == null) {
+        throw StateError('nothing drawn');
+      }
+      await _save(image, '${Desktop.name} ${_timestamp()} (long).png', 'Long screenshot saved');
+    } catch (error) {
       AppNav.toast('Couldn’t take a screenshot', error: true);
     } finally {
       busy.value = false;

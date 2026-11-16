@@ -8,7 +8,9 @@ test("a guest makes a Kanban board, adds a card and edits it, kept as the site k
 
   await newBoard(page, "Sprint 67");
   await skipTour(page);
-  for (const col of ["To Do", "In Progress", "Done"]) await expect(page.getByText(col, { exact: true }).first()).toBeVisible();
+  for (const columnName of ["To Do", "In Progress", "Done"]) {
+    await expect(page.getByText(columnName, { exact: true }).first()).toBeVisible();
+  }
 
   // A card in To Do.
   await button(page, "Add card").first().click();
@@ -20,18 +22,20 @@ test("a guest makes a Kanban board, adds a card and edits it, kept as the site k
   // Its details.
   await page.getByRole("button", { name: /Write the release notes/ }).click();
   await skipTour(page);
-  const desc = page.getByRole("textbox", { name: /Add a description/ });
-  await fill(page, desc, "For GitHub and Telegram");
+  const descriptionBox = page.getByRole("textbox", { name: /Add a description/ });
+  await fill(page, descriptionBox, "For GitHub and Telegram");
   await button(page, "Save").click();
   await expect(said(page, "Card saved")).toBeVisible();
 
   // Stored under the site's key, in the site's shape.
   const boards = await guestBoards(page);
   expect(boards).toHaveLength(1);
-  const b = boards[0];
-  expect(b).toMatchObject({ name: "Sprint 67", view: "kanban" });
-  expect(b.columns.map((c) => c.name)).toEqual(["To Do", "In Progress", "Done"]);
-  const card = b.columns[0].cards[0];
+  const board = boards[0];
+  expect(board).toMatchObject({ name: "Sprint 67", view: "kanban" });
+  expect(board.columns.map((column) => {
+    return column.name;
+  })).toEqual(["To Do", "In Progress", "Done"]);
+  const card = board.columns[0].cards[0];
   expect(card).toMatchObject({ title: "Write the release notes", description: "For GitHub and Telegram", labels: [], checklist: [], due: "", priority: "", images: [] });
   expect(typeof card.updatedAt).toBe("number");
   expect(card.id).toMatch(/^[a-z0-9]+$/);
@@ -41,7 +45,10 @@ test("a guest makes a Kanban board, adds a card and edits it, kept as the site k
 test("a board kept from before comes back as a guest, and can be renamed and deleted", async ({ page }) => {
   await mockApi(page);
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("seeded")) return;
+    // Only seed the board on the first load, not when the page reloads.
+    if (sessionStorage.getItem("seeded")) {
+      return;
+    }
     sessionStorage.setItem("seeded", "1");
     const board = { id: "b1", name: "Home", view: "kanban", updatedAt: 1, columns: [{ id: "c1", name: "To Do", updatedAt: 1, cards: [{ id: "k1", title: "Water the plants", description: "", labels: [{ text: "Garden", color: "#36b37e" }], checklist: [{ text: "Ferns", done: true }, { text: "Cactus", done: false }], due: "2026-01-02", priority: "high", images: [], thumbnailId: null, updatedAt: 1 }] }] };
     localStorage.setItem("flutter.ls.kanbanflow_guest_boards", JSON.stringify(JSON.stringify([board])));

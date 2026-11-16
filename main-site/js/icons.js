@@ -25,7 +25,11 @@ const icons = {
 };
 
 function icon(name) {
-  return icons[name] || '';
+  const markup = icons[name];
+  if (!markup) {
+    return '';
+  }
+  return markup;
 }
 
 window.icons = icons;

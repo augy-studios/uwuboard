@@ -11,53 +11,94 @@ class DeskNotify {
   DeskNotify._();
 
   static final _plugin = FlutterLocalNotificationsPlugin();
-  static final Map<String, void Function()> _clicks = {};
-  static bool _ready = false;
-  static int _next = 1;
 
+  /// What a click on each notification does, by its payload (`'click:<id>'`).
+  static final Map<String, void Function()> _clickHandlers = {};
+  static bool _ready = false;
+  static int _nextId = 1;
+
+  /// Sets up the notifications plugin for each system, handles a notification click that
+  /// started the app, and gives the window its "still running" notice.
   static Future<void> init() async {
     try {
-      final ok = await _plugin.initialize(
+      final initialized = await _plugin.initialize(
         settings: const InitializationSettings(
           macOS: DarwinInitializationSettings(requestAlertPermission: true, requestBadgePermission: true, requestSoundPermission: false),
           linux: LinuxInitializationSettings(defaultActionName: 'Open uwuBoard'),
           windows: WindowsInitializationSettings(appName: Desktop.name, appUserModelId: 'AugyStudios.uwuBoard', guid: '6e3b2f61-5a1d-4f43-9b0c-8a7d6b2e41c9'),
         ),
-        onDidReceiveNotificationResponse: (r) => _clicked(r.payload),
+        onDidReceiveNotificationResponse: (response) {
+          _clicked(response.payload);
+        },
       );
-      _ready = ok ?? true;
+      if (initialized == null) {
+        _ready = true;
+      } else {
+        _ready = initialized;
+      }
       // A click that started the app.
       final launch = await _plugin.getNotificationAppLaunchDetails();
-      if (launch?.didNotificationLaunchApp == true) _clicked(launch!.notificationResponse?.payload);
-    } catch (_) {
+      if (launch != null && launch.didNotificationLaunchApp == true) {
+        final launchResponse = launch.notificationResponse;
+        String? launchPayload;
+        if (launchResponse != null) {
+          launchPayload = launchResponse.payload;
+        }
+        _clicked(launchPayload);
+      }
+    } catch (error) {
       _ready = false;
     }
-    Desktop.stillRunning = () => show(
-      title: '${Desktop.name} is still running',
-      body: Platform.isMacOS
-          ? 'It keeps checking your due cards from the menu bar. Quit it from the menu bar icon, or with ⌘Q.'
-          : 'It keeps checking your due cards from the tray. Quit it from the tray icon.',
-    );
+    Desktop.stillRunning = () {
+      String body;
+      if (Platform.isMacOS) {
+        body = 'It keeps checking your due cards from the menu bar. Quit it from the menu bar icon, or with ⌘Q.';
+      } else {
+        body = 'It keeps checking your due cards from the tray. Quit it from the tray icon.';
+      }
+      show(title: '${Desktop.name} is still running', body: body);
+    };
   }
 
+  /// A notification was clicked: runs its own click handler if it has one, or else brings the
+  /// window forward, on the notification's uwu:// link if it carries one.
   static void _clicked(String? payload) {
-    final f = payload == null ? null : _clicks[payload];
-    if (f != null) {
-      f();
+    void Function()? handler;
+    if (payload != null) {
+      handler = _clickHandlers[payload];
+    }
+    if (handler != null) {
+      handler();
     } else {
-      Desktop.show(payload != null && payload.startsWith('uwu://') ? payload : null);
+      String? link;
+      if (payload != null && payload.startsWith('uwu://')) {
+        link = payload;
+      }
+      Desktop.show(link);
     }
   }
 
   /// Shows one. `onClick` runs on a click; without it the click brings the window forward, on
   /// `link` if there's one.
   static Future<void> show({required String title, String body = '', String? link, void Function()? onClick}) async {
-    if (!_ready) return;
-    final id = _next++;
-    final payload = onClick != null ? 'click:$id' : link;
-    if (onClick != null) _clicks['click:$id'] = onClick;
+    if (!_ready) {
+      return;
+    }
+    final id = _nextId;
+    _nextId = _nextId + 1;
+    String? payload;
+    if (onClick != null) {
+      payload = 'click:$id';
+    } else {
+      payload = link;
+    }
+    if (onClick != null) {
+      _clickHandlers['click:$id'] = onClick;
+    }
     try {
       await _plugin.show(id: id, title: title, body: body, payload: payload);
-    } catch (_) {}
+    } catch (error) {
+      // Not shown: nothing more to do.
+    }
   }
 }

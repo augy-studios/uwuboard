@@ -4,7 +4,7 @@
    registers its worker. A new worker installs and waits; it only takes over
    when somebody presses Reload here. See update-bar-spec.md. */
 (function () {
-  const SW_URL = '/sw.js';
+  const SERVICE_WORKER_URL = '/sw.js';
 
   // One language, so the copy lives here rather than in a dictionary.
   const COPY = {
@@ -22,23 +22,33 @@
 
   // The bar's height as --banner-h, so the edge tray (js/tray.js) starts below it and
   // glides as it comes and goes.
-  const sizer = 'ResizeObserver' in window
-    ? new ResizeObserver(([entry]) => {
+  let sizer = null;
+  if ('ResizeObserver' in window) {
+    sizer = new ResizeObserver(([entry]) => {
       document.documentElement.style.setProperty('--banner-h', `${entry.target.offsetHeight}px`);
-    })
-    : null;
+    });
+  }
 
+  // Shows, updates or removes the update bar to match the current state:
+  // shown only while a new worker is waiting and nobody pressed "Not now".
   function render() {
     const existing = document.querySelector('.update-notice');
 
     if (!waitingWorker || dismissed) {
-      existing?.remove();
-      sizer?.disconnect();
+      if (existing !== null && existing !== undefined) {
+        existing.remove();
+      }
+      if (sizer !== null && sizer !== undefined) {
+        sizer.disconnect();
+      }
       document.documentElement.style.setProperty('--banner-h', '0px');
       return;
     }
 
-    const bar = existing ?? document.createElement('div');
+    let bar = existing;
+    if (bar === null || bar === undefined) {
+      bar = document.createElement('div');
+    }
     bar.className = 'update-notice';
     bar.setAttribute('role', 'status');
     bar.setAttribute('aria-label', COPY.label);
@@ -53,7 +63,9 @@
     bar.querySelector('[data-sw-update]').addEventListener('click', () => {
       // The only place anything asks for skipWaiting. The reload happens on
       // controllerchange, not here.
-      waitingWorker?.postMessage('skip-waiting');
+      if (waitingWorker !== null && waitingWorker !== undefined) {
+        waitingWorker.postMessage('skip-waiting');
+      }
     });
 
     bar.querySelector('[data-sw-later]').addEventListener('click', () => {
@@ -63,12 +75,18 @@
 
     if (!existing) {
       document.body.prepend(bar);
-      sizer?.observe(bar);
+      if (sizer !== null && sizer !== undefined) {
+        sizer.observe(bar);
+      }
     }
   }
 
+  // Notices a new worker that is waiting now or finishes installing later,
+  // and shows the update bar for it.
   function watchForUpdate() {
-    if (!registration) return;
+    if (!registration) {
+      return;
+    }
 
     // A worker already waiting when the page opened: the ordinary case on the
     // first visit after a deploy.
@@ -79,24 +97,31 @@
 
     registration.addEventListener('updatefound', () => {
       const installing = registration.installing;
-      if (!installing) return;
+      if (!installing) {
+        return;
+      }
 
       installing.addEventListener('statechange', () => {
         // `installed` with no controller is a first install, which has no
         // previous version on screen to prompt about.
         if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-          waitingWorker = registration.waiting ?? installing;
+          if (registration.waiting !== null && registration.waiting !== undefined) {
+            waitingWorker = registration.waiting;
+          } else {
+            waitingWorker = installing;
+          }
           render();
         }
       });
     });
   }
 
+  // Registers the service worker and reloads the page once a new one takes over.
   function registerWorker() {
     navigator.serviceWorker
-      .register(SW_URL)
-      .then((reg) => {
-        registration = reg;
+      .register(SERVICE_WORKER_URL)
+      .then((newRegistration) => {
+        registration = newRegistration;
         watchForUpdate();
       })
       .catch((cause) => {
@@ -109,15 +134,22 @@
     // by it and not by the one being replaced. The flag stops a second
     // controllerchange from starting a reload loop.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloading) return;
+      if (reloading) {
+        return;
+      }
       reloading = true;
       window.location.reload();
     });
   }
 
-  if (!('serviceWorker' in navigator)) return;
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
 
   // On load, so precaching does not compete with the page's own first fetches.
-  if (document.readyState === 'complete') registerWorker();
-  else window.addEventListener('load', registerWorker, { once: true });
+  if (document.readyState === 'complete') {
+    registerWorker();
+  } else {
+    window.addEventListener('load', registerWorker, { once: true });
+  }
 })();

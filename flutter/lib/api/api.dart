@@ -14,16 +14,21 @@ const siteOrigin = 'https://$siteHost';
 /// The Play build: no updater of its own (--dart-define=UWUBOARD_PLAY=true).
 const isPlayBuild = bool.fromEnvironment('UWUBOARD_PLAY');
 
+/// A failed API call: what the server said (or 'No connection') and the HTTP status.
 class ApiError implements Exception {
   ApiError(this.message, {this.status = 0});
   final String message;
 
   /// The HTTP status, or 0 when the server was never reached.
   final int status;
-  bool get offline => status == 0;
+  bool get offline {
+    return status == 0;
+  }
 
   @override
-  String toString() => message;
+  String toString() {
+    return message;
+  }
 }
 
 class Api {
@@ -38,65 +43,96 @@ class Api {
   /// True while the last request couldn't reach the server.
   static final ValueNotifier<bool> offline = ValueNotifier(false);
 
-  static Map<String, String> authHeaders() => {if (token != null) 'Authorization': 'Bearer $token'};
+  /// The session's token as a Bearer header, or no header at all as a guest.
+  static Map<String, String> authorizationHeaders() {
+    return {if (token != null) 'Authorization': 'Bearer $token'};
+  }
 
-  static Uri uri(String path) => Uri.parse('$siteOrigin/api$path');
+  static Uri uri(String path) {
+    return Uri.parse('$siteOrigin/api$path');
+  }
 
+  /// One JSON request to the API. Answers the JSON object the server sent, or throws an
+  /// [ApiError] (with the server's `error` message) when it couldn't be reached or said no.
   static Future<Map<String, dynamic>> call(String method, String path, [Map<String, dynamic>? body]) async {
-    final req = http.Request(method, uri(path));
-    req.headers['Content-Type'] = 'application/json';
-    req.headers.addAll(authHeaders());
-    if (body != null) req.body = jsonEncode(body);
-    late final http.Response res;
+    final request = http.Request(method, uri(path));
+    request.headers['Content-Type'] = 'application/json';
+    request.headers.addAll(authorizationHeaders());
+    if (body != null) {
+      request.body = jsonEncode(body);
+    }
+    late final http.Response response;
     try {
-      res = await http.Response.fromStream(await client.send(req).timeout(const Duration(seconds: 30)));
-    } catch (_) {
+      response = await http.Response.fromStream(await client.send(request).timeout(const Duration(seconds: 30)));
+    } catch (error) {
       offline.value = true;
       throw ApiError('No connection', status: 0);
     }
     offline.value = false;
     Map<String, dynamic> data;
     try {
-      final v = jsonDecode(utf8.decode(res.bodyBytes));
-      data = v is Map ? Map<String, dynamic>.from(v) : {};
-    } catch (_) {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is Map) {
+        data = Map<String, dynamic>.from(decoded);
+      } else {
+        data = {};
+      }
+    } catch (error) {
       data = {};
     }
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw ApiError('${data['error'] ?? 'Request failed'}', status: res.statusCode);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      Object? errorMessage = data['error'];
+      if (errorMessage == null) {
+        errorMessage = 'Request failed';
+      }
+      throw ApiError('$errorMessage', status: response.statusCode);
     }
     return data;
   }
 
   /// Bytes from a route that answers with an image.
   static Future<({Uint8List bytes, String type})> bytes(String path) async {
-    late final http.Response res;
+    late final http.Response response;
     try {
-      res = await client.get(uri(path), headers: authHeaders()).timeout(const Duration(seconds: 30));
-    } catch (_) {
+      response = await client.get(uri(path), headers: authorizationHeaders()).timeout(const Duration(seconds: 30));
+    } catch (error) {
       offline.value = true;
       throw ApiError('No connection', status: 0);
     }
     offline.value = false;
-    if (res.statusCode != 200) throw ApiError('HTTP ${res.statusCode}', status: res.statusCode);
-    return (bytes: res.bodyBytes, type: (res.headers['content-type'] ?? 'image/png').split(';').first.trim());
+    if (response.statusCode != 200) {
+      throw ApiError('HTTP ${response.statusCode}', status: response.statusCode);
+    }
+    final bodyBytes = response.bodyBytes;
+    var contentType = response.headers['content-type'];
+    if (contentType == null) {
+      contentType = 'image/png';
+    }
+    return (bytes: bodyBytes, type: contentType.split(';').first.trim());
   }
 
   /// Asks again, quietly, until the network is back. Started once, as the app opens.
-  static Timer? _probe;
+  static Timer? _probeTimer;
   static bool _watching = false;
   static void watchOffline() {
-    if (_watching) return;
+    if (_watching) {
+      return;
+    }
     _watching = true;
     offline.addListener(() {
-      _probe?.cancel();
-      if (!offline.value) return;
-      _probe = Timer.periodic(const Duration(seconds: 15), (t) async {
+      final probeTimer = _probeTimer;
+      if (probeTimer != null) {
+        probeTimer.cancel();
+      }
+      if (!offline.value) {
+        return;
+      }
+      _probeTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
         try {
           await client.head(Uri.parse('$siteOrigin/manifest.json')).timeout(const Duration(seconds: 8));
           offline.value = false;
-          t.cancel();
-        } catch (_) {
+          timer.cancel();
+        } catch (error) {
           // Still gone.
         }
       });

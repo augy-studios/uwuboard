@@ -13,6 +13,8 @@ import '../theme/theme.dart';
 import '../widgets/glass.dart';
 import '../widgets/sheet.dart';
 
+/// Shows a sheet the desktop way: a drawer slides in from the right, anything else is a dialog
+/// in the middle that fades and grows in. With native glass the panel is see-through glass.
 Future<T?> showDesktopSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
@@ -20,38 +22,75 @@ Future<T?> showDesktopSheet<T>(
   required double width,
   bool dismissible = true,
 }) {
-  final reduce = MediaQuery.disableAnimationsOf(context);
+  final reduceMotion = MediaQuery.disableAnimationsOf(context);
+  int transitionMilliseconds;
+  if (reduceMotion) {
+    transitionMilliseconds = 0;
+  } else {
+    transitionMilliseconds = 180;
+  }
   return showGeneralDialog<T>(
     context: context,
     useRootNavigator: true,
     barrierDismissible: dismissible,
     barrierLabel: 'Close',
     barrierColor: UwuColors.of(context).scrim,
-    transitionDuration: Duration(milliseconds: reduce ? 0 : 180),
-    pageBuilder: (context, _, _) {
-      final c = UwuColors.of(context);
+    transitionDuration: Duration(milliseconds: transitionMilliseconds),
+    pageBuilder: (context, animation, secondaryAnimation) {
+      final colors = UwuColors.of(context);
       final size = MediaQuery.sizeOf(context);
-      final style = c.native;
-      final radius = kind == SheetKind.drawer ? BorderRadius.zero : BorderRadius.circular(c.windowRadius);
+      final style = colors.native;
+      BorderRadius radius;
+      if (kind == SheetKind.drawer) {
+        radius = BorderRadius.zero;
+      } else {
+        radius = BorderRadius.circular(colors.windowRadius);
+      }
+      // Native glass: Acrylic, or the system's own glass, over what it opens on.
+      Color? panelColor;
+      if (style == null) {
+        panelColor = Theme.of(context).dialogTheme.backgroundColor;
+      } else {
+        panelColor = Color.alphaBlend(colors.surfaceStrong, colors.bg).withValues(alpha: 0.8);
+      }
+      ShapeBorder panelShape;
+      if (kind == SheetKind.drawer) {
+        panelShape = Border(left: BorderSide(color: colors.edge));
+      } else {
+        panelShape = RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: colors.edge),
+        );
+      }
+      double panelElevation;
+      if (style == null) {
+        panelElevation = 12;
+      } else {
+        panelElevation = 0;
+      }
       Widget panel = Material(
-        // Native glass: Acrylic, or the system's own glass, over what it opens on.
-        color: style == null ? Theme.of(context).dialogTheme.backgroundColor : Color.alphaBlend(c.surfaceStrong, c.bg).withValues(alpha: 0.8),
-        shape: kind == SheetKind.drawer
-            ? Border(left: BorderSide(color: c.edge))
-            : RoundedRectangleBorder(
-                borderRadius: radius,
-                side: BorderSide(color: c.edge),
-              ),
+        color: panelColor,
+        shape: panelShape,
         clipBehavior: Clip.antiAlias,
-        elevation: style == null ? 12 : 0,
+        elevation: panelElevation,
         child: builder(context),
       );
-      if (style != null) panel = NativeGlass(style: style, radius: radius, child: panel);
+      if (style != null) {
+        panel = NativeGlass(style: style, radius: radius, child: panel);
+      }
       if (kind == SheetKind.drawer) {
+        // The drawer is `width` wide, kept between 320 and the window less 60; the whole window
+        // when that's too narrow.
+        double drawerWidth;
+        if (size.width - 60 < 320) {
+          drawerWidth = size.width;
+        } else {
+          drawerWidth = width.clamp(320, size.width - 60);
+        }
         return Align(
           alignment: Alignment.centerRight,
           child: SizedBox(
-            width: (size.width - 60 < 320 ? size.width : width.clamp(320, size.width - 60)),
+            width: drawerWidth,
             height: double.infinity,
             child: SafeArea(left: false, child: panel),
           ),
@@ -69,8 +108,8 @@ Future<T?> showDesktopSheet<T>(
         ),
       );
     },
-    transitionBuilder: (context, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
       if (kind == SheetKind.drawer) {
         return SlideTransition(
           position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(curved),
@@ -95,38 +134,62 @@ class MenuAction {
   final bool enabled;
 }
 
+/// Opens a right-click menu of `actions` at `position` (a place in the window) and runs the
+/// one picked, if any.
 Future<void> showContextMenu(BuildContext context, Offset position, List<MenuAction> actions) async {
-  if (actions.isEmpty) return;
-  final c = UwuColors.of(context);
+  if (actions.isEmpty) {
+    return;
+  }
+  final colors = UwuColors.of(context);
   // The menu opens in the navigator's overlay, which starts below the desktop's title bar, so the
   // pointer's place in the window is turned into a place in that overlay.
-  final overlay = (AppNav.navigatorKey.currentState?.overlay ?? Overlay.of(context)).context.findRenderObject() as RenderBox;
-  final at = overlay.globalToLocal(position);
-  final picked = await showMenu<int>(
+  OverlayState? overlayState;
+  final navigatorState = AppNav.navigatorKey.currentState;
+  if (navigatorState != null) {
+    overlayState = navigatorState.overlay;
+  }
+  if (overlayState == null) {
+    overlayState = Overlay.of(context);
+  }
+  final overlay = overlayState.context.findRenderObject() as RenderBox;
+  final pointInOverlay = overlay.globalToLocal(position);
+
+  /// A dangerous action's words and icon are in the error colour.
+  Color colorFor(MenuAction action) {
+    if (action.danger) {
+      return colors.error;
+    } else {
+      return colors.ink;
+    }
+  }
+
+  final pickedIndex = await showMenu<int>(
     context: context,
     useRootNavigator: true,
-    position: RelativeRect.fromRect(at & const Size(1, 1), Offset.zero & overlay.size),
-    color: Color.alphaBlend(c.surfaceStrong, c.bg),
+    position: RelativeRect.fromRect(pointInOverlay & const Size(1, 1), Offset.zero & overlay.size),
+    color: Color.alphaBlend(colors.surfaceStrong, colors.bg),
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(c.round(10)),
-      side: BorderSide(color: c.edge),
+      borderRadius: BorderRadius.circular(colors.round(10)),
+      side: BorderSide(color: colors.edge),
     ),
     items: [
-      for (var i = 0; i < actions.length; i++)
+      for (var index = 0; index < actions.length; index = index + 1)
         PopupMenuItem<int>(
-          value: i,
-          enabled: actions[i].enabled,
+          value: index,
+          enabled: actions[index].enabled,
           height: 36,
           child: Row(
             children: [
-              if (actions[i].icon != null) ...[AppIcon(actions[i].icon!, size: 16, color: actions[i].danger ? c.error : c.ink), const SizedBox(width: 10)],
-              Text(actions[i].label, style: TextStyle(fontSize: 13, color: actions[i].danger ? c.error : c.ink)),
+              if (actions[index].icon != null) ...[AppIcon(actions[index].icon!, size: 16, color: colorFor(actions[index])), const SizedBox(width: 10)],
+              Text(actions[index].label, style: TextStyle(fontSize: 13, color: colorFor(actions[index]))),
             ],
           ),
         ),
     ],
   );
-  if (picked != null) actions[picked].onTap();
+  if (pickedIndex != null) {
+    actions[pickedIndex].onTap();
+  }
 }
 
 /// Wraps something that can be right-clicked (or, on a phone, pressed and held). `actions` is
@@ -142,10 +205,20 @@ class ContextMenuRegion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    GestureLongPressStartCallback? onLongPressStart;
+    if (longPress) {
+      onLongPressStart = (details) {
+        showContextMenu(context, details.globalPosition, actions());
+      };
+    } else {
+      onLongPressStart = null;
+    }
     return GestureDetector(
       behavior: HitTestBehavior.deferToChild,
-      onSecondaryTapUp: (d) => showContextMenu(context, d.globalPosition, actions()),
-      onLongPressStart: longPress ? (d) => showContextMenu(context, d.globalPosition, actions()) : null,
+      onSecondaryTapUp: (details) {
+        showContextMenu(context, details.globalPosition, actions());
+      },
+      onLongPressStart: onLongPressStart,
       child: child,
     );
   }
@@ -162,20 +235,44 @@ class Hoverable extends StatefulWidget {
   final EdgeInsets? padding;
 
   @override
-  State<Hoverable> createState() => _HoverableState();
+  State<Hoverable> createState() {
+    return _HoverableState();
+  }
 }
 
 class _HoverableState extends State<Hoverable> {
-  bool _over = false;
+  /// True while the mouse is over it.
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
-    final fill = widget.selected ? c.brandFillStrong : (_over ? c.surfaceStrong : Colors.transparent);
+    final colors = UwuColors.of(context);
+    Color fill;
+    if (widget.selected) {
+      fill = colors.brandFillStrong;
+    } else if (_hovered) {
+      fill = colors.surfaceStrong;
+    } else {
+      fill = Colors.transparent;
+    }
+    MouseCursor cursor;
+    if (widget.onTap == null) {
+      cursor = MouseCursor.defer;
+    } else {
+      cursor = SystemMouseCursors.click;
+    }
     return MouseRegion(
-      cursor: widget.onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _over = true),
-      onExit: (_) => setState(() => _over = false),
+      cursor: cursor,
+      onEnter: (event) {
+        setState(() {
+          _hovered = true;
+        });
+      },
+      onExit: (event) {
+        setState(() {
+          _hovered = false;
+        });
+      },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
@@ -196,12 +293,25 @@ class AppScrollBehavior extends MaterialScrollBehavior {
   const AppScrollBehavior();
 
   @override
-  Set<PointerDeviceKind> get dragDevices => {...super.dragDevices, PointerDeviceKind.mouse, PointerDeviceKind.trackpad, PointerDeviceKind.stylus};
+  Set<PointerDeviceKind> get dragDevices {
+    return {...super.dragDevices, PointerDeviceKind.mouse, PointerDeviceKind.trackpad, PointerDeviceKind.stylus};
+  }
 
   @override
-  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) =>
-      Env.desktop ? child : super.buildOverscrollIndicator(context, child, details);
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) {
+    if (Env.desktop) {
+      return child;
+    } else {
+      return super.buildOverscrollIndicator(context, child, details);
+    }
+  }
 
   @override
-  ScrollPhysics getScrollPhysics(BuildContext context) => Env.desktop ? const ClampingScrollPhysics() : super.getScrollPhysics(context);
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    if (Env.desktop) {
+      return const ClampingScrollPhysics();
+    } else {
+      return super.getScrollPhysics(context);
+    }
+  }
 }

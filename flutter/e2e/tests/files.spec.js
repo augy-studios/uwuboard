@@ -9,10 +9,12 @@ test("Export saves the board as the site's board file, into Downloads on Android
   await skipTour(page);
   await button(page, "Export this board to a file").click();
   await expect(said(page, "Board exported")).toBeVisible();
-  const save = (await calls(page)).find((c) => c.method === "saveFile");
-  expect(save.options.name).toBe("Trip_planning_kanban.json");
-  expect(save.options.mime).toBe("application/json");
-  const file = JSON.parse(Buffer.from(save.options.data, "base64").toString("utf8"));
+  const saveCall = (await calls(page)).find((call) => {
+    return call.method === "saveFile";
+  });
+  expect(saveCall.options.name).toBe("Trip_planning_kanban.json");
+  expect(saveCall.options.mime).toBe("application/json");
+  const file = JSON.parse(Buffer.from(saveCall.options.data, "base64").toString("utf8"));
   expect(file).toMatchObject({ name: "Trip planning", view: "kanban" });
   expect(file.columns).toHaveLength(3);
   noErrors(page);

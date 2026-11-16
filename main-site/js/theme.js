@@ -31,22 +31,30 @@ const LEGACY_COLORS = {
   white: 'really-light-green',
 };
 
+// Moves a colour saved under the old single theme key onto the new swatch key, once.
 function migrateLegacyTheme() {
-  const old = localStorage.getItem(LEGACY_KEY);
-  if (!old) return;
-  if (!localStorage.getItem(STORAGE_KEY_COLOR) && LEGACY_COLORS[old]) {
-    localStorage.setItem(STORAGE_KEY_COLOR, LEGACY_COLORS[old]);
+  const legacyTheme = localStorage.getItem(LEGACY_KEY);
+  if (!legacyTheme) {
+    return;
+  }
+  if (!localStorage.getItem(STORAGE_KEY_COLOR) && LEGACY_COLORS[legacyTheme]) {
+    localStorage.setItem(STORAGE_KEY_COLOR, LEGACY_COLORS[legacyTheme]);
   }
   localStorage.removeItem(LEGACY_KEY);
 }
 
+// "#rrggbb" to "red, green, blue" as three numbers from 0 to 255.
 function hexToRgb(hex) {
-  const n = parseInt(hex.replace('#', ''), 16);
-  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+  const colorNumber = parseInt(hex.replace('#', ''), 16);
+  return `${(colorNumber >> 16) & 255}, ${(colorNumber >> 8) & 255}, ${colorNumber & 255}`;
 }
 
 function getStoredColorTheme() {
-  return localStorage.getItem(STORAGE_KEY_COLOR) || 'classic';
+  const storedTheme = localStorage.getItem(STORAGE_KEY_COLOR);
+  if (!storedTheme) {
+    return 'classic';
+  }
+  return storedTheme;
 }
 
 /* Mode preference and mode are different things. The preference is what the
@@ -62,8 +70,11 @@ const LIGHT_FROM_HOUR = 9;
 const LIGHT_UNTIL_HOUR = 18;
 
 function getModePreference() {
-  const v = localStorage.getItem(STORAGE_KEY_MODE);
-  return MODE_PREFERENCES.includes(v) ? v : 'light';
+  const storedPreference = localStorage.getItem(STORAGE_KEY_MODE);
+  if (MODE_PREFERENCES.includes(storedPreference)) {
+    return storedPreference;
+  }
+  return 'light';
 }
 
 function isDaylightHours(now = new Date()) {
@@ -72,8 +83,16 @@ function isDaylightHours(now = new Date()) {
 }
 
 function resolveMode(preference) {
-  if (preference === 'time') return isDaylightHours() ? 'light' : 'dark';
-  return preference === 'dark' ? 'dark' : 'light';
+  if (preference === 'time') {
+    if (isDaylightHours()) {
+      return 'light';
+    }
+    return 'dark';
+  }
+  if (preference === 'dark') {
+    return 'dark';
+  }
+  return 'light';
 }
 
 // The mode the document is in right now, resolved. What the theme button
@@ -82,19 +101,34 @@ function getStoredMode() {
   return resolveMode(getModePreference());
 }
 
+// Paints the page in the swatch with this id (or Classic if it's unknown) and remembers it.
 function applyColorTheme(id) {
-  const theme = COLOR_THEMES.find((t) => t.id === id) || COLOR_THEMES[0];
+  let theme = COLOR_THEMES.find((candidate) => {
+    return candidate.id === id;
+  });
+  if (!theme) {
+    theme = COLOR_THEMES[0];
+  }
   document.documentElement.setAttribute('data-color-theme', theme.id);
   document.documentElement.style.setProperty('--brand', theme.hex);
   document.documentElement.style.setProperty('--brand-rgb', hexToRgb(theme.hex));
   localStorage.setItem(STORAGE_KEY_COLOR, theme.id);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme.hex);
+  if (meta) {
+    meta.setAttribute('content', theme.hex);
+  }
   return theme;
 }
 
+// Puts the page in light or dark for this preference ('light', 'dark' or 'time'),
+// remembers the preference, and returns the mode it resolved to.
 function applyMode(preference) {
-  const chosen = MODE_PREFERENCES.includes(preference) ? preference : 'light';
+  let chosen;
+  if (MODE_PREFERENCES.includes(preference)) {
+    chosen = preference;
+  } else {
+    chosen = 'light';
+  }
   const resolved = resolveMode(chosen);
 
   document.documentElement.setAttribute('data-mode', resolved);
@@ -112,7 +146,7 @@ let modeTimer = null;
 let watchingVisibility = false;
 
 // Milliseconds until the next 09:00 or 18:00, whichever comes first.
-function msUntilNextBoundary(now = new Date()) {
+function millisecondsUntilNextBoundary(now = new Date()) {
   const next = new Date(now);
   next.setMinutes(0, 0, 0);
 
@@ -131,29 +165,38 @@ function msUntilNextBoundary(now = new Date()) {
   return Math.max(1000, next.getTime() - now.getTime() + 1000);
 }
 
+// With the "time" preference, sets a timer for the next 09:00 or 18:00 so the mode
+// flips on time, and re-checks whenever the tab becomes visible again.
 function scheduleModeCheck() {
   if (modeTimer !== null) {
     clearTimeout(modeTimer);
     modeTimer = null;
   }
 
-  if (getModePreference() !== 'time') return;
+  if (getModePreference() !== 'time') {
+    return;
+  }
 
   modeTimer = setTimeout(() => {
     modeTimer = null;
     refreshTimeMode();
-  }, msUntilNextBoundary());
+  }, millisecondsUntilNextBoundary());
 
   if (!watchingVisibility && typeof document !== 'undefined') {
     watchingVisibility = true;
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') refreshTimeMode();
+      if (document.visibilityState === 'visible') {
+        refreshTimeMode();
+      }
     });
   }
 }
 
+// Re-resolves the "time" preference and, if the mode changed, tells the page.
 function refreshTimeMode() {
-  if (getModePreference() !== 'time') return;
+  if (getModePreference() !== 'time') {
+    return;
+  }
 
   const resolved = resolveMode('time');
   const current = document.documentElement.getAttribute('data-mode');
@@ -180,29 +223,37 @@ function initTheme() {
 
 /* ── Theme modal wiring ── */
 
+// Fills the theme window with a button per colour swatch and wires up the swatch and
+// light/dark/time buttons.
 function buildThemeModal() {
   const grid = document.getElementById('swatchGrid');
   grid.innerHTML = COLOR_THEMES.map(
-    (t) => `
-      <button class="swatch" data-theme-id="${t.id}" style="--swatch-color:${t.hex}" type="button" aria-label="${t.label}">
+    (theme) => {
+      return `
+      <button class="swatch" data-theme-id="${theme.id}" style="--swatch-color:${theme.hex}" type="button" aria-label="${theme.label}">
         <span class="swatch-dot"></span>
-        <span class="swatch-label">${t.label}</span>
-      </button>`
+        <span class="swatch-label">${theme.label}</span>
+      </button>`;
+    }
   ).join('');
 
   syncThemeModalState();
 
-  grid.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-theme-id]');
-    if (!btn) return;
-    applyColorTheme(btn.dataset.themeId);
+  grid.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-theme-id]');
+    if (!button) {
+      return;
+    }
+    applyColorTheme(button.dataset.themeId);
     syncThemeModalState();
   });
 
-  document.getElementById('modeToggle').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-mode]');
-    if (!btn) return;
-    applyMode(btn.dataset.mode);
+  document.getElementById('modeToggle').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-mode]');
+    if (!button) {
+      return;
+    }
+    applyMode(button.dataset.mode);
     syncThemeModalState();
   });
 
@@ -211,18 +262,20 @@ function buildThemeModal() {
   document.addEventListener('uwu:modechange', syncThemeModalState);
 }
 
+// Marks the chosen swatch and mode button as pressed, and shows the "following the clock"
+// note when the time preference is on.
 function syncThemeModalState() {
   const activeTheme = getStoredColorTheme();
   const activePreference = getModePreference();
   const resolvedMode = getStoredMode();
 
-  document.querySelectorAll('#swatchGrid .swatch').forEach((el) => {
-    el.classList.toggle('active', el.dataset.themeId === activeTheme);
+  document.querySelectorAll('#swatchGrid .swatch').forEach((swatch) => {
+    swatch.classList.toggle('active', swatch.dataset.themeId === activeTheme);
   });
-  document.querySelectorAll('#modeToggle .mode-btn').forEach((el) => {
-    const isActive = el.dataset.mode === activePreference;
-    el.classList.toggle('active', isActive);
-    el.setAttribute('aria-pressed', String(isActive));
+  document.querySelectorAll('#modeToggle .mode-btn').forEach((modeButton) => {
+    const isActive = modeButton.dataset.mode === activePreference;
+    modeButton.classList.toggle('active', isActive);
+    modeButton.setAttribute('aria-pressed', String(isActive));
   });
 
   const note = document.getElementById('modeNote');
@@ -237,22 +290,34 @@ function syncThemeModalState() {
 }
 
 function updateThemeButtonIcon() {
-  const span = document.querySelector('#themeBtn [data-icon]');
-  span.setAttribute('data-icon', getStoredMode() === 'dark' ? 'moon' : 'sun');
+  const iconHolder = document.querySelector('#themeBtn [data-icon]');
+  let iconName;
+  if (getStoredMode() === 'dark') {
+    iconName = 'moon';
+  } else {
+    iconName = 'sun';
+  }
+  iconHolder.setAttribute('data-icon', iconName);
   hydrateIcons(document.getElementById('themeBtn'));
 }
 
 // Scoped to the theme modal: the app modals already wire their own close
 // and backdrop handlers in script.js.
 function wireModals() {
-  document.querySelectorAll('[data-close-modal]').forEach((btn) => {
-    btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
+  document.querySelectorAll('[data-close-modal]').forEach((button) => {
+    button.addEventListener('click', () => {
+      closeModal(button.dataset.closeModal);
+    });
   });
   const backdrop = document.getElementById('themeModal');
-  backdrop.addEventListener('click', (e) => {
-    if (e.target === backdrop) closeModal(backdrop.id);
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop) {
+      closeModal(backdrop.id);
+    }
   });
-  document.getElementById('themeBtn').addEventListener('click', () => openModal('themeModal'));
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    openModal('themeModal');
+  });
 }
 
 initTheme();

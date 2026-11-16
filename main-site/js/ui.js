@@ -2,11 +2,13 @@
 
 /* Safe to call repeatedly; re-renders when data-icon changes. */
 function hydrateIcons(root = document) {
-  root.querySelectorAll('[data-icon]').forEach((el) => {
-    const name = el.dataset.icon;
-    if (el.dataset.iconRendered === name) return;
-    el.innerHTML = icon(name);
-    el.dataset.iconRendered = name;
+  root.querySelectorAll('[data-icon]').forEach((element) => {
+    const name = element.dataset.icon;
+    if (element.dataset.iconRendered === name) {
+      return;
+    }
+    element.innerHTML = icon(name);
+    element.dataset.iconRendered = name;
   });
 }
 

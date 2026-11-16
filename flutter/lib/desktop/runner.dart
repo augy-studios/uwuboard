@@ -19,48 +19,76 @@ class Runner {
   /// A link opened from elsewhere (macOS), or a click on the Dock icon (`null`).
   static void Function(String? link)? onOpen;
 
+  /// Starts answering the runner's events by passing each to its handler above, if one is set.
   static void listen() {
     _channel.setMethodCallHandler((call) async {
-      final args = call.arguments;
+      final arguments = call.arguments;
       switch (call.method) {
         case 'thumb':
-          onThumb?.call('$args');
+          final thumbHandler = onThumb;
+          if (thumbHandler != null) {
+            thumbHandler('$arguments');
+          }
         case 'dock':
-          onDock?.call('$args');
+          final dockHandler = onDock;
+          if (dockHandler != null) {
+            dockHandler('$arguments');
+          }
         case 'open':
-          onOpen?.call(args is String ? args : null);
+          final openHandler = onOpen;
+          if (openHandler != null) {
+            String? link;
+            if (arguments is String) {
+              link = arguments;
+            } else {
+              link = null;
+            }
+            openHandler(link);
+          }
         case 'activate':
-          onOpen?.call(null);
+          final activateHandler = onOpen;
+          if (activateHandler != null) {
+            activateHandler(null);
+          }
       }
       return null;
     });
   }
 
-  static Future<void> _call(String method, [Object? args]) async {
+  /// Calls the runner, ignoring a system where it doesn't know the method.
+  static Future<void> _call(String method, [Object? arguments]) async {
     try {
-      await _channel.invokeMethod(method, args);
-    } catch (_) {
+      await _channel.invokeMethod(method, arguments);
+    } catch (error) {
       // Not on this system.
     }
   }
 
   /// The favourite boards, [{ code, name }], for the Jump List, thumbnail buttons and Dock menu.
-  static Future<void> setFavourites(List<Map<String, Object?>> favs) => _call('setFavourites', {
-    'items': [
-      for (final f in favs) {'id': '${f['code']}', 'name': '${f['name']}', 'link': 'uwu://board/b/${f['code']}'},
-    ],
-  });
+  static Future<void> setFavourites(List<Map<String, Object?>> favourites) {
+    return _call('setFavourites', {
+      'items': [
+        for (final favourite in favourites) {'id': '${favourite['code']}', 'name': '${favourite['name']}', 'link': 'uwu://board/b/${favourite['code']}'},
+      ],
+    });
+  }
 
   /// The window's material: 'mica' (Windows), 'glass' (macOS), 'blur' (Linux) or 'none', in light
   /// or dark. True if the system draws it.
   static Future<bool> setBackdrop(String kind, {required bool dark}) async {
     try {
-      return await _channel.invokeMethod<bool>('setBackdrop', {'kind': kind, 'dark': dark}) ?? false;
-    } catch (_) {
+      final drawn = await _channel.invokeMethod<bool>('setBackdrop', {'kind': kind, 'dark': dark});
+      if (drawn == null) {
+        return false;
+      }
+      return drawn;
+    } catch (error) {
       return false;
     }
   }
 
   /// The Dock's badge (macOS): a few characters, or '' for none.
-  static Future<void> setBadge(String text) => _call('setBadge', text);
+  static Future<void> setBadge(String text) {
+    return _call('setBadge', text);
+  }
 }

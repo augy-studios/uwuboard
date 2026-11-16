@@ -15,109 +15,189 @@
   let avatarEntry = null;  // Promise<{ blob, url }> | null
 
   async function fetchBlob(url, options) {
-    const r = await fetch(url, options);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.blob();
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return response.blob();
   }
 
-  const authHeaders = () => (token ? { Authorization: `Bearer ${token}` } : {});
+  const authHeaders = () => {
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+    return {};
+  };
 
-  function keyOf(img) {
-    if (!img) return null;
-    if (img.file) return `file:${img.file}`;
-    if (img.data) return `data:${img.id}`;
-    if (img.url) return `url:${img.url}`;
+  // The key an image is cached under: its storage name, its id (guest data URL) or its old URL.
+  function keyOf(image) {
+    if (!image) {
+      return null;
+    }
+    if (image.file) {
+      return `file:${image.file}`;
+    }
+    if (image.data) {
+      return `data:${image.id}`;
+    }
+    if (image.url) {
+      return `url:${image.url}`;
+    }
     return null;
   }
 
-  function load(img) {
-    const key = keyOf(img);
-    if (!key) return Promise.reject(new Error('No image'));
+  // Fetches an image's bytes once and keeps the promise of { blob, url } for next time.
+  function load(image) {
+    const key = keyOf(image);
+    if (!key) {
+      return Promise.reject(new Error('No image'));
+    }
     if (!cache.has(key)) {
       const entry = (async () => {
         let blob;
-        if (img.file) {
-          blob = await fetchBlob(`/api/images/get?id=${encodeURIComponent(img.file)}`, { headers: authHeaders() });
-        } else if (img.data) {
-          blob = await fetchBlob(img.data);
+        if (image.file) {
+          blob = await fetchBlob(`/api/images/get?id=${encodeURIComponent(image.file)}`, { headers: authHeaders() });
+        } else if (image.data) {
+          blob = await fetchBlob(image.data);
         } else {
-          blob = await fetchBlob(img.url);
+          blob = await fetchBlob(image.url);
         }
         return { blob, url: URL.createObjectURL(blob) };
       })();
       cache.set(key, entry);
       // A failure isn't kept, so the next draw tries again.
-      entry.catch(() => { if (cache.get(key) === entry) cache.delete(key); });
+      entry.catch(() => {
+        if (cache.get(key) === entry) {
+          cache.delete(key);
+        }
+      });
     }
     return cache.get(key);
   }
 
   // Puts the image into an <img> once it has loaded.
-  function show(el, img) {
-    if (!el) return;
-    load(img).then(
-      ({ url }) => { el.src = url; },
+  function show(element, image) {
+    if (!element) {
+      return;
+    }
+    load(image).then(
+      ({ url }) => { element.src = url; },
       () => {
-        el.alt = 'Image unavailable';
-        el.classList.add('img-missing');
+        element.alt = 'Image unavailable';
+        element.classList.add('img-missing');
       }
     );
   }
 
-  const blob = (img) => load(img).then((r) => r.blob);
+  const blob = (image) => {
+    return load(image).then((loaded) => {
+      return loaded.blob;
+    });
+  };
 
-  function blobToDataUrl(b) {
+  function blobToDataUrl(imageBlob) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(b);
+      reader.onload = () => {
+        return resolve(reader.result);
+      };
+      reader.onerror = () => {
+        return reject(reader.error);
+      };
+      reader.readAsDataURL(imageBlob);
     });
   }
 
   // As a data URL, for an export file or another device (js/sync.js).
-  const dataUrl = (img) => (img?.data ? Promise.resolve(img.data) : blob(img).then(blobToDataUrl));
+  const dataUrl = (image) => {
+    let hasData = false;
+    if (image !== null && image !== undefined && image.data) {
+      hasData = true;
+    }
+    if (hasData) {
+      return Promise.resolve(image.data);
+    }
+    return blob(image).then(blobToDataUrl);
+  };
 
   // Saves bytes under a name of our choosing. The blob: URL is same-origin, so `download` is
   // honoured, and it's released a while after, since some browsers start after click() returns.
-  function save(b, filename) {
-    const url = URL.createObjectURL(b);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  function save(fileBlob, filename) {
+    const url = URL.createObjectURL(fileBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => {
+      return URL.revokeObjectURL(url);
+    }, 10000);
   }
 
   // The signed-in user's avatar. `fresh` after changing it, so the old one isn't reused.
   function avatar({ fresh = false } = {}) {
     if (fresh && avatarEntry) {
-      avatarEntry.then((r) => URL.revokeObjectURL(r.url), () => {});
+      avatarEntry.then((loaded) => {
+        return URL.revokeObjectURL(loaded.url);
+      }, () => {});
       avatarEntry = null;
     }
     if (!avatarEntry) {
       const entry = fetchBlob('/api/auth/avatar', { headers: authHeaders(), cache: 'no-cache' })
-        .then((b) => ({ blob: b, url: URL.createObjectURL(b) }));
+        .then((avatarBlob) => {
+          return { blob: avatarBlob, url: URL.createObjectURL(avatarBlob) };
+        });
       avatarEntry = entry;
-      entry.catch(() => { if (avatarEntry === entry) avatarEntry = null; });
+      entry.catch(() => {
+        if (avatarEntry === entry) {
+          avatarEntry = null;
+        }
+      });
     }
-    return avatarEntry.then((r) => r.url);
+    return avatarEntry.then((loaded) => {
+      return loaded.url;
+    });
   }
 
   function setToken(value) {
-    token = value || null;
+    if (!value) {
+      token = null;
+    } else {
+      token = value;
+    }
   }
 
   // Signing out: every URL this session made goes, so nothing of one account is left for the next.
   function clear() {
-    for (const entry of cache.values()) entry.then((r) => URL.revokeObjectURL(r.url), () => {});
+    for (const entry of cache.values()) {
+      entry.then((loaded) => {
+        return URL.revokeObjectURL(loaded.url);
+      }, () => {});
+    }
     cache.clear();
-    avatarEntry?.then((r) => URL.revokeObjectURL(r.url), () => {});
+    if (avatarEntry !== null && avatarEntry !== undefined) {
+      avatarEntry.then((loaded) => {
+        return URL.revokeObjectURL(loaded.url);
+      }, () => {});
+    }
     avatarEntry = null;
     token = null;
   }
 
-  window.ImageStore = { show, blob, dataUrl, blobToDataUrl, save, avatar, setToken, clear, url: (img) => load(img).then((r) => r.url) };
+  window.ImageStore = {
+    show,
+    blob,
+    dataUrl,
+    blobToDataUrl,
+    save,
+    avatar,
+    setToken,
+    clear,
+    url: (image) => {
+      return load(image).then((loaded) => {
+        return loaded.url;
+      });
+    },
+  };
 })();

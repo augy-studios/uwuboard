@@ -13,13 +13,15 @@ import 'package:uwuboard/features/board/kanban_view.dart';
 import 'package:uwuboard/theme/theme.dart';
 
 void main() {
+  // Before each test: a guest with one board of four empty columns, the tours already seen,
+  // and the edge tray open.
   setUp(() {
     final board = {
       'id': 'b1',
       'name': 'Plans',
       'columns': [
-        for (final n in ['To Do', 'Doing', 'Done', 'Later'])
-          {'id': n, 'name': n, 'cards': <Object>[]},
+        for (final columnName in ['To Do', 'Doing', 'Done', 'Later'])
+          {'id': columnName, 'name': columnName, 'cards': <Object>[]},
       ],
     };
     Store.memory({
@@ -31,6 +33,7 @@ void main() {
     AppState.I.setGuest();
   });
 
+  /// Shows the home screen on a window of the given [size] and waits for it to settle.
   Future<void> pumpHome(WidgetTester tester, Size size) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -44,9 +47,17 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  double boardWidth(WidgetTester tester) => tester.getSize(find.byType(KanbanView)).width;
-  ScrollPosition columns(WidgetTester tester) =>
-      tester.widget<SingleChildScrollView>(find.byKey(const ValueKey('columns'))).controller!.position;
+  /// How wide the board (the Kanban view) is drawn.
+  double boardWidth(WidgetTester tester) {
+    return tester.getSize(find.byType(KanbanView)).width;
+  }
+
+  /// The scroll position of the row of columns, to see how far it can scroll.
+  ScrollPosition columnsScrollPosition(WidgetTester tester) {
+    return tester.widget<SingleChildScrollView>(find.byKey(const ValueKey('columns'))).controller!.position;
+  }
+
+  /// Taps the tray's Hide menu / Show menu tab and waits for it to finish moving.
   Future<void> toggleTray(WidgetTester tester) async {
     await tester.tap(find.bySemanticsLabel(RegExp('^(Hide|Show) menu\$')));
     await tester.pumpAndSettle();
@@ -56,13 +67,13 @@ void main() {
     await pumpHome(tester, const Size(400, 800));
     expect(EdgeTray.open.value, isTrue);
     expect(boardWidth(tester), 400);
-    final openEnd = columns(tester).maxScrollExtent;
+    final openScrollEnd = columnsScrollPosition(tester).maxScrollExtent;
 
     await toggleTray(tester);
     expect(EdgeTray.open.value, isFalse);
     expect(boardWidth(tester), 400);
     // Open, the board scrolls further by the tray's width, so its last column comes out from under it.
-    expect(openEnd - columns(tester).maxScrollExtent, EdgeTray.openWidth);
+    expect(openScrollEnd - columnsScrollPosition(tester).maxScrollExtent, EdgeTray.openWidth);
 
     // The title runs up to the tab, closed, and stops short of the tray, open.
     expect(tester.getRect(find.text('Plans')).right, lessThan(400 - EdgeTray.tabWidth));
@@ -73,10 +84,10 @@ void main() {
 
   testWidgets('on a wider screen the board keeps its strip clear for the tray', (tester) async {
     await pumpHome(tester, const Size(1000, 800));
-    final open = boardWidth(tester);
+    final openBoardWidth = boardWidth(tester);
     await toggleTray(tester);
-    final closed = boardWidth(tester);
-    expect(closed - open, 84 - 30);
+    final closedBoardWidth = boardWidth(tester);
+    expect(closedBoardWidth - openBoardWidth, 84 - 30);
     expect(tester.takeException(), isNull);
   });
 }

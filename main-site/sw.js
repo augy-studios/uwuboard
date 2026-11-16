@@ -40,33 +40,54 @@ const ASSETS = [
 // new version's cache beside this deploy's HTML: a new page with old styles.
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) =>
-      cache.addAll(ASSETS.map((url) => new Request(url, { cache: "reload" })))
-    )
+    caches.open(CACHE).then((cache) => {
+      return cache.addAll(ASSETS.map((url) => {
+        return new Request(url, { cache: "reload" });
+      }));
+    })
   );
 });
 
 // No clients.claim() here either, for the same reason.
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((key) => key !== CACHE && key !== API_CACHE).map((key) => caches.delete(key))
-      )
-    )
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => {
+          return key !== CACHE && key !== API_CACHE;
+        }).map((key) => {
+          return caches.delete(key);
+        })
+      );
+    })
   );
 });
 
 self.addEventListener("message", (event) => {
-  const type = typeof event.data === "string" ? event.data : event.data?.type;
+  // A message is either a plain string or an object with a `type` field.
+  let type;
+  if (typeof event.data === "string") {
+    type = event.data;
+  } else if (event.data !== null && event.data !== undefined) {
+    type = event.data.type;
+  } else {
+    type = undefined;
+  }
 
   // The only place either of these is ever called.
   if (type === "skip-waiting") {
-    event.waitUntil(self.skipWaiting().then(() => self.clients.claim()));
+    event.waitUntil(self.skipWaiting().then(() => {
+      return self.clients.claim();
+    }));
   }
 
   // This worker's version, for a bug report (js/bug-report.js), answered on the port sent.
-  if (type === "version") event.ports[0]?.postMessage(VERSION);
+  if (type === "version") {
+    const replyPort = event.ports[0];
+    if (replyPort !== null && replyPort !== undefined) {
+      replyPort.postMessage(VERSION);
+    }
+  }
 
   // Signing out: the API copies are keyed by URL alone, so the next person to
   // sign in on this device must not be handed them.
@@ -82,24 +103,42 @@ const UNCACHED_API = ["/api/images/get", "/api/auth/avatar"];
 
 self.addEventListener("fetch", (event) => {
   // Only handle GET requests; skip POST and other methods
-  if (event.request.method !== "GET") return;
+  if (event.request.method !== "GET") {
+    return;
+  }
 
   // Skip cross-origin requests (ads, analytics, PeerJS and its broker, etc.)
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin) {
+    return;
+  }
 
   if (url.pathname.startsWith("/api/")) {
-    if (UNCACHED_API.includes(url.pathname)) return;
+    if (UNCACHED_API.includes(url.pathname)) {
+      return;
+    }
     // Network first: the boards as they are now, and the last copy only when
     // there's no network. Only an ok answer is kept, so a 401 never sticks.
     event.respondWith(
       fetch(event.request).then((response) => {
         if (response.ok) {
           const clone = response.clone();
-          caches.open(API_CACHE).then((cache) => cache.put(event.request, clone));
+          caches.open(API_CACHE).then((cache) => {
+            return cache.put(event.request, clone);
+          });
         }
         return response;
-      }).catch(() => caches.open(API_CACHE).then((cache) => cache.match(event.request)).then((cached) => cached || Response.error()))
+      }).catch(() => {
+        // Offline: hand back the last good answer, or a network error if there is none.
+        return caches.open(API_CACHE).then((cache) => {
+          return cache.match(event.request);
+        }).then((cached) => {
+          if (cached) {
+            return cached;
+          }
+          return Response.error();
+        });
+      })
     );
     return;
   }
@@ -108,16 +147,25 @@ self.addEventListener("fetch", (event) => {
   // yet; and the refresh behind it asks the server, not the browser's cache, so
   // the copy it keeps for next time is this deploy's.
   event.respondWith(
-    caches.open(CACHE).then((cache) => cache.match(event.request)).then((cached) => {
+    caches.open(CACHE).then((cache) => {
+      return cache.match(event.request);
+    }).then((cached) => {
       const fetched = fetch(new Request(event.request.url, { cache: "no-cache", credentials: "same-origin" })).then((response) => {
         // Only cache valid same-origin responses
         if (response && response.status === 200 && response.type === "basic") {
           const clone = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, clone));
+          caches.open(CACHE).then((cache) => {
+            return cache.put(event.request, clone);
+          });
         }
         return response;
-      }).catch(() => cached);
-      return cached || fetched;
+      }).catch(() => {
+        return cached;
+      });
+      if (cached) {
+        return cached;
+      }
+      return fetched;
     })
   );
 });
