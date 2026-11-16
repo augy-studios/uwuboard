@@ -7,27 +7,52 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const [version, dir] = process.argv.slice(2);
-if (!version || !dir) {
+const [version, installerFolder] = process.argv.slice(2);
+if (!version || !installerFolder) {
   console.error('usage: write-latest-yml.mjs <version> <dir>');
   process.exit(1);
 }
-const names = readdirSync(dir);
-const entry = (name) => {
-  const buf = readFileSync(join(dir, name));
-  return { url: name, sha512: createHash('sha512').update(buf).digest('base64'), size: statSync(join(dir, name)).size };
+const names = readdirSync(installerFolder);
+// One installer's entry in an update file: its name, its SHA-512 in base64, and its size in bytes.
+const fileEntry = (name) => {
+  const fileContents = readFileSync(join(installerFolder, name));
+  return { url: name, sha512: createHash('sha512').update(fileContents).digest('base64'), size: statSync(join(installerFolder, name)).size };
 };
 const date = new Date().toISOString();
-const write = (file, picked) => {
-  if (!picked.length) return;
-  const files = picked.map(entry);
+// Writes one update file listing these installers; the first one is also given as the main file.
+// Nothing is written when none of the installers it is for were built.
+const writeUpdateFile = (fileName, pickedNames) => {
+  if (!pickedNames.length) {
+    return;
+  }
+  const files = pickedNames.map(fileEntry);
   const lines = [`version: ${version}`, 'files:'];
-  for (const f of files) lines.push(`  - url: ${f.url}`, `    sha512: ${f.sha512}`, `    size: ${f.size}`);
+  for (const file of files) {
+    lines.push(`  - url: ${file.url}`, `    sha512: ${file.sha512}`, `    size: ${file.size}`);
+  }
   lines.push(`path: ${files[0].url}`, `sha512: ${files[0].sha512}`, `releaseDate: '${date}'`, '');
-  writeFileSync(join(dir, file), lines.join('\n'));
-  console.log(`${file}: ${picked.join(', ')}`);
+  writeFileSync(join(installerFolder, fileName), lines.join('\n'));
+  console.log(`${fileName}: ${pickedNames.join(', ')}`);
 };
-write('latest.yml', names.filter((n) => n === `uwuboard-${version}-setup.exe`));
-write('latest-mac.yml', names.filter((n) => /-mac-(arm64|x64)\.(zip|dmg)$/.test(n)).sort((a, b) => (a.endsWith('.zip') ? -1 : 1) - (b.endsWith('.zip') ? -1 : 1)));
-write('latest-linux.yml', names.filter((n) => n === `uwuboard-${version}-x86_64.AppImage`));
-write('latest-linux-arm64.yml', names.filter((n) => n === `uwuboard-${version}-aarch64.AppImage`));
+// Used to sort the Mac files so the .zip files (which the updater installs) come before the .dmg files.
+const zipFirstRank = (name) => {
+  if (name.endsWith('.zip')) {
+    return -1;
+  } else {
+    return 1;
+  }
+};
+writeUpdateFile('latest.yml', names.filter((name) => {
+  return name === `uwuboard-${version}-setup.exe`;
+}));
+writeUpdateFile('latest-mac.yml', names.filter((name) => {
+  return /-mac-(arm64|x64)\.(zip|dmg)$/.test(name);
+}).sort((first, second) => {
+  return zipFirstRank(first) - zipFirstRank(second);
+}));
+writeUpdateFile('latest-linux.yml', names.filter((name) => {
+  return name === `uwuboard-${version}-x86_64.AppImage`;
+}));
+writeUpdateFile('latest-linux-arm64.yml', names.filter((name) => {
+  return name === `uwuboard-${version}-aarch64.AppImage`;
+}));

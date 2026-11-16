@@ -15,14 +15,17 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const raw = (f) => pathToFileURL(join(here, "raw", `${f}.png`)).href;
-const docs = join(here, "../../../docs");
-const jua = pathToFileURL(join(here, "../../assets/fonts/Jua-Regular.ttf")).href;
-const icon = pathToFileURL(join(here, "../../assets/images/icon-512.png")).href;
+const thisFolder = dirname(fileURLToPath(import.meta.url));
+// The file URL of one of capture.mjs's pictures in shots/raw/.
+const rawPictureUrl = (fileName) => {
+  return pathToFileURL(join(thisFolder, "raw", `${fileName}.png`)).href;
+};
+const docsFolder = join(thisFolder, "../../../docs");
+const juaFontUrl = pathToFileURL(join(thisFolder, "../../assets/fonts/Jua-Regular.ttf")).href;
+const iconUrl = pathToFileURL(join(thisFolder, "../../assets/images/icon-512.png")).href;
 
 // What each picture says. `to` is where an arrow points, as a fraction of the screen it's on.
-const portrait = [
+const portraitScreens = [
   { file: "01-board", raw: "01-board", head: "Your to-dos,<br>on a board.", notes: [{ text: "Drag cards from<br>To Do to Done", side: "l", y: 0.42, to: [0.3, 0.22] }, { text: "Every action in<br>the edge tray", side: "r", y: 0.62, to: [0.9, 0.2] }] },
   { file: "02-timeline", raw: "02-timeline", head: "Or lay them out<br>on a Timeline.", notes: [{ text: "Each task, a bar<br>across its dates", side: "l", y: 0.62, to: [0.62, 0.27] }, { text: "Red arrows when<br>dates clash", side: "r", y: 0.78, to: [0.82, 0.36] }] },
   { file: "03-card", raw: "03-card", head: "Everything<br>on the card.", notes: [{ text: "Pictures, labels<br>and checklists", side: "l", y: 0.66, to: [0.18, 0.62] }, { text: "A due date and<br>a priority", side: "r", y: 0.42, to: [0.82, 0.38] }] },
@@ -33,7 +36,7 @@ const portrait = [
   { file: "08-dark-tour", raw: "08-dark-tour", head: "Shown around<br>the first time.", notes: [{ text: "One step<br>at a time", side: "l", y: 0.5, to: [0.4, 0.78] }, { text: "Dark when<br>you like", side: "r", y: 0.34, to: [0.62, 0.1] }] },
 ];
 
-const landscape = [
+const landscapeScreens = [
   { file: "01-board", raw: "01-board", head: "Your to-dos, on a board.", notes: [{ text: "Drag cards from<br>To Do to Done", side: "l", y: 0.42, to: [0.32, 0.28] }, { text: "Every action in<br>the edge tray", side: "r", y: 0.5, to: [0.97, 0.3] }] },
   { file: "02-timeline", raw: "02-timeline", head: "Or lay them out on a Timeline.", notes: [{ text: "Each task, a bar<br>across its dates", side: "l", y: 0.4, to: [0.42, 0.32] }, { text: "Red arrows when<br>dates clash", side: "r", y: 0.62, to: [0.62, 0.5] }] },
   { file: "03-card", raw: "03-card", head: "Everything on the card.", notes: [{ text: "Pictures, labels<br>and checklists", side: "l", y: 0.6, to: [0.4, 0.62] }, { text: "A due date and<br>a priority", side: "r", y: 0.42, to: [0.6, 0.4] }] },
@@ -44,7 +47,7 @@ const landscape = [
   { file: "08-dark-tour", raw: "08-dark-tour", head: "Shown around the first time.", notes: [{ text: "One step<br>at a time", side: "l", y: 0.6, to: [0.3, 0.5] }, { text: "Dark when<br>you like", side: "r", y: 0.4, to: [0.7, 0.15] }] },
 ];
 
-const desktop = [
+const desktopScreens = [
   { file: "01-board", raw: "01-board", head: "Your to-dos, on a board.", notes: [{ text: "All your boards,<br>side by side", side: "l", y: 0.42, to: [0.08, 0.14] }, { text: "Drag cards from<br>To Do to Done", side: "r", y: 0.46, to: [0.62, 0.22] }] },
   { file: "02-timeline", raw: "02-timeline", head: "Plan it on a Timeline.", notes: [{ text: "Each task, a bar<br>across its dates", side: "l", y: 0.66, to: [0.36, 0.3] }, { text: "Red arrows when<br>dates clash", side: "r", y: 0.62, to: [0.62, 0.6] }] },
   { file: "03-command", raw: "03-command", head: "Search and do anything with Ctrl+K.", notes: [{ text: "Every board, card<br>and command", side: "l", y: 0.5, to: [0.32, 0.25] }, { text: "Or paste<br>a link", side: "r", y: 0.32, to: [0.66, 0.02] }] },
@@ -72,7 +75,7 @@ const themes = [
 const featureTheme = { from: "#1f6b3d", to: "#3a3f9e", via: "#0e6470", hill: "#2f8a52", hill2: "#4d55c4", ink: "#ccffcc" };
 
 const css = `
-@font-face { font-family: Jua; src: url("${jua}"); }
+@font-face { font-family: Jua; src: url("${juaFontUrl}"); }
 * { box-sizing: border-box; margin: 0; }
 body { width: var(--w); height: var(--h); overflow: hidden; background: linear-gradient(155deg, var(--from), var(--via, var(--from)) 45%, var(--to)); font-family: Jua, sans-serif; position: relative; }
 .hill { position: absolute; border-radius: 50%; background: var(--hill); opacity: .55; }
@@ -87,11 +90,28 @@ svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: n
 .titlebar { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; color: #eef2ef; font-family: "Segoe UI", sans-serif; background: #121815; }
 `;
 
-function page({ w, h, body, theme }) {
-  const vars = Object.entries(theme).map(([k, v]) => `--${k}:${v}`).join(";");
+// Builds the HTML of one store picture of this size: the coloured page with `body` on it, and a
+// script that draws each note's arrow once the fonts have loaded and everything is laid out.
+function page({ width, height, body, theme }) {
+  const cssVariables = Object.entries(theme).map(([name, value]) => {
+    return `--${name}:${value}`;
+  }).join(";");
+  // Thinner arrows, with shorter heads, on the big landscape pictures.
+  let strokeWidth;
+  if (width > 2000) {
+    strokeWidth = 5;
+  } else {
+    strokeWidth = 6;
+  }
+  let arrowHeadSize;
+  if (width > 2000) {
+    arrowHeadSize = 26;
+  } else {
+    arrowHeadSize = 34;
+  }
   return `<!doctype html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
-<style>:root{--w:${w}px;--h:${h}px;${vars}}${css}</style></head><body>${body}
+<style>:root{--w:${width}px;--h:${height}px;${cssVariables}}${css}</style></head><body>${body}
 <svg id="arrows"></svg>
 <script>
 // Each note's arrow, from the note to the point on the screen it names, drawn once laid out.
@@ -99,24 +119,53 @@ document.fonts.ready.then(() => {
   const svg = document.getElementById('arrows');
   const ink = ${JSON.stringify(theme.ink)};
   const screen = document.querySelector('.screen').getBoundingClientRect();
-  for (const n of document.querySelectorAll('.note')) {
-    const r = n.getBoundingClientRect();
-    const [fx, fy] = JSON.parse(n.dataset.to);
-    const tx = screen.left + fx * screen.width, ty = screen.top + fy * screen.height;
-    const right = n.dataset.side === 'r';
-    const sx = right ? r.left + r.width * 0.5 : r.left + r.width * 0.5;
-    const sy = ty < r.top ? r.top - 14 : r.bottom + 14;
-    const mx = (sx + tx) / 2 + (right ? 60 : -60), my = (sy + ty) / 2;
-    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    p.setAttribute('d', 'M' + sx + ',' + sy + ' Q' + mx + ',' + my + ' ' + tx + ',' + ty);
-    p.setAttribute('fill', 'none'); p.setAttribute('stroke', ink); p.setAttribute('stroke-width', ${w > 2000 ? 5 : 6}); p.setAttribute('stroke-linecap', 'round');
-    svg.appendChild(p);
-    const a = Math.atan2(ty - my, tx - mx), L = ${w > 2000 ? 26 : 34};
-    for (const d of [0.8, -0.8]) {
-      const h = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      h.setAttribute('d', 'M' + tx + ',' + ty + ' L' + (tx + Math.cos(a + Math.PI * d) * L) + ',' + (ty + Math.sin(a + Math.PI * d) * L));
-      h.setAttribute('stroke', ink); h.setAttribute('stroke-width', ${w > 2000 ? 5 : 6}); h.setAttribute('stroke-linecap', 'round');
-      svg.appendChild(h);
+  for (const note of document.querySelectorAll('.note')) {
+    const noteBox = note.getBoundingClientRect();
+    const [fractionX, fractionY] = JSON.parse(note.dataset.to);
+    // The point the arrow ends on: a fraction of the way across and down the screen.
+    const targetX = screen.left + fractionX * screen.width;
+    const targetY = screen.top + fractionY * screen.height;
+    const right = note.dataset.side === 'r';
+    // The arrow starts from the middle of the note, just above it or just below it, whichever
+    // side faces the point.
+    let startX;
+    if (right) {
+      startX = noteBox.left + noteBox.width * 0.5;
+    } else {
+      startX = noteBox.left + noteBox.width * 0.5;
+    }
+    let startY;
+    if (targetY < noteBox.top) {
+      startY = noteBox.top - 14;
+    } else {
+      startY = noteBox.bottom + 14;
+    }
+    // A control point pushed sideways from the middle of the line, so the arrow curves outwards.
+    let curveOffset;
+    if (right) {
+      curveOffset = 60;
+    } else {
+      curveOffset = -60;
+    }
+    const middleX = (startX + targetX) / 2 + curveOffset;
+    const middleY = (startY + targetY) / 2;
+    const curve = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    curve.setAttribute('d', 'M' + startX + ',' + startY + ' Q' + middleX + ',' + middleY + ' ' + targetX + ',' + targetY);
+    curve.setAttribute('fill', 'none');
+    curve.setAttribute('stroke', ink);
+    curve.setAttribute('stroke-width', ${strokeWidth});
+    curve.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(curve);
+    // The arrow head: two short lines from the point, angled back either side of the curve's end.
+    const angle = Math.atan2(targetY - middleY, targetX - middleX);
+    const headLength = ${arrowHeadSize};
+    for (const turn of [0.8, -0.8]) {
+      const headLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      headLine.setAttribute('d', 'M' + targetX + ',' + targetY + ' L' + (targetX + Math.cos(angle + Math.PI * turn) * headLength) + ',' + (targetY + Math.sin(angle + Math.PI * turn) * headLength));
+      headLine.setAttribute('stroke', ink);
+      headLine.setAttribute('stroke-width', ${strokeWidth});
+      headLine.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(headLine);
     }
   }
   document.body.dataset.ready = '1';
@@ -124,96 +173,186 @@ document.fonts.ready.then(() => {
 </script></body></html>`;
 }
 
-const notesHtml = (notes, { w, h, fs, zone }) =>
-  notes.map((n) => {
-    const x = n.side === "l" ? zone.l : zone.r;
-    return `<div class="note" data-side="${n.side}" data-to='${JSON.stringify(n.to)}' style="left:${x - zone.w / 2}px;width:${zone.w}px;top:${n.y * h}px;font-size:${fs}px">${n.text}</div>`;
+// The handwritten notes, each in the strip left or right of the device, at its height down the page.
+// `zone` gives the middle of each strip and how wide a note may be.
+const notesHtml = (notes, { height, fontSize, zone }) => {
+  return notes.map((note) => {
+    let centerX;
+    if (note.side === "l") {
+      centerX = zone.leftCenter;
+    } else {
+      centerX = zone.rightCenter;
+    }
+    return `<div class="note" data-side="${note.side}" data-to='${JSON.stringify(note.to)}' style="left:${centerX - zone.width / 2}px;width:${zone.width}px;top:${note.y * height}px;font-size:${fontSize}px">${note.text}</div>`;
   }).join("");
+};
 
 // A phone or a portrait tablet: headline above, the device in the middle, notes either side.
-function portraitPage(s, raw, { tablet, theme }) {
-  const w = 1620, h = 2880;
-  const sw = tablet ? 920 : 800;
+function portraitPage(description, pictureUrl, { tablet, theme }) {
+  const width = 1620;
+  const height = 2880;
+  let screenWidth;
+  if (tablet) {
+    screenWidth = 920;
+  } else {
+    screenWidth = 800;
+  }
   // A phone's status bar above the app, coloured from the picture's own top edge.
-  const bar = tablet ? 0 : 60;
-  const sh = Math.round(sw * (tablet ? 1000 / 600 : 892 / 412)) + bar;
-  const bezel = tablet ? 44 : 30;
-  const left = (w - sw) / 2, top = 620;
-  const status = tablet ? "" : `<div class="status" style="height:${bar}px;padding:0 44px;font-size:30px;background:url('${raw}') top left / 100% 100000% no-repeat"><span>9:41</span><span>▴ ◼</span></div>`;
+  let statusBarHeight;
+  if (tablet) {
+    statusBarHeight = 0;
+  } else {
+    statusBarHeight = 60;
+  }
+  // The screen keeps the shape the picture was taken at (600 × 1000 or 412 × 892).
+  let heightPerWidth;
+  if (tablet) {
+    heightPerWidth = 1000 / 600;
+  } else {
+    heightPerWidth = 892 / 412;
+  }
+  const screenHeight = Math.round(screenWidth * heightPerWidth) + statusBarHeight;
+  let bezel;
+  if (tablet) {
+    bezel = 44;
+  } else {
+    bezel = 30;
+  }
+  const left = (width - screenWidth) / 2;
+  const top = 620;
+  let status;
+  if (tablet) {
+    status = "";
+  } else {
+    status = `<div class="status" style="height:${statusBarHeight}px;padding:0 44px;font-size:30px;background:url('${pictureUrl}') top left / 100% 100000% no-repeat"><span>9:41</span><span>▴ ◼</span></div>`;
+  }
+  let frameRadius;
+  if (tablet) {
+    frameRadius = 70;
+  } else {
+    frameRadius = 110;
+  }
+  let screenRadius;
+  if (tablet) {
+    screenRadius = 30;
+  } else {
+    screenRadius = 80;
+  }
+  let noteFontSize;
+  if (tablet) {
+    noteFontSize = 52;
+  } else {
+    noteFontSize = 60;
+  }
   const body = `
 <div class="hill" style="width:2600px;height:1400px;left:-1300px;top:1300px"></div>
 <div class="hill dark" style="width:1800px;height:1600px;left:900px;top:1800px"></div>
-<div class="head" style="top:150px;font-size:150px">${s.head}</div>
-<div class="frame" style="left:${left - bezel}px;top:${top - bezel}px;width:${sw + 2 * bezel}px;height:${sh + 2 * bezel}px;border-radius:${tablet ? 70 : 110}px"></div>
-<div class="screen" style="left:${left}px;top:${top}px;width:${sw}px;height:${sh}px;border-radius:${tablet ? 30 : 80}px"><img src="${raw}" style="position:absolute;top:${bar}px;height:${sh - bar}px">${status}</div>
-${notesHtml(s.notes, { w, h, fs: tablet ? 52 : 60, zone: { l: left / 2, r: w - left / 2, w: left - 36 } })}`;
-  return { w, h, html: page({ w, h, body, theme }) };
+<div class="head" style="top:150px;font-size:150px">${description.head}</div>
+<div class="frame" style="left:${left - bezel}px;top:${top - bezel}px;width:${screenWidth + 2 * bezel}px;height:${screenHeight + 2 * bezel}px;border-radius:${frameRadius}px"></div>
+<div class="screen" style="left:${left}px;top:${top}px;width:${screenWidth}px;height:${screenHeight}px;border-radius:${screenRadius}px"><img src="${pictureUrl}" style="position:absolute;top:${statusBarHeight}px;height:${screenHeight - statusBarHeight}px">${status}</div>
+${notesHtml(description.notes, { width, height, fontSize: noteFontSize, zone: { leftCenter: left / 2, rightCenter: width - left / 2, width: left - 36 } })}`;
+  return { width, height, html: page({ width, height, body, theme }) };
 }
 
 // A landscape tablet or the desktop: headline above, the device or window, notes either side.
-function landscapePage(s, raw, { desktop: isDesktop, theme }) {
-  const w = 2880, h = 1620;
-  const welcome = !!s.window;
-  const ratio = welcome ? 660 / 940 : isDesktop ? 900 / 1440 : 800 / 1280;
-  const sw = welcome ? 1620 : 2000, sh = Math.round(sw * ratio);
-  const left = (w - sw) / 2, top = welcome ? 330 : 300;
+function landscapePage(description, pictureUrl, { desktop: isDesktop, theme }) {
+  const width = 2880;
+  const height = 1620;
+  const welcome = Boolean(description.window);
+  // The screen keeps the shape the picture was taken at.
+  let heightPerWidth;
+  if (welcome) {
+    heightPerWidth = 660 / 940;
+  } else if (isDesktop) {
+    heightPerWidth = 900 / 1440;
+  } else {
+    heightPerWidth = 800 / 1280;
+  }
+  let screenWidth;
+  if (welcome) {
+    screenWidth = 1620;
+  } else {
+    screenWidth = 2000;
+  }
+  const screenHeight = Math.round(screenWidth * heightPerWidth);
+  const left = (width - screenWidth) / 2;
+  let top;
+  if (welcome) {
+    top = 330;
+  } else {
+    top = 300;
+  }
   let frame;
   if (isDesktop) {
     // A window: its own title bar is the app's (or, for Make it yours, the system's simple one).
-    frame = `<div class="frame" style="left:${left - 3}px;top:${top - 3}px;width:${sw + 6}px;height:${sh + 6}px;border-radius:18px;background:#0b0f0c"></div>`;
+    frame = `<div class="frame" style="left:${left - 3}px;top:${top - 3}px;width:${screenWidth + 6}px;height:${screenHeight + 6}px;border-radius:18px;background:#0b0f0c"></div>`;
   } else {
-    frame = `<div class="frame" style="left:${left - 40}px;top:${top - 40}px;width:${sw + 80}px;height:${sh + 80}px;border-radius:60px"></div>`;
+    frame = `<div class="frame" style="left:${left - 40}px;top:${top - 40}px;width:${screenWidth + 80}px;height:${screenHeight + 80}px;border-radius:60px"></div>`;
+  }
+  let screenRadius;
+  if (isDesktop) {
+    screenRadius = 14;
+  } else {
+    screenRadius = 24;
   }
   const body = `
 <div class="hill" style="width:2400px;height:1300px;left:-1100px;top:900px"></div>
 <div class="hill dark" style="width:2200px;height:1500px;left:1900px;top:1000px"></div>
-<div class="head" style="top:70px;font-size:130px">${s.head}</div>
+<div class="head" style="top:70px;font-size:130px">${description.head}</div>
 ${frame}
-<div class="screen" style="left:${left}px;top:${top}px;width:${sw}px;height:${sh}px;border-radius:${isDesktop ? 14 : 24}px"><img src="${raw}"></div>
-${notesHtml(s.notes, { w, h, fs: 54, zone: { l: left / 2, r: w - left / 2, w: left - 40 } })}`;
-  return { w, h, html: page({ w, h, body, theme }) };
+<div class="screen" style="left:${left}px;top:${top}px;width:${screenWidth}px;height:${screenHeight}px;border-radius:${screenRadius}px"><img src="${pictureUrl}"></div>
+${notesHtml(description.notes, { width, height, fontSize: 54, zone: { leftCenter: left / 2, rightCenter: width - left / 2, width: left - 40 } })}`;
+  return { width, height, html: page({ width, height, body, theme }) };
 }
 
+// The Play Store's feature graphic: the icon, the name and a line about the app, beside a tilted phone.
 function featureGraphic() {
-  const w = 1024, h = 500;
+  const width = 1024;
+  const height = 500;
   const body = `
 <div class="hill" style="width:900px;height:700px;left:-300px;top:260px"></div>
 <div class="hill" style="width:800px;height:800px;left:620px;top:200px;background:var(--hill2)"></div>
-<img src="${icon}" style="position:absolute;left:70px;top:120px;width:150px;height:150px;border-radius:34px;box-shadow:0 18px 40px rgba(0,0,0,.3)">
+<img src="${iconUrl}" style="position:absolute;left:70px;top:120px;width:150px;height:150px;border-radius:34px;box-shadow:0 18px 40px rgba(0,0,0,.3)">
 <div style="position:absolute;left:250px;top:118px;color:var(--ink);font-size:88px">uwuBoard</div>
 <div style="position:absolute;left:256px;top:232px;color:#eaffea;font-size:38px">The Kanban way</div>
 <div style="position:absolute;left:72px;top:330px;width:440px;color:var(--ink);font-family:'Patrick Hand',cursive;font-size:34px;line-height:1.15">Boards, Timelines and cards, on your phone and your computer</div>
 <div class="frame" style="left:676px;top:58px;width:300px;height:620px;border-radius:44px;transform:rotate(8deg)"></div>
-<div class="screen" style="left:690px;top:72px;width:272px;height:590px;border-radius:34px;transform:rotate(8deg)"><img src="${raw("phone-04-material-you")}"></div>`;
-  return { w, h, html: page({ w, h, body, theme: featureTheme }).replace('<svg id="arrows"></svg>', "").replace("<div class=\"screen\"", "<div class=\"screen\"") };
+<div class="screen" style="left:690px;top:72px;width:272px;height:590px;border-radius:34px;transform:rotate(8deg)"><img src="${rawPictureUrl("phone-04-material-you")}"></div>`;
+  return { width, height, html: page({ width, height, body, theme: featureTheme }).replace('<svg id="arrows"></svg>', "").replace("<div class=\"screen\"", "<div class=\"screen\"") };
 }
 
-async function render(browser, { w, h, html }, out) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
-  const p = await ctx.newPage();
+// Opens the page in a browser window of its exact size, waits for the arrows, and saves a PNG.
+async function render(browser, { width, height, html }, outputPath) {
+  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
+  const tab = await context.newPage();
   // From a file, so the page may read the pictures and fonts beside it.
-  const tmp = join(here, ".page.html");
-  writeFileSync(tmp, html);
-  await p.goto(pathToFileURL(tmp).href, { waitUntil: "networkidle" });
-  await p.waitForFunction(() => document.body.dataset.ready === "1" || !document.querySelector(".note"), null, { timeout: 15000 }).catch(() => {});
-  await p.waitForTimeout(300);
-  mkdirSync(dirname(out), { recursive: true });
-  await p.screenshot({ path: out, type: "png" });
-  await ctx.close();
-  console.log(out.replace(docs, "docs"));
+  const pageFile = join(thisFolder, ".page.html");
+  writeFileSync(pageFile, html);
+  await tab.goto(pathToFileURL(pageFile).href, { waitUntil: "networkidle" });
+  await tab.waitForFunction(() => {
+    return document.body.dataset.ready === "1" || !document.querySelector(".note");
+  }, null, { timeout: 15000 }).catch(() => {});
+  await tab.waitForTimeout(300);
+  mkdirSync(dirname(outputPath), { recursive: true });
+  await tab.screenshot({ path: outputPath, type: "png" });
+  await context.close();
+  console.log(outputPath.replace(docsFolder, "docs"));
 }
 
+// Each numbered picture for the phone, both tablets and the desktop, then the feature graphic.
 const browser = await chromium.launch();
 try {
-  for (const [i, s] of portrait.entries()) {
-    const theme = themes[i];
-    await render(browser, portraitPage(s, raw(`phone-${s.raw}`), { tablet: false, theme }), join(docs, "phone-assets", `${s.file}.png`));
-    await render(browser, portraitPage(s, raw(`tablet7-${s.raw}`), { tablet: true, theme }), join(docs, "tablet-assets/7-inch", `${s.file}.png`));
-    const l = landscape[i];
-    await render(browser, landscapePage(l, raw(`tablet10-${l.raw}`), { desktop: false, theme }), join(docs, "tablet-assets/10-inch", `${l.file}.png`));
+  for (const [index, description] of portraitScreens.entries()) {
+    const theme = themes[index];
+    await render(browser, portraitPage(description, rawPictureUrl(`phone-${description.raw}`), { tablet: false, theme }), join(docsFolder, "phone-assets", `${description.file}.png`));
+    await render(browser, portraitPage(description, rawPictureUrl(`tablet7-${description.raw}`), { tablet: true, theme }), join(docsFolder, "tablet-assets/7-inch", `${description.file}.png`));
+    const landscapeDescription = landscapeScreens[index];
+    await render(browser, landscapePage(landscapeDescription, rawPictureUrl(`tablet10-${landscapeDescription.raw}`), { desktop: false, theme }), join(docsFolder, "tablet-assets/10-inch", `${landscapeDescription.file}.png`));
   }
-  for (const [i, s] of desktop.entries()) await render(browser, landscapePage(s, raw(`desktop-${s.raw}`), { desktop: true, theme: themes[i] }), join(docs, "desktop-assets", `${s.file}.png`));
-  await render(browser, featureGraphic(), join(docs, "feature-graphic.png"));
+  for (const [index, description] of desktopScreens.entries()) {
+    await render(browser, landscapePage(description, rawPictureUrl(`desktop-${description.raw}`), { desktop: true, theme: themes[index] }), join(docsFolder, "desktop-assets", `${description.file}.png`));
+  }
+  await render(browser, featureGraphic(), join(docsFolder, "feature-graphic.png"));
 } finally {
   await browser.close();
 }

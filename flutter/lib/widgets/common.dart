@@ -24,36 +24,52 @@ class GlassPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
-    final style = c.native;
+    final colors = UwuColors.of(context);
+    final style = colors.native;
+    final Color fillColor;
+    if (strong) {
+      fillColor = colors.surfaceStrong;
+    } else {
+      fillColor = colors.surface;
+    }
+    // Native glass: the system's own look.
     if (style != null) {
-      final r = BorderRadius.circular(c.round(radius));
+      final borderRadius = BorderRadius.circular(colors.round(radius));
       return NativeGlass(
         style: style,
-        radius: r,
+        radius: borderRadius,
         blur: blur,
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
-            color: strong ? c.surfaceStrong : c.surface,
-            borderRadius: r,
-            border: Border.all(color: c.edge),
+            color: fillColor,
+            borderRadius: borderRadius,
+            border: Border.all(color: colors.edge),
           ),
           child: child,
         ),
       );
     }
+    // The site's glass: a soft shadow and, unless asked not to, what's behind it blurred.
+    List<BoxShadow>? shadows;
+    if (colors.glass) {
+      shadows = [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8))];
+    } else {
+      shadows = null;
+    }
     final box = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: strong ? c.surfaceStrong : c.surface,
+        color: fillColor,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: c.border),
-        boxShadow: c.glass ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8))] : null,
+        border: Border.all(color: colors.border),
+        boxShadow: shadows,
       ),
       child: child,
     );
-    if (!c.glass || !blur) return box;
+    if (!colors.glass || !blur) {
+      return box;
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14), child: box),
@@ -75,7 +91,21 @@ class GlassButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
+    final colors = UwuColors.of(context);
+    final Color fillColor;
+    if (active) {
+      fillColor = colors.brandFill;
+    } else {
+      fillColor = colors.surfaceStrong;
+    }
+    final Color iconColor;
+    if (danger) {
+      iconColor = colors.error;
+    } else if (active) {
+      iconColor = colors.onBrand;
+    } else {
+      iconColor = colors.ink;
+    }
     return Tooltip(
       excludeFromSemantics: true,
       message: label,
@@ -84,8 +114,8 @@ class GlassButton extends StatelessWidget {
         label: label,
         excludeSemantics: true,
         child: Material(
-          color: active ? c.brandFill : c.surfaceStrong,
-          shape: CircleBorder(side: BorderSide(color: c.border)),
+          color: fillColor,
+          shape: CircleBorder(side: BorderSide(color: colors.border)),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             mouseCursor: WidgetStateMouseCursor.clickable,
@@ -94,7 +124,7 @@ class GlassButton extends StatelessWidget {
               width: size,
               height: size,
               child: Center(
-                child: AppIcon(icon, size: size * 0.45, color: danger ? c.error : (active ? c.onBrand : c.ink)),
+                child: AppIcon(icon, size: size * 0.45, color: iconColor),
               ),
             ),
           ),
@@ -116,7 +146,14 @@ class MiniButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
+    final colors = UwuColors.of(context);
+    final Color iconColor;
+    final givenColor = color;
+    if (givenColor != null) {
+      iconColor = givenColor;
+    } else {
+      iconColor = colors.muted;
+    }
     return Tooltip(
       excludeFromSemantics: true,
       message: label,
@@ -132,7 +169,7 @@ class MiniButton extends StatelessWidget {
             width: size,
             height: size,
             child: Center(
-              child: AppIcon(icon, size: size * 0.52, color: color ?? c.muted),
+              child: AppIcon(icon, size: size * 0.52, color: iconColor),
             ),
           ),
         ),
@@ -149,7 +186,7 @@ class FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
+    final colors = UwuColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 6, top: 12),
       child: Text.rich(
@@ -157,12 +194,12 @@ class FieldLabel extends StatelessWidget {
           children: [
             TextSpan(
               text: text,
-              style: TextStyle(fontSize: 12.5, color: c.muted, fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: 12.5, color: colors.muted, fontWeight: FontWeight.w600),
             ),
             if (note != null)
               TextSpan(
                 text: ' $note',
-                style: TextStyle(fontSize: 12, color: c.muted),
+                style: TextStyle(fontSize: 12, color: colors.muted),
               ),
           ],
         ),
@@ -178,16 +215,18 @@ class FormError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final m = message;
-    if (m == null || m.isEmpty) return const SizedBox.shrink();
-    final c = UwuColors.of(context);
+    final text = message;
+    if (text == null || text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final colors = UwuColors.of(context);
     return Semantics(
       liveRegion: true,
       child: Container(
         margin: const EdgeInsets.only(top: 12),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(color: c.errorFill, borderRadius: BorderRadius.circular(8)),
-        child: Text(m, style: TextStyle(color: c.error, fontSize: 13)),
+        decoration: BoxDecoration(color: colors.errorFill, borderRadius: BorderRadius.circular(8)),
+        child: Text(text, style: TextStyle(color: colors.error, fontSize: 13)),
       ),
     );
   }
@@ -202,37 +241,53 @@ class Avatar extends StatelessWidget {
   /// A picture just picked, shown before it's saved.
   final LoadedImage? preview;
 
+  /// A picture just picked, else the saved avatar once it has loaded, else the initial; in a
+  /// circle, or a rounded square when [round] is off.
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
-    final s = AppState.I;
+    final colors = UwuColors.of(context);
+    final app = AppState.I;
     final initial = Center(
       child: Text(
-        s.initial,
-        style: TextStyle(fontSize: size * 0.42, color: c.onBrand, fontWeight: FontWeight.w700),
+        app.initial,
+        style: TextStyle(fontSize: size * 0.42, color: colors.onBrand, fontWeight: FontWeight.w700),
       ),
     );
     Widget inner = initial;
-    if (preview != null) {
-      inner = Image.memory(preview!.bytes, fit: BoxFit.cover, width: size, height: size);
-    } else if (s.signedIn && s.hasAvatar) {
+    final previewImage = preview;
+    if (previewImage != null) {
+      inner = Image.memory(previewImage.bytes, fit: BoxFit.cover, width: size, height: size);
+    } else if (app.signedIn && app.hasAvatar) {
       inner = FutureBuilder<LoadedImage>(
-        key: ValueKey(s.avatarVersion),
+        key: ValueKey(app.avatarVersion),
         future: ImageStore.avatar(),
-        builder: (context, snap) => snap.hasData && snap.data!.bytes.isNotEmpty
-            ? Image.memory(snap.data!.bytes, fit: BoxFit.cover, width: size, height: size, gaplessPlayback: true)
-            : initial,
+        builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data!.bytes.isNotEmpty) {
+            return Image.memory(snapshot.data!.bytes, fit: BoxFit.cover, width: size, height: size, gaplessPlayback: true);
+          } else {
+            return initial;
+          }
+        },
       );
+    }
+    final BoxShape shape;
+    final BorderRadius? borderRadius;
+    if (round) {
+      shape = BoxShape.circle;
+      borderRadius = null;
+    } else {
+      shape = BoxShape.rectangle;
+      borderRadius = BorderRadius.circular(size * 0.22);
     }
     return Container(
       width: size,
       height: size,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: c.brandFillStrong,
-        shape: round ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: round ? null : BorderRadius.circular(size * 0.22),
-        border: Border.all(color: c.border),
+        color: colors.brandFillStrong,
+        shape: shape,
+        borderRadius: borderRadius,
+        border: Border.all(color: colors.border),
       ),
       child: inner,
     );
@@ -247,37 +302,52 @@ class CardImage extends StatelessWidget {
   final double? height;
   final double? width;
 
+  /// The picture once its bytes have loaded, a plain box while they load, and "Image
+  /// unavailable" when they can't be.
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
+    final colors = UwuColors.of(context);
     return FutureBuilder<LoadedImage>(
       key: ValueKey(ImageStore.keyOf(image)),
       future: ImageStore.load(image),
-      builder: (context, snap) {
-        if (snap.hasData && snap.data!.bytes.isNotEmpty) {
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data!.bytes.isNotEmpty) {
+          final imageName = image['name'];
+          final String semanticName;
+          if (imageName != null) {
+            semanticName = '$imageName';
+          } else {
+            semanticName = '';
+          }
           return Image.memory(
-            snap.data!.bytes,
+            snapshot.data!.bytes,
             fit: fit,
             width: width,
             height: height,
             gaplessPlayback: true,
-            semanticLabel: '${image['name'] ?? ''}',
-            errorBuilder: (_, _, _) => _missing(c),
+            semanticLabel: semanticName,
+            errorBuilder: (context, error, stackTrace) {
+              return _missing(colors);
+            },
           );
         }
-        if (snap.hasError) return _missing(c);
-        return Container(width: width, height: height, color: c.surfaceStrong);
+        if (snapshot.hasError) {
+          return _missing(colors);
+        }
+        return Container(width: width, height: height, color: colors.surfaceStrong);
       },
     );
   }
 
-  Widget _missing(UwuColors c) => Container(
-    width: width,
-    height: height,
-    color: c.surfaceStrong,
-    alignment: Alignment.center,
-    child: Text('Image unavailable', style: TextStyle(fontSize: 11, color: c.muted)),
-  );
+  Widget _missing(UwuColors colors) {
+    return Container(
+      width: width,
+      height: height,
+      color: colors.surfaceStrong,
+      alignment: Alignment.center,
+      child: Text('Image unavailable', style: TextStyle(fontSize: 11, color: colors.muted)),
+    );
+  }
 }
 
 /// A label chip in its own colour, its words flipping light or dark with it.
@@ -290,22 +360,52 @@ class LabelChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hex = parseHex(color) ?? 0xccffcc;
-    final bg = Color(0xFF000000 | hex);
-    final ink = isDarkHex(color) ? Colors.white : const Color(0xFF121815);
+    final parsedHex = parseHex(color);
+    final int hex;
+    if (parsedHex != null) {
+      hex = parsedHex;
+    } else {
+      hex = 0xccffcc;
+    }
+    final background = Color(0xFF000000 | hex);
+    final Color ink;
+    if (isDarkHex(color)) {
+      ink = Colors.white;
+    } else {
+      ink = const Color(0xFF121815);
+    }
+    // A small chip is tighter all round; one with a remove button leaves little room on its right.
+    final double sidePadding;
+    final double verticalPadding;
+    final double fontSize;
+    if (small) {
+      sidePadding = 7;
+      verticalPadding = 2;
+      fontSize = 10.5;
+    } else {
+      sidePadding = 10;
+      verticalPadding = 4;
+      fontSize = 12;
+    }
+    final double rightPadding;
+    if (onRemove == null) {
+      rightPadding = sidePadding;
+    } else {
+      rightPadding = 2;
+    }
     return Container(
-      padding: EdgeInsets.fromLTRB(small ? 7 : 10, small ? 2 : 4, onRemove == null ? (small ? 7 : 10) : 2, small ? 2 : 4),
+      padding: EdgeInsets.fromLTRB(sidePadding, verticalPadding, rightPadding, verticalPadding),
       decoration: BoxDecoration(
-        color: bg,
+        color: background,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: bg.withValues(alpha: 0.6)),
+        border: Border.all(color: background.withValues(alpha: 0.6)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             text,
-            style: TextStyle(color: ink, fontSize: small ? 10.5 : 12),
+            style: TextStyle(color: ink, fontSize: fontSize),
           ),
           if (onRemove != null)
             InkWell(

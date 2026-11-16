@@ -24,25 +24,27 @@
 param([switch]$Aab)
 
 $ErrorActionPreference = 'Stop'
-$here = $PSScriptRoot
-$root = Split-Path $here -Parent
+$flutterDir = $PSScriptRoot
+$projectRoot = Split-Path $flutterDir -Parent
 # The app's key: an APK signed with any other can't update one already installed.
 $keySha256 = '4CC99AE091902FAC71FEE6E73B5C752DE6F6FEC3CB51C8022ED4FA017697A300'
 
-if (-not (Test-Path "$here\keystore.properties") -or -not (Test-Path "$here\android.keystore")) {
-    throw "android.keystore and keystore.properties are missing from $here. They're not in git: restore them from your backup."
+if (-not (Test-Path "$flutterDir\keystore.properties") -or -not (Test-Path "$flutterDir\android.keystore")) {
+    throw "android.keystore and keystore.properties are missing from $flutterDir. They're not in git: restore them from your backup."
 }
 
+# Finds a JDK 17 or later: JAVA_HOME if it is one, or else the newest JDK in the usual install
+# folders. ($_ is PowerShell's name for the item the pipeline is working on.)
 function Find-Jdk {
     if ($env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
-        $v = & "$env:JAVA_HOME\bin\java.exe" -version 2>&1 | Out-String
-        if ($v -match 'version "(\d+)' -and [int]$Matches[1] -ge 17) { return $env:JAVA_HOME }
+        $javaVersionText = & "$env:JAVA_HOME\bin\java.exe" -version 2>&1 | Out-String
+        if ($javaVersionText -match 'version "(\d+)' -and [int]$Matches[1] -ge 17) { return $env:JAVA_HOME }
     }
     $candidates = @('C:\Program Files\Eclipse Adoptium', 'C:\Program Files\Java', 'C:\Program Files\Microsoft', 'C:\Program Files\Android\Android Studio\jbr') |
         Where-Object { Test-Path $_ } |
         ForEach-Object { if (Test-Path "$_\bin\java.exe") { Get-Item $_ } else { Get-ChildItem $_ -Directory -Filter 'jdk*' } } |
         Where-Object { Test-Path "$($_.FullName)\bin\java.exe" } |
-        Sort-Object { $m = [regex]::Match($_.Name, 'jdk-?(\d+)'); if ($m.Success) { [int]$m.Groups[1].Value } else { 0 } }
+        Sort-Object { $jdkNumberMatch = [regex]::Match($_.Name, 'jdk-?(\d+)'); if ($jdkNumberMatch.Success) { [int]$jdkNumberMatch.Groups[1].Value } else { 0 } }
     if ($candidates) { return ($candidates | Select-Object -Last 1).FullName }
     throw 'No JDK 17 or later found. Install one (https://adoptium.net) or set JAVA_HOME to it.'
 }
@@ -55,7 +57,8 @@ if (-not $env:ANDROID_HOME) {
 }
 $buildTools = Get-ChildItem "$env:ANDROID_HOME\build-tools" -Directory | Sort-Object { [version]$_.Name } | Select-Object -Last 1
 
-$pubspec = Get-Content "$here\pubspec.yaml" -Raw
+# The version name, and a new version code, from pubspec.yaml.
+$pubspec = Get-Content "$flutterDir\pubspec.yaml" -Raw
 $version = [regex]::Match($pubspec, '(?m)^version:\s*([0-9.]+)').Groups[1].Value
 # A new version code for every build, APK or bundle: Play refuses a code it has ever seen, and a phone
 # only takes a higher one as an update. The version name stays as it is. Commit pubspec.yaml with it.
@@ -63,35 +66,46 @@ $codeMatch = [regex]::Match($pubspec, '(?m)^version:\s*[0-9.]+\+(\d+)')
 if (-not $codeMatch.Success) { throw 'pubspec.yaml''s version needs a build number, as in 1.0.0+1.' }
 $versionCode = [int]$codeMatch.Groups[1].Value + 1
 $pubspec = [regex]::Replace($pubspec, '(?m)^(version:\s*[0-9.]+)\+\d+', "`${1}+$versionCode")
-[IO.File]::WriteAllText("$here\pubspec.yaml", $pubspec, (New-Object Text.UTF8Encoding $false))
+[IO.File]::WriteAllText("$flutterDir\pubspec.yaml", $pubspec, (New-Object Text.UTF8Encoding $false))
 Write-Host "Version code raised to $versionCode."
-$flutter = if ($env:FLUTTER_ROOT) { "$env:FLUTTER_ROOT\bin\flutter.bat" } else { 'flutter' }
-$out = "$root\release\$version"
-New-Item -ItemType Directory -Force $out | Out-Null
+if ($env:FLUTTER_ROOT) {
+    $flutter = "$env:FLUTTER_ROOT\bin\flutter.bat"
+} else {
+    $flutter = 'flutter'
+}
+$outputDir = "$projectRoot\release\$version"
+New-Item -ItemType Directory -Force $outputDir | Out-Null
 Write-Host "Building uwuBoard $version ($versionCode) for Android (JDK: $env:JAVA_HOME)..."
 
 # The Dart side's symbols, split off the obfuscated code, one folder per kind of build. Never
 # emptied here: when nothing's changed, Gradle skips compiling the Dart again and doesn't write
 # them again either.
-$kind = if ($Aab) { 'play' } else { 'github' }
-$symbols = "$here\symbols\$version-$kind"
+if ($Aab) {
+    $buildKind = 'play'
+} else {
+    $buildKind = 'github'
+}
+$symbols = "$flutterDir\symbols\$version-$buildKind"
 
+# Copies out what reads a crash report back: R8's mapping file and a zip of the Dart symbols,
+# named with $suffix ('-play' for the App Bundle) so the two builds' files don't overwrite each other.
 function Save-CrashReaders($suffix) {
-    $mapping = "$here\build\app\outputs\mapping\release\mapping.txt"
+    $mapping = "$flutterDir\build\app\outputs\mapping\release\mapping.txt"
     if (-not (Test-Path $mapping)) { throw "R8 made no mapping: is isMinifyEnabled still on in android/app/build.gradle.kts?" }
-    Copy-Item $mapping "$out\uwuboard-$version$suffix-mapping.txt" -Force
+    Copy-Item $mapping "$outputDir\uwuboard-$version$suffix-mapping.txt" -Force
     if (-not (Get-ChildItem $symbols -Filter '*.symbols' -ErrorAction SilentlyContinue)) {
         throw "No Dart symbols in $symbols. Run 'flutter clean' in flutter\ and build again."
     }
-    Compress-Archive -Path "$symbols\*" -DestinationPath "$out\uwuboard-$version$suffix-symbols.zip" -Force
+    Compress-Archive -Path "$symbols\*" -DestinationPath "$outputDir\uwuboard-$version$suffix-symbols.zip" -Force
 }
 
-Push-Location $here
+# Build, from the Flutter project's folder.
+Push-Location $flutterDir
 try {
     & $flutter pub get
     if ($LASTEXITCODE -ne 0) { throw 'flutter pub get failed.' }
     if ($Aab) {
-        $bundle = "$here\build\app\outputs\bundle\release\app-release.aab"
+        $bundle = "$flutterDir\build\app\outputs\bundle\release\app-release.aab"
         # Never an old one: with nothing changed, Gradle wouldn't write it again.
         Remove-Item $bundle -Force -ErrorAction SilentlyContinue
         & $flutter build appbundle --release --obfuscate --split-debug-info=$symbols --dart-define=UWUBOARD_PLAY=true --android-project-arg=uwuboardPlay=true
@@ -104,6 +118,7 @@ try {
     Pop-Location
 }
 
+# The App Bundle: check its signature, its manifest and the symbols it carries, then copy it out.
 if ($Aab) {
     # Flutter's last step looks for debug symbols with apkanalyzer, from the SDK's cmdline-tools,
     # and says it failed if that isn't installed. So a failure counts only if no bundle was made,
@@ -113,57 +128,58 @@ if ($Aab) {
         throw 'Gradle made no bundle.'
     }
     $ErrorActionPreference = 'Continue'
-    $certs = & "$env:JAVA_HOME\bin\keytool.exe" -printcert -jarfile $bundle 2>&1 | Out-String
+    $certificates = & "$env:JAVA_HOME\bin\keytool.exe" -printcert -jarfile $bundle 2>&1 | Out-String
     $ErrorActionPreference = 'Stop'
-    if (($certs -replace ':', '') -notmatch "SHA256\s*$keySha256") { throw "The bundle isn't signed with the app's key: is keystore.properties right?" }
+    if (($certificates -replace ':', '') -notmatch "SHA256\s*$keySha256") { throw "The bundle isn't signed with the app's key: is keystore.properties right?" }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $zip = [IO.Compression.ZipFile]::OpenRead($bundle)
+    $bundleZip = [IO.Compression.ZipFile]::OpenRead($bundle)
     try {
-        $stream = $zip.GetEntry('base/manifest/AndroidManifest.xml').Open()
+        $stream = $bundleZip.GetEntry('base/manifest/AndroidManifest.xml').Open()
         $reader = New-Object IO.StreamReader($stream, [Text.Encoding]::GetEncoding(28591))
         $manifest = $reader.ReadToEnd()
         $reader.Dispose()
-        $entries = @($zip.Entries | ForEach-Object { $_.FullName })
+        $entries = @($bundleZip.Entries | ForEach-Object { $_.FullName })
     } finally {
-        $zip.Dispose()
+        $bundleZip.Dispose()
     }
     # Nothing of the updater left in what Play reads.
     if ($manifest -match 'REQUEST_INSTALL_PACKAGES') { throw 'The bundle still has REQUEST_INSTALL_PACKAGES in its manifest.' }
     # No ads, no analytics: Play's Advertising ID declaration is "No", so the permission mustn't be there.
     if ($manifest -match 'permission\.AD_ID') { throw 'The bundle asks for the advertising ID (AD_ID), which the app never uses.' }
     # The native libraries' symbols stripped into the bundle's metadata, for Play's crash reports.
-    foreach ($lib in 'libflutter', 'libapp') {
-        if (-not ($entries -match "^BUNDLE-METADATA/com\.android\.tools\.build\.debugsymbols/.*/$lib\.so\.(sym|dbg)$")) {
-            throw "The bundle's $lib.so hasn't had its debug symbols stripped into its metadata."
+    foreach ($library in 'libflutter', 'libapp') {
+        if (-not ($entries -match "^BUNDLE-METADATA/com\.android\.tools\.build\.debugsymbols/.*/$library\.so\.(sym|dbg)$")) {
+            throw "The bundle's $library.so hasn't had its debug symbols stripped into its metadata."
         }
     }
     # R8 ran, and Play gets its mapping, to read crashes and measure the code's optimisation.
     if (-not ($entries -contains 'BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map')) {
         throw 'The bundle has no R8 mapping: is isMinifyEnabled still on in android/app/build.gradle.kts?'
     }
-    Copy-Item $bundle "$out\uwuboard-$version.aab" -Force
+    Copy-Item $bundle "$outputDir\uwuboard-$version.aab" -Force
     Save-CrashReaders '-play'
-    Write-Host "Done: $out\uwuboard-$version.aab (version code $versionCode)"
+    Write-Host "Done: $outputDir\uwuboard-$version.aab (version code $versionCode)"
     return
 }
 
-$signed = "$here\build\app\outputs\flutter-apk\app-release.apk"
+# The APK: check its signature and version code, then copy it out.
+$signed = "$flutterDir\build\app\outputs\flutter-apk\app-release.apk"
 if (-not (Test-Path $signed)) { throw "Gradle made no signed APK: is keystore.properties's storeFile right?" }
 # Its warnings (META-INF/*.version "not protected by signature") come with every Android build and
 # mean nothing here; only a failure matters. Windows PowerShell turns anything a program writes to
 # stderr into an error, so only its exit code is looked at.
 $ErrorActionPreference = 'Continue'
-$check = & "$($buildTools.FullName)\apksigner.bat" verify --print-certs $signed 2>&1
+$signatureCheck = & "$($buildTools.FullName)\apksigner.bat" verify --print-certs $signed 2>&1
 $verified = $LASTEXITCODE -eq 0
 $ErrorActionPreference = 'Stop'
-if (-not $verified) { $check | Write-Host; throw 'The signed app failed its signature check.' }
-$sha = [regex]::Match(($check | Out-String), 'SHA-256 digest: ([0-9a-f]{64})').Groups[1].Value
-if ($sha -and $sha.ToUpper() -ne $keySha256) {
-    throw "The APK is signed with a different key ($sha), so it can't update the app already installed."
+if (-not $verified) { $signatureCheck | Write-Host; throw 'The signed app failed its signature check.' }
+$apkKeySha256 = [regex]::Match(($signatureCheck | Out-String), 'SHA-256 digest: ([0-9a-f]{64})').Groups[1].Value
+if ($apkKeySha256 -and $apkKeySha256.ToUpper() -ne $keySha256) {
+    throw "The APK is signed with a different key ($apkKeySha256), so it can't update the app already installed."
 }
-Copy-Item $signed "$out\uwuboard-$version.apk" -Force
+Copy-Item $signed "$outputDir\uwuboard-$version.apk" -Force
 Save-CrashReaders ''
 # The version code really is the new one.
 $badging = & "$($buildTools.FullName)\aapt2.exe" dump badging $signed 2>$null | Select-Object -First 1
 if ($badging -notmatch "versionCode='$versionCode'") { throw "The APK's version code isn't $versionCode ($badging)." }
-Write-Host "Done: $out\uwuboard-$version.apk (version code $versionCode)"
+Write-Host "Done: $outputDir\uwuboard-$version.apk (version code $versionCode)"

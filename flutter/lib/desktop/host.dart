@@ -28,7 +28,7 @@ class DesktopHost implements NativeHost {
           'features': ['notifications', 'links', 'glance', 'widgets', 'checkUpdate'],
         };
       case 'launchLink':
-        final link = Desktop.linkIn(Desktop.launchArgs);
+        final link = Desktop.linkIn(Desktop.launchArguments);
         // The 'url' key is only present when the app was started with a link.
         return {if (link != null) 'url': link};
       case 'openLink':

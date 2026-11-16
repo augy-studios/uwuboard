@@ -26,11 +26,15 @@ const _iceServers = [
   {'urls': 'stun:stun.l.google.com:19302'},
   {'urls': 'stun:stun.cloudflare.com:3478'},
 ];
-const _mtu = 16300;
-const _bufferHigh = 1024 * 1024;
+// The biggest message sent whole; a bigger one goes as chunks of this size.
+const _maximumMessageBytes = 16300;
+// More than this waiting to go out counts as congested.
+const _congestedBufferBytes = 1024 * 1024;
 
 // Not 1 << 32, which is 0 in Dart on the web.
-String _token() => [for (var i = 0; i < 2; i++) math.Random.secure().nextInt(0x7fffffff).toRadixString(36)].join();
+String _randomToken() {
+  return [for (var index = 0; index < 2; index = index + 1) math.Random.secure().nextInt(0x7fffffff).toRadixString(36)].join();
+}
 
 /// A link to one other device over PeerJS.
 abstract class ShareLink {
@@ -50,12 +54,21 @@ abstract class ShareLink {
 }
 
 /// What went wrong, as js/p2p.js's describePeerError says it.
-String describePeerError(String type) => switch (type) {
-  'peer-unavailable' => 'Nobody is sharing with that code. Check it and try again.',
-  'unavailable-id' => 'That code is already in use. Generate a new one.',
-  'network' || 'server-error' || 'socket-error' || 'socket-closed' => 'Cannot reach the pairing service. Everything else still works.',
-  _ => 'The connection failed.',
-};
+String describePeerError(String type) {
+  switch (type) {
+    case 'peer-unavailable':
+      return 'Nobody is sharing with that code. Check it and try again.';
+    case 'unavailable-id':
+      return 'That code is already in use. Generate a new one.';
+    case 'network':
+    case 'server-error':
+    case 'socket-error':
+    case 'socket-closed':
+      return 'Cannot reach the pairing service. Everything else still works.';
+    default:
+      return 'The connection failed.';
+  }
+}
 
 const brokerErrors = {'network', 'server-error', 'socket-error', 'socket-closed', 'disconnected'};
 
@@ -65,16 +78,16 @@ class PeerBroker {
   PeerBroker(this.id, {required this.onMessage, required this.onOpen, required this.onError});
 
   final String id;
-  final Future<void> Function(Map<String, dynamic> m) onMessage;
+  final Future<void> Function(Map<String, dynamic> message) onMessage;
   final void Function() onOpen;
   final void Function(String type) onError;
-  final String _tokenValue = _token();
+  final String _tokenValue = _randomToken();
 
-  WebSocketChannel? _ws;
-  StreamSubscription<dynamic>? _sub;
-  Timer? _beat;
-  Timer? _retry;
-  Duration _delay = const Duration(seconds: 1);
+  WebSocketChannel? _socket;
+  StreamSubscription<dynamic>? _subscription;
+  Timer? _heartbeatTimer;
+  Timer? _retryTimer;
+  Duration _retryDelay = const Duration(seconds: 1);
   bool _closed = false;
   bool isOpen = false;
 
@@ -83,41 +96,47 @@ class PeerBroker {
 
   /// A random id from the broker, for a guest.
   static Future<String> newId() async {
-    final r = await http
+    final response = await http
         .get(Uri.parse('https://$_brokerHost:443/peerjs/id?ts=${DateTime.now().millisecondsSinceEpoch}${math.Random().nextDouble()}'))
         .timeout(const Duration(seconds: 15));
-    if (r.statusCode != 200) throw 'server-error';
-    return r.body.trim();
+    if (response.statusCode != 200) {
+      throw 'server-error';
+    }
+    return response.body.trim();
   }
 
+  /// Opens the socket to the broker under this id, handles what the broker says, and sends a
+  /// heartbeat every 5 seconds. A failure tries again later (see [_dropped]).
   Future<void> connect() async {
-    if (_closed) return;
+    if (_closed) {
+      return;
+    }
     final url = 'wss://$_brokerHost:443/peerjs?key=peerjs&id=${Uri.encodeComponent(id)}&token=$_tokenValue&version=1.5.4';
-    final WebSocketChannel ws;
+    final WebSocketChannel socket;
     try {
-      ws = WebSocketChannel.connect(Uri.parse(url));
-      await ws.ready.timeout(const Duration(seconds: 15));
-    } catch (_) {
+      socket = WebSocketChannel.connect(Uri.parse(url));
+      await socket.ready.timeout(const Duration(seconds: 15));
+    } catch (error) {
       _dropped('network');
       return;
     }
     if (_closed) {
-      ws.sink.close();
+      socket.sink.close();
       return;
     }
-    _ws = ws;
-    _sub = ws.stream.listen(
+    _socket = socket;
+    _subscription = socket.stream.listen(
       (raw) {
-        final Map<String, dynamic> m;
+        final Map<String, dynamic> message;
         try {
-          m = Map<String, dynamic>.from(jsonDecode('$raw') as Map);
-        } catch (_) {
+          message = Map<String, dynamic>.from(jsonDecode('$raw') as Map);
+        } catch (error) {
           return;
         }
-        switch (m['type']) {
+        switch (message['type']) {
           case 'OPEN':
             isOpen = true;
-            _delay = const Duration(seconds: 1);
+            _retryDelay = const Duration(seconds: 1);
             onOpen();
           case 'ID-TAKEN':
             onError('unavailable-id');
@@ -126,35 +145,62 @@ class PeerBroker {
           case 'HEARTBEAT':
             break;
           default:
-            _queue = _queue.then((_) => onMessage(m)).catchError((Object _) {});
+            _queue = _queue.then((previous) {
+              return onMessage(message);
+            }).catchError((Object error) {});
         }
       },
-      onDone: () => _dropped('socket-closed'),
-      onError: (Object _) => _dropped('socket-error'),
+      onDone: () {
+        _dropped('socket-closed');
+      },
+      onError: (Object error) {
+        _dropped('socket-error');
+      },
     );
-    _beat?.cancel();
-    _beat = Timer.periodic(const Duration(seconds: 5), (_) => send({'type': 'HEARTBEAT'}));
+    final heartbeatTimer = _heartbeatTimer;
+    if (heartbeatTimer != null) {
+      heartbeatTimer.cancel();
+    }
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      send({'type': 'HEARTBEAT'});
+    });
   }
 
-  void _dropped(String why) {
-    _beat?.cancel();
-    _sub?.cancel();
-    _sub = null;
-    _ws = null;
-    final was = isOpen;
+  void _dropped(String reason) {
+    final heartbeatTimer = _heartbeatTimer;
+    if (heartbeatTimer != null) {
+      heartbeatTimer.cancel();
+    }
+    final subscription = _subscription;
+    if (subscription != null) {
+      subscription.cancel();
+    }
+    _subscription = null;
+    _socket = null;
+    final wasOpen = isOpen;
     isOpen = false;
-    if (_closed) return;
+    if (_closed) {
+      return;
+    }
     // Said once for each time it's lost, and tried again after a while.
-    if (was || why == 'network') onError(why);
-    _retry?.cancel();
-    _retry = Timer(_delay, connect);
-    _delay = Duration(milliseconds: math.min(_delay.inMilliseconds * 2, 30000));
+    if (wasOpen || reason == 'network') {
+      onError(reason);
+    }
+    final retryTimer = _retryTimer;
+    if (retryTimer != null) {
+      retryTimer.cancel();
+    }
+    _retryTimer = Timer(_retryDelay, connect);
+    _retryDelay = Duration(milliseconds: math.min(_retryDelay.inMilliseconds * 2, 30000));
   }
 
-  void send(Map<String, Object?> m) {
+  void send(Map<String, Object?> message) {
     try {
-      _ws?.sink.add(jsonEncode(m));
-    } catch (_) {
+      final socket = _socket;
+      if (socket != null) {
+        socket.sink.add(jsonEncode(message));
+      }
+    } catch (error) {
       // Going down: its close says so.
     }
   }
@@ -162,167 +208,258 @@ class PeerBroker {
   void close() {
     _closed = true;
     isOpen = false;
-    _beat?.cancel();
-    _retry?.cancel();
-    _sub?.cancel();
-    _ws?.sink.close();
-    _ws = null;
+    final heartbeatTimer = _heartbeatTimer;
+    if (heartbeatTimer != null) {
+      heartbeatTimer.cancel();
+    }
+    final retryTimer = _retryTimer;
+    if (retryTimer != null) {
+      retryTimer.cancel();
+    }
+    final subscription = _subscription;
+    if (subscription != null) {
+      subscription.cancel();
+    }
+    final socket = _socket;
+    if (socket != null) {
+      socket.sink.close();
+    }
+    _socket = null;
   }
 }
 
-Future<RTCPeerConnection> _newConnection() => createPeerConnection({'iceServers': _iceServers, 'sdpSemantics': 'unified-plan'});
+Future<RTCPeerConnection> _newConnection() {
+  return createPeerConnection({'iceServers': _iceServers, 'sdpSemantics': 'unified-plan'});
+}
 
 /// One data channel to the other device.
 class PeerLink extends ShareLink {
-  PeerLink._(this.peer, this.connectionId, this._pc);
+  PeerLink._(this.peer, this.connectionId, this._peerConnection);
 
   @override
   final String peer;
   final String connectionId;
-  final RTCPeerConnection _pc;
+  final RTCPeerConnection _peerConnection;
 
-  RTCDataChannel? _dc;
+  RTCDataChannel? _dataChannel;
   bool _open = false;
   bool _gone = false;
-  bool _remoteSet = false;
-  final List<RTCIceCandidate> _early = [];
+  bool _remoteDescriptionSet = false;
+  // Candidates that came before the other end's description, added once it's there.
+  final List<RTCIceCandidate> _earlyCandidates = [];
+  // The chunks of long messages still arriving, by message id.
   final Map<int, List<Uint8List?>> _chunks = {};
-  int _chunkId = 0;
+  int _nextChunkedMessageId = 0;
 
   @override
-  bool get isOpen => _open;
+  bool get isOpen {
+    return _open;
+  }
 
-  void _bind(RTCDataChannel dc) {
-    _dc = dc;
-    dc.onDataChannelState = (s) {
-      if (s == RTCDataChannelState.RTCDataChannelOpen && !_open) {
-        _open = true;
-        onOpen?.call();
-      } else if (s == RTCDataChannelState.RTCDataChannelClosed) {
-        _closed();
-      }
-    };
-    dc.onMessage = (m) => _receive(m.isBinary ? m.binary : Uint8List.fromList(utf8.encode(m.text)));
-    // Opened before the handler above was there.
-    if (dc.state == RTCDataChannelState.RTCDataChannelOpen && !_open) {
-      _open = true;
-      onOpen?.call();
+  void _sayOpen() {
+    _open = true;
+    final openCallback = onOpen;
+    if (openCallback != null) {
+      openCallback();
     }
   }
 
-  void _watch() {
-    _pc.onIceConnectionState = (s) {
-      if (s == RTCIceConnectionState.RTCIceConnectionStateFailed || s == RTCIceConnectionState.RTCIceConnectionStateClosed) {
-        _closed();
+  void _bindChannel(RTCDataChannel channel) {
+    _dataChannel = channel;
+    channel.onDataChannelState = (state) {
+      if (state == RTCDataChannelState.RTCDataChannelOpen && !_open) {
+        _sayOpen();
+      } else if (state == RTCDataChannelState.RTCDataChannelClosed) {
+        _handleClosed();
+      }
+    };
+    channel.onMessage = (message) {
+      final Uint8List bytes;
+      if (message.isBinary) {
+        bytes = message.binary;
+      } else {
+        bytes = Uint8List.fromList(utf8.encode(message.text));
+      }
+      _receive(bytes);
+    };
+    // Opened before the handler above was there.
+    if (channel.state == RTCDataChannelState.RTCDataChannelOpen && !_open) {
+      _sayOpen();
+    }
+  }
+
+  void _watchConnection() {
+    _peerConnection.onIceConnectionState = (state) {
+      if (state == RTCIceConnectionState.RTCIceConnectionStateFailed || state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
+        _handleClosed();
       }
     };
   }
 
-  void _closed() {
-    if (_gone) return;
-    _gone = true;
-    _open = false;
-    onClose?.call();
-  }
-
-  void _receive(Uint8List bytes) {
-    Object? v;
-    try {
-      v = BinaryPack.unpack(bytes);
-    } catch (_) {
+  void _handleClosed() {
+    if (_gone) {
       return;
     }
-    if (v is! Map) return;
-    if (v['__peerData'] != null) {
-      final id = v['__peerData'], total = v['total'], n = v['n'], part = v['data'];
-      if (id is! num || total is! num || n is! num || part is! Uint8List) return;
-      if (total < 1 || total > 100000 || n < 0 || n >= total) return;
+    _gone = true;
+    _open = false;
+    final closeCallback = onClose;
+    if (closeCallback != null) {
+      closeCallback();
+    }
+  }
+
+  /// One message's bytes: a chunk is kept until all its message's chunks are there, then the
+  /// whole is read; a whole message with a type goes to [onData].
+  void _receive(Uint8List bytes) {
+    Object? decoded;
+    try {
+      decoded = BinaryPack.unpack(bytes);
+    } catch (error) {
+      return;
+    }
+    if (decoded is! Map) {
+      return;
+    }
+    if (decoded['__peerData'] != null) {
+      final messageId = decoded['__peerData'];
+      final total = decoded['total'];
+      final chunkIndex = decoded['n'];
+      final part = decoded['data'];
+      if (messageId is! num || total is! num || chunkIndex is! num || part is! Uint8List) {
+        return;
+      }
+      if (total < 1 || total > 100000 || chunkIndex < 0 || chunkIndex >= total) {
+        return;
+      }
       // Bounded, so a device that starts long messages and never finishes them can't fill this
       // one's memory.
-      if (!_chunks.containsKey(id.toInt()) && _chunks.length >= 8) _chunks.remove(_chunks.keys.first);
-      final list = _chunks[id.toInt()] ??= List<Uint8List?>.filled(total.toInt(), null);
-      if (n >= list.length) return;
-      list[n.toInt()] = part;
-      if (list.every((c) => c != null)) {
-        _chunks.remove(id.toInt());
+      if (!_chunks.containsKey(messageId.toInt()) && _chunks.length >= 8) {
+        _chunks.remove(_chunks.keys.first);
+      }
+      var parts = _chunks[messageId.toInt()];
+      if (parts == null) {
+        parts = List<Uint8List?>.filled(total.toInt(), null);
+        _chunks[messageId.toInt()] = parts;
+      }
+      if (chunkIndex >= parts.length) {
+        return;
+      }
+      parts[chunkIndex.toInt()] = part;
+      final complete = parts.every((piece) {
+        return piece != null;
+      });
+      if (complete) {
+        _chunks.remove(messageId.toInt());
         final whole = BytesBuilder(copy: false);
-        for (final c in list) {
-          whole.add(c!);
+        for (final piece in parts) {
+          whole.add(piece!);
         }
         _receive(whole.takeBytes());
       }
       return;
     }
-    if (v['type'] is String) onData?.call(Map<String, dynamic>.from(v));
+    if (decoded['type'] is String) {
+      final dataCallback = onData;
+      if (dataCallback != null) {
+        dataCallback(Map<String, dynamic>.from(decoded));
+      }
+    }
   }
 
+  /// Sends one message, packed; one too big for a single send goes as numbered chunks.
   @override
   void send(Map<String, Object?> message) {
-    final dc = _dc;
-    if (dc == null || !_open) return;
-    final bytes = BinaryPack.pack(message);
-    if (bytes.length <= _mtu) {
-      dc.send(RTCDataChannelMessage.fromBinary(bytes)).catchError((Object _) {});
+    final channel = _dataChannel;
+    if (channel == null || !_open) {
       return;
     }
-    final id = _chunkId++;
-    final total = (bytes.length / _mtu).ceil();
-    for (var n = 0; n < total; n++) {
-      final part = Uint8List.sublistView(bytes, n * _mtu, math.min(bytes.length, (n + 1) * _mtu));
-      dc.send(RTCDataChannelMessage.fromBinary(BinaryPack.pack({'__peerData': id, 'n': n, 'total': total, 'data': part}))).catchError((Object _) {});
+    final bytes = BinaryPack.pack(message);
+    if (bytes.length <= _maximumMessageBytes) {
+      channel.send(RTCDataChannelMessage.fromBinary(bytes)).catchError((Object error) {});
+      return;
+    }
+    final messageId = _nextChunkedMessageId;
+    _nextChunkedMessageId = _nextChunkedMessageId + 1;
+    final total = (bytes.length / _maximumMessageBytes).ceil();
+    for (var chunkIndex = 0; chunkIndex < total; chunkIndex = chunkIndex + 1) {
+      final part = Uint8List.sublistView(bytes, chunkIndex * _maximumMessageBytes, math.min(bytes.length, (chunkIndex + 1) * _maximumMessageBytes));
+      channel.send(RTCDataChannelMessage.fromBinary(BinaryPack.pack({'__peerData': messageId, 'n': chunkIndex, 'total': total, 'data': part}))).catchError((Object error) {});
     }
   }
 
   @override
   Future<bool> congested() async {
-    final dc = _dc;
-    if (dc == null) return false;
+    final channel = _dataChannel;
+    if (channel == null) {
+      return false;
+    }
     try {
-      return await dc.getBufferedAmount() > _bufferHigh;
-    } catch (_) {
+      return await channel.getBufferedAmount() > _congestedBufferBytes;
+    } catch (error) {
       return false;
     }
   }
 
-  Future<void> _remote(Map sdp) async {
-    await _pc.setRemoteDescription(RTCSessionDescription('${sdp['sdp']}', '${sdp['type']}'));
-    _remoteSet = true;
-    for (final c in _early) {
-      await _pc.addCandidate(c);
+  Future<void> _setRemoteDescription(Map sessionDescription) async {
+    await _peerConnection.setRemoteDescription(RTCSessionDescription('${sessionDescription['sdp']}', '${sessionDescription['type']}'));
+    _remoteDescriptionSet = true;
+    for (final candidate in _earlyCandidates) {
+      await _peerConnection.addCandidate(candidate);
     }
-    _early.clear();
+    _earlyCandidates.clear();
   }
 
-  Future<void> _candidate(Map c) async {
-    final cand = RTCIceCandidate(c['candidate'] as String?, c['sdpMid'] as String?, (c['sdpMLineIndex'] as num?)?.toInt());
-    if (_remoteSet) {
-      await _pc.addCandidate(cand);
+  Future<void> _addCandidate(Map candidateJson) async {
+    final candidateText = candidateJson['candidate'] as String?;
+    final mediaId = candidateJson['sdpMid'] as String?;
+    final lineIndexNumber = candidateJson['sdpMLineIndex'] as num?;
+    int? lineIndex;
+    if (lineIndexNumber != null) {
+      lineIndex = lineIndexNumber.toInt();
+    }
+    final candidate = RTCIceCandidate(candidateText, mediaId, lineIndex);
+    if (_remoteDescriptionSet) {
+      await _peerConnection.addCandidate(candidate);
     } else {
-      _early.add(cand);
+      _earlyCandidates.add(candidate);
     }
   }
 
   @override
   Future<void> close({bool flush = false}) async {
-    if (flush) await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (flush) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
     try {
-      await _dc?.close();
-    } catch (_) {
+      final channel = _dataChannel;
+      if (channel != null) {
+        await channel.close();
+      }
+    } catch (error) {
       // Already closing.
     }
     try {
-      await _pc.close();
-    } catch (_) {
+      await _peerConnection.close();
+    } catch (error) {
       // Already closed.
     }
-    _closed();
+    _handleClosed();
   }
+}
+
+// A broker message's payload, or an empty map when it has none.
+Map _payloadOf(Map<String, dynamic> message) {
+  final payload = message['payload'] as Map?;
+  if (payload == null) {
+    return const {};
+  }
+  return payload;
 }
 
 /// Takes the links that come to one id on the broker, for the device sharing.
 class PeerListener {
   PeerListener(String code, {required this.onLink, required this.onOpen, required this.onError}) {
-    _broker = PeerBroker(peerPrefix + code, onMessage: _heard, onOpen: onOpen, onError: onError);
+    _broker = PeerBroker(peerPrefix + code, onMessage: _handleBrokerMessage, onOpen: onOpen, onError: onError);
   }
 
   final void Function(ShareLink link) onLink;
@@ -331,27 +468,36 @@ class PeerListener {
   late final PeerBroker _broker;
   final Map<String, PeerLink> _links = {}; // connection id -> link
 
-  Future<void> start() => _broker.connect();
+  Future<void> start() {
+    return _broker.connect();
+  }
 
-  Future<void> _heard(Map<String, dynamic> m) async {
-    final payload = (m['payload'] as Map?) ?? const {};
-    final src = '${m['src'] ?? ''}';
+  /// A guest's offer starts a new link and is answered; its candidates go to that link.
+  Future<void> _handleBrokerMessage(Map<String, dynamic> message) async {
+    final payload = _payloadOf(message);
+    Object? source = message['src'];
+    if (source == null) {
+      source = '';
+    }
+    final sourceId = '$source';
     final connectionId = '${payload['connectionId']}';
-    if (m['type'] == 'OFFER') {
-      final pc = await _newConnection();
-      final link = PeerLink._(src, connectionId, pc);
+    if (message['type'] == 'OFFER') {
+      final peerConnection = await _newConnection();
+      final link = PeerLink._(sourceId, connectionId, peerConnection);
       _links[connectionId] = link;
-      pc.onIceCandidate = (c) => _broker.send({
-        'type': 'CANDIDATE',
-        'payload': {'candidate': c.toMap(), 'type': 'data', 'connectionId': connectionId},
-        'dst': src,
-      });
-      pc.onDataChannel = link._bind;
-      link._watch();
+      peerConnection.onIceCandidate = (candidate) {
+        _broker.send({
+          'type': 'CANDIDATE',
+          'payload': {'candidate': candidate.toMap(), 'type': 'data', 'connectionId': connectionId},
+          'dst': sourceId,
+        });
+      };
+      peerConnection.onDataChannel = link._bindChannel;
+      link._watchConnection();
       onLink(link);
-      await link._remote(payload['sdp'] as Map);
-      final answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      await link._setRemoteDescription(payload['sdp'] as Map);
+      final answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
       _broker.send({
         'type': 'ANSWER',
         'payload': {
@@ -360,11 +506,14 @@ class PeerListener {
           'connectionId': connectionId,
           'browser': 'flutter',
         },
-        'dst': src,
+        'dst': sourceId,
       });
-    } else if (m['type'] == 'CANDIDATE') {
-      await _links[connectionId]?._candidate(payload['candidate'] as Map);
-    } else if (m['type'] == 'LEAVE' || m['type'] == 'EXPIRE') {
+    } else if (message['type'] == 'CANDIDATE') {
+      final link = _links[connectionId];
+      if (link != null) {
+        await link._addCandidate(payload['candidate'] as Map);
+      }
+    } else if (message['type'] == 'LEAVE' || message['type'] == 'EXPIRE') {
       // Its channels say so themselves when they close.
     }
   }
@@ -385,54 +534,69 @@ class PeerDialer {
   PeerLink? _link;
   bool _closed = false;
 
+  /// Gets an id of its own from the broker, registers it, and dials once the broker says it's
+  /// open.
   Future<void> connect(String code) async {
     final String id;
     try {
       id = await PeerBroker.newId();
-    } catch (_) {
-      if (!_closed) onError('network');
+    } catch (error) {
+      if (!_closed) {
+        onError('network');
+      }
       return;
     }
-    if (_closed) return;
+    if (_closed) {
+      return;
+    }
     var dialed = false;
     late final PeerBroker broker;
     broker = PeerBroker(
       id,
-      onMessage: _heard,
+      onMessage: _handleBrokerMessage,
       onOpen: () {
         // Once: a broker reconnect says it's open again.
-        if (dialed || _closed) return;
+        if (dialed || _closed) {
+          return;
+        }
         dialed = true;
         _dial(broker, code);
       },
       onError: (type) {
-        if (!_closed) onError(type);
+        if (!_closed) {
+          onError(type);
+        }
       },
     );
     _broker = broker;
     await broker.connect();
   }
 
+  /// Makes the data channel and sends the offer for it to the code's id on the broker.
   Future<void> _dial(PeerBroker broker, String code) async {
-    final pc = await _newConnection();
+    final peerConnection = await _newConnection();
     if (_closed) {
-      await pc.close();
+      await peerConnection.close();
       return;
     }
-    final connectionId = 'dc_${_token()}';
-    final dst = peerPrefix + code;
-    final link = PeerLink._(dst, connectionId, pc);
+    final connectionId = 'dc_${_randomToken()}';
+    final destination = peerPrefix + code;
+    final link = PeerLink._(destination, connectionId, peerConnection);
     _link = link;
-    pc.onIceCandidate = (c) => broker.send({
-      'type': 'CANDIDATE',
-      'payload': {'candidate': c.toMap(), 'type': 'data', 'connectionId': connectionId},
-      'dst': dst,
-    });
-    link._watch();
+    peerConnection.onIceCandidate = (candidate) {
+      broker.send({
+        'type': 'CANDIDATE',
+        'payload': {'candidate': candidate.toMap(), 'type': 'data', 'connectionId': connectionId},
+        'dst': destination,
+      });
+    };
+    link._watchConnection();
     onLink(link);
-    link._bind(await pc.createDataChannel(connectionId, RTCDataChannelInit()..ordered = true));
-    final offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+    final channelOptions = RTCDataChannelInit();
+    channelOptions.ordered = true;
+    link._bindChannel(await peerConnection.createDataChannel(connectionId, channelOptions));
+    final offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
     broker.send({
       'type': 'OFFER',
       'payload': {
@@ -444,26 +608,37 @@ class PeerDialer {
         'serialization': 'binary',
         'browser': 'flutter',
       },
-      'dst': dst,
+      'dst': destination,
     });
   }
 
-  Future<void> _heard(Map<String, dynamic> m) async {
-    final payload = (m['payload'] as Map?) ?? const {};
-    if (m['type'] == 'EXPIRE') {
-      if (!_closed) onError('peer-unavailable');
+  Future<void> _handleBrokerMessage(Map<String, dynamic> message) async {
+    final payload = _payloadOf(message);
+    if (message['type'] == 'EXPIRE') {
+      if (!_closed) {
+        onError('peer-unavailable');
+      }
       return;
     }
     final link = _link;
-    if (link == null || payload['connectionId'] != link.connectionId) return;
-    if (m['type'] == 'ANSWER') await link._remote(payload['sdp'] as Map);
-    if (m['type'] == 'CANDIDATE') await link._candidate(payload['candidate'] as Map);
+    if (link == null || payload['connectionId'] != link.connectionId) {
+      return;
+    }
+    if (message['type'] == 'ANSWER') {
+      await link._setRemoteDescription(payload['sdp'] as Map);
+    }
+    if (message['type'] == 'CANDIDATE') {
+      await link._addCandidate(payload['candidate'] as Map);
+    }
   }
 
   /// Off the broker: links already open carry on without it.
   void close() {
     _closed = true;
-    _broker?.close();
+    final broker = _broker;
+    if (broker != null) {
+      broker.close();
+    }
     _broker = null;
   }
 }

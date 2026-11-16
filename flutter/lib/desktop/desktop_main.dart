@@ -57,7 +57,7 @@ Future<bool> runDesktopSubWindow(List<String> arguments) async {
 
 /// Before the app: one copy only, the window, the update window, and Make it yours the first time.
 Future<void> desktopBeforeApp(List<String> arguments) async {
-  Desktop.launchArgs = arguments;
+  Desktop.launchArguments = arguments;
   if (!await Desktop.claimInstance(arguments)) {
     exit(0);
   }

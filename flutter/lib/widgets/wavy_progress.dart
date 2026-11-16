@@ -20,59 +20,85 @@ class WavyProgress extends StatefulWidget {
   final String? label;
 
   @override
-  State<WavyProgress> createState() => _WavyProgressState();
+  State<WavyProgress> createState() {
+    return _WavyProgressState();
+  }
 }
 
 class _WavyProgressState extends State<WavyProgress> with SingleTickerProviderStateMixin {
   // How long a wave takes to drift by its own length, and the sweep to cross once.
-  static const _driftMs = 1000;
-  static const _sweepMs = 1800;
+  static const _driftMilliseconds = 1000;
+  static const _sweepMilliseconds = 1800;
 
   late final Ticker _ticker = createTicker(_tick);
-  Duration _last = Duration.zero;
+  Duration _lastTick = Duration.zero;
   double _phase = 0;
   double _sweep = 0;
   // Shown, chasing widget.value a little each frame, so a download's many small steps glide.
   double _shown = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _shown = widget.value ?? 0;
+  /// The widget's value, or 0 while there's no telling.
+  double _valueOrZero() {
+    final value = widget.value;
+    if (value != null) {
+      return value;
+    } else {
+      return 0;
+    }
   }
 
   @override
+  void initState() {
+    super.initState();
+    _shown = _valueOrZero();
+  }
+
+  /// Stops the animation when the device asks for no animations, and starts it again when
+  /// that's turned off.
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final disableAnimations = MediaQuery.maybeDisableAnimationsOf(context);
+    final bool still;
+    if (disableAnimations != null) {
+      still = disableAnimations;
+    } else {
+      still = false;
+    }
     if (still && _ticker.isActive) {
       _ticker.stop();
-      _shown = widget.value ?? 0;
+      _shown = _valueOrZero();
     } else if (!still && !_ticker.isActive) {
-      _last = Duration.zero;
+      _lastTick = Duration.zero;
       _ticker.start();
     }
   }
 
   @override
-  void didUpdateWidget(WavyProgress old) {
-    super.didUpdateWidget(old);
-    if (widget.value == null || old.value == null || !_ticker.isActive) _shown = widget.value ?? 0;
+  void didUpdateWidget(WavyProgress oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value == null || oldWidget.value == null || !_ticker.isActive) {
+      _shown = _valueOrZero();
+    }
   }
 
-  void _tick(Duration at) {
-    final ms = at.inMilliseconds;
-    final step = (at - _last).inMicroseconds / 1000;
-    _last = at;
+  /// Runs every frame: moves the wave along, moves the sweep along, and brings the shown
+  /// amount a little closer to the real one.
+  void _tick(Duration elapsed) {
+    final milliseconds = elapsed.inMilliseconds;
+    final step = (elapsed - _lastTick).inMicroseconds / 1000;
+    _lastTick = elapsed;
     setState(() {
-      _phase = 2 * math.pi * (ms % _driftMs) / _driftMs;
-      _sweep = (ms % _sweepMs) / _sweepMs;
+      _phase = 2 * math.pi * (milliseconds % _driftMilliseconds) / _driftMilliseconds;
+      _sweep = (milliseconds % _sweepMilliseconds) / _sweepMilliseconds;
       final target = widget.value;
       if (target != null) {
         // A fifth of the way there every 30 ms or so, whatever the frame rate.
-        final k = 1 - math.pow(0.8, step / 30).toDouble();
-        _shown += (target - _shown) * k.clamp(0, 1);
-        if ((target - _shown).abs() < 0.001) _shown = target;
+        final easing = 1 - math.pow(0.8, step / 30).toDouble();
+        _shown = _shown + (target - _shown) * easing.clamp(0, 1);
+        if ((target - _shown).abs() < 0.001) {
+          _shown = target;
+        }
       }
     });
   }
@@ -85,21 +111,30 @@ class _WavyProgressState extends State<WavyProgress> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
-    final v = widget.value;
+    final colorScheme = Theme.of(context).colorScheme;
+    final value = widget.value;
+    String? spokenValue;
+    double? progress;
+    if (value == null) {
+      spokenValue = null;
+      progress = null;
+    } else {
+      spokenValue = '${(value * 100).round()}%';
+      progress = _shown.clamp(0, 1);
+    }
     return Semantics(
       label: widget.label,
-      value: v == null ? null : '${(v * 100).round()}%',
+      value: spokenValue,
       child: SizedBox(
         height: _WavePainter.thickness + 2 * _WavePainter.amplitude,
         width: double.infinity,
         child: CustomPaint(
           painter: _WavePainter(
-            progress: v == null ? null : _shown.clamp(0, 1),
+            progress: progress,
             phase: _phase,
             sweep: _sweep,
-            active: s.primary,
-            track: s.secondaryContainer,
+            active: colorScheme.primary,
+            track: colorScheme.secondaryContainer,
           ),
         ),
       ),
@@ -107,6 +142,8 @@ class _WavyProgressState extends State<WavyProgress> with SingleTickerProviderSt
   }
 }
 
+/// Draws the bar itself: the wavy part done, the flat track after it and the stop dot, or,
+/// with no progress known, a wavy stretch sweeping across.
 class _WavePainter extends CustomPainter {
   _WavePainter({required this.progress, required this.phase, required this.sweep, required this.active, required this.track});
   final double? progress;
@@ -125,19 +162,27 @@ class _WavePainter extends CustomPainter {
     const half = thickness / 2;
     const left = half;
     final right = size.width - half;
-    final cy = size.height / 2;
-    if (right <= left) return;
+    final centerY = size.height / 2;
+    if (right <= left) {
+      return;
+    }
     final width = right - left;
-    Paint line(Color c) => Paint()
-      ..color = c
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = thickness
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final trackPaint = line(track);
 
-    final p = progress;
-    if (p == null) {
+    /// A round-ended stroke of the bar's thickness in [color].
+    Paint linePaint(Color color) {
+      final paint = Paint();
+      paint.color = color;
+      paint.style = PaintingStyle.stroke;
+      paint.strokeWidth = thickness;
+      paint.strokeCap = StrokeCap.round;
+      paint.strokeJoin = StrokeJoin.round;
+      return paint;
+    }
+
+    final trackPaint = linePaint(track);
+
+    final progressValue = progress;
+    if (progressValue == null) {
       // A stretch 40% as long as the bar, its front easing in from the left and out past the
       // right, with the track either side of it.
       final eased = 0.5 - math.cos(math.pi * sweep) / 2;
@@ -145,39 +190,65 @@ class _WavePainter extends CustomPainter {
       final tail = head - width * 0.4;
       final from = math.max(left, tail);
       final to = math.min(right, head);
-      if (to > from) _wave(canvas, from, to, cy, amplitude, wavelength / 2, line(active));
-      if (from - gap - thickness > left) canvas.drawLine(Offset(left, cy), Offset(from - gap - thickness, cy), trackPaint);
-      if (to + gap + thickness < right) canvas.drawLine(Offset(to + gap + thickness, cy), Offset(right, cy), trackPaint);
+      if (to > from) {
+        _wave(canvas, from, to, centerY, amplitude, wavelength / 2, linePaint(active));
+      }
+      if (from - gap - thickness > left) {
+        canvas.drawLine(Offset(left, centerY), Offset(from - gap - thickness, centerY), trackPaint);
+      }
+      if (to + gap + thickness < right) {
+        canvas.drawLine(Offset(to + gap + thickness, centerY), Offset(right, centerY), trackPaint);
+      }
       return;
     }
 
-    final end = left + width * p;
+    final end = left + width * progressValue;
     // Flat at the very start and as it finishes, as Material's does.
-    final amp = amplitude * math.min(p / 0.1, (1 - p) / 0.05).clamp(0.0, 1.0);
-    if (end > left) _wave(canvas, left, end, cy, amp, wavelength, line(active));
-    final trackFrom = p > 0 ? end + gap + thickness : left;
-    if (trackFrom < right) canvas.drawLine(Offset(trackFrom, cy), Offset(right, cy), trackPaint);
+    final waveAmplitude = amplitude * math.min(progressValue / 0.1, (1 - progressValue) / 0.05).clamp(0.0, 1.0);
+    if (end > left) {
+      _wave(canvas, left, end, centerY, waveAmplitude, wavelength, linePaint(active));
+    }
+    final double trackFrom;
+    if (progressValue > 0) {
+      trackFrom = end + gap + thickness;
+    } else {
+      trackFrom = left;
+    }
+    if (trackFrom < right) {
+      canvas.drawLine(Offset(trackFrom, centerY), Offset(right, centerY), trackPaint);
+    }
     // The stop dot at the end, till the wave reaches it.
-    if (p < 1) canvas.drawCircle(Offset(right, cy), half, Paint()..color = active);
+    if (progressValue < 1) {
+      final dotPaint = Paint();
+      dotPaint.color = active;
+      canvas.drawCircle(Offset(right, centerY), half, dotPaint);
+    }
   }
 
   // A wave from x `from` to `to`, its phase fixed to the bar so it drifts rather than slides.
-  void _wave(Canvas canvas, double from, double to, double cy, double amp, double length, Paint paint) {
+  void _wave(Canvas canvas, double from, double to, double centerY, double waveAmplitude, double length, Paint paint) {
     final path = Path();
     final step = math.max(1.0, length / 24);
     for (var x = from;; x = math.min(to, x + step)) {
-      final y = cy + amp * math.sin(2 * math.pi * x / length - phase);
+      final y = centerY + waveAmplitude * math.sin(2 * math.pi * x / length - phase);
       if (x == from) {
         path.moveTo(x, y);
       } else {
         path.lineTo(x, y);
       }
-      if (x >= to) break;
+      if (x >= to) {
+        break;
+      }
     }
     canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(_WavePainter old) =>
-      old.progress != progress || old.phase != phase || old.sweep != sweep || old.active != active || old.track != track;
+  bool shouldRepaint(_WavePainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.phase != phase ||
+        oldDelegate.sweep != sweep ||
+        oldDelegate.active != active ||
+        oldDelegate.track != track;
+  }
 }
