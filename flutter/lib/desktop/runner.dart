@@ -2,9 +2,9 @@
 //   Windows  the Jump List (favourite boards) and the taskbar's thumbnail buttons
 //            (windows/runner/flutter_window.cpp)
 //   macOS    the Dock menu and badge (macos/Runner/AppDelegate.swift)
+//   all      the window's own material for native glass, 'setBackdrop' (backdrop.dart)
 // Events back: 'thumb' with a button id or link, 'dock' with a board id, 'open' with a link and
-// 'activate' (macOS). Where the runner has no channel
-// (Linux), every call is quietly nothing.
+// 'activate' (macOS). Where the runner doesn't know a call, it's quietly nothing.
 import 'package:flutter/services.dart';
 
 class Runner {
@@ -50,6 +50,16 @@ class Runner {
       for (final f in favs) {'id': '${f['code']}', 'name': '${f['name']}', 'link': 'uwu://board/b/${f['code']}'},
     ],
   });
+
+  /// The window's material: 'mica' (Windows), 'glass' (macOS), 'blur' (Linux) or 'none', in light
+  /// or dark. True if the system draws it.
+  static Future<bool> setBackdrop(String kind, {required bool dark}) async {
+    try {
+      return await _channel.invokeMethod<bool>('setBackdrop', {'kind': kind, 'dark': dark}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// The Dock's badge (macOS): a few characters, or '' for none.
   static Future<void> setBadge(String text) => _call('setBadge', text);

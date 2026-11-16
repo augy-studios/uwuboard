@@ -177,6 +177,21 @@ enforces desktop interaction patterns across shared widgets:
   colour"*, which reads the OS accent colour (Windows DWM accent, macOS system accent, Linux
   portal/GTK accent) for primary highlights while keeping the product's own neutral surfaces and
   fonts—avoiding a full phone-like Material You pastel wash on desktop.
+- **Native glass instead of Material You**: the second look on the desktop is the system's own,
+  as near to iOS's Liquid Glass as each system draws it, always in the OS accent colour and the
+  system font (`lib/theme/theme.dart` `glassColors`, `lib/widgets/glass.dart`):
+
+  | System | Look | The window | What floats over it |
+  |---|---|---|---|
+  | Windows | **Fluent 2 (Acrylic & Mica)**: Segoe UI Variable, 4 px controls, 8 px panels, accent buttons | Mica (`DWMWA_SYSTEMBACKDROP_TYPE`, Windows 11 22H2+) | Acrylic: blurred, saturated, nearly solid |
+  | macOS | **macOS Tahoe**: the system font, capsule buttons, 26 px windows, a bright rim and sheen | the desktop through an `NSVisualEffectView` | the same glass |
+  | Linux | **Deepin (DDE) & COSMIC Frosted Glass**: the system font, 8 px controls, 16 px windows | the compositor's blur (DDE and KDE under X11) | frosted glass |
+
+  Where the system gives no material (Windows 10, Reduce transparency on a Mac, COSMIC, GNOME,
+  any Wayland session), the window stays solid and the app draws a soft glow in the accent for
+  its own panels to frost. A `Material You` choice kept from an older version means native glass.
+  Words keep 4.5:1 and component edges 3:1 against every surface, for any accent
+  (`test/theme_test.dart`).
 
 ### 2.7 The runner's native channel
 
@@ -184,9 +199,9 @@ One `MethodChannel` per runner (`<app-id>/desktop`) for what no package does:
 
 | Platform | Methods |
 |---|---|
-| Windows (C++) | single instance (a named mutex; the second copy sends its command line to the first with `WM_COPYDATA` and exits); the AppUserModelID (`SetCurrentProcessExplicitAppUserModelID`); Jump List tasks (`ICustomDestinationList` with `IShellLink`s to the exe plus a link argument); thumbnail toolbar buttons (`ITaskbarList3::ThumbBarAddButtons` and `ThumbBarUpdateButtons`, clicks from `WM_COMMAND` with `THBN_CLICKED`), with icons drawn in code |
-| macOS (Swift) | URL events (`application(_:open:)`), the Dock badge (`NSApp.dockTile.badgeLabel`), the Dock menu (`applicationDockMenu`), login items (`SMAppService.mainApp`), keeping the app alive with no window (`applicationShouldTerminateAfterLastWindowClosed` false), reopen on Dock click |
-| Linux (C) | single instance and forwarding (`G_APPLICATION_HANDLES_COMMAND_LINE` on a unique `GtkApplication`; the primary instance gets the second's arguments) |
+| Windows (C++) | single instance (a named mutex; the second copy sends its command line to the first with `WM_COPYDATA` and exits); the AppUserModelID (`SetCurrentProcessExplicitAppUserModelID`); Jump List tasks (`ICustomDestinationList` with `IShellLink`s to the exe plus a link argument); thumbnail toolbar buttons (`ITaskbarList3::ThumbBarAddButtons` and `ThumbBarUpdateButtons`, clicks from `WM_COMMAND` with `THBN_CLICKED`), with icons drawn in code; `setBackdrop`: Mica (`DwmSetWindowAttribute` with `DWMWA_SYSTEMBACKDROP_TYPE`, the frame extended over the client area, `WS_SYSMENU` off meanwhile so DWM draws no caption buttons under the app's) |
+| macOS (Swift) | URL events (`application(_:open:)`), the Dock badge (`NSApp.dockTile.badgeLabel`), the Dock menu (`applicationDockMenu`), login items (`SMAppService.mainApp`), keeping the app alive with no window (`applicationShouldTerminateAfterLastWindowClosed` false), reopen on Dock click; `setBackdrop`: an `NSVisualEffectView` (behind-window, sidebar material) under the Flutter view, the window made non-opaque |
+| Linux (C) | single instance and forwarding (`G_APPLICATION_HANDLES_COMMAND_LINE` on a unique `GtkApplication`; the primary instance gets the second's arguments); `setBackdrop`: an RGBA window on composited X11 DDE and KDE, with `_KDE_NET_WM_BLUR_BEHIND_REGION` and `_NET_WM_DEEPIN_BLUR_REGION_ROUNDED` set |
 
 Events come back to Dart on the same channel (`open` with a link, `thumb` with a button id,
 `dock` with a menu index, `activate`).

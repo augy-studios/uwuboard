@@ -9,8 +9,10 @@ import '../data/board.dart';
 import '../data/images.dart';
 import '../theme/icons.dart';
 import '../theme/theme.dart';
+import 'glass.dart';
 
-/// The site's .glass-panel: a see-through panel with a bright edge, solid in Material You.
+/// The site's .glass-panel: a see-through panel with a bright edge, solid in Material You, and
+/// the system's own glass in native glass.
 class GlassPanel extends StatelessWidget {
   const GlassPanel({super.key, required this.child, this.radius = 18, this.padding, this.strong = false, this.blur = true});
 
@@ -23,6 +25,24 @@ class GlassPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = UwuColors.of(context);
+    final style = c.native;
+    if (style != null) {
+      final r = BorderRadius.circular(c.round(radius));
+      return NativeGlass(
+        style: style,
+        radius: r,
+        blur: blur,
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: strong ? c.surfaceStrong : c.surface,
+            borderRadius: r,
+            border: Border.all(color: c.edge),
+          ),
+          child: child,
+        ),
+      );
+    }
     final box = Container(
       padding: padding,
       decoration: BoxDecoration(

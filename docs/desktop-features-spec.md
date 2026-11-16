@@ -85,7 +85,8 @@ A window about 940 × 660 (minimum 620 × 560), in two columns:
   the brand colour) are on, the swatches hide and a note says the brand colours wait until those
   are turned off. Unlike the Android app (where Material You is on by default), the desktop app
   defaults to the product's own brand colour and typography unless the person chooses the system
-  accent option.
+  accent option, or the system's own glass in Theme (Fluent 2 on Windows, macOS Tahoe on a Mac,
+  Deepin (DDE) and COSMIC's frosted glass on Linux), which takes Material You's place there.
 - **Get started** applies everything through the same functions the app's own settings use (so
   there's one set of settings, not two): the language, the theme mode, and the brand colour
   unless custom colours are on. It sets start at sign-in to what the switch says (§6), marks

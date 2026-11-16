@@ -1,7 +1,9 @@
 // The Theme window (the site's #themeModal): light, dark or time-based, and the brand colour.
 // The app adds the look: Material You (the device's own colours, the default on Android 12+) or
 // the UwU Apps look (the site's swatches and font). On the desktop, whose default is the UwU Apps
-// look, the system's accent colour can stand in for the brand colour instead.
+// look, the second look is the system's own glass instead of Material You: Fluent 2 on Windows,
+// macOS Tahoe on a Mac, DDE and COSMIC's frosted glass on Linux. In the UwU Apps look there, the
+// system's accent colour can stand in for the brand colour.
 import 'package:flutter/material.dart';
 
 import '../../app/env.dart';
@@ -15,6 +17,21 @@ void Function(bool on)? desktopAccentSet;
 
 Future<void> openThemeSheet(BuildContext context) => AppSheet.show(context, id: 'theme', width: 460, builder: (context) => const ThemeSheet());
 
+/// What native glass is on this computer, and whether the window's glass is the system's own.
+String _glassNote(GlassStyle style, bool windowMaterial) {
+  switch (style) {
+    case GlassStyle.fluent:
+      return 'Windows 11’s Fluent 2: Mica behind the window and Acrylic on what opens over it, in your accent colour and Segoe UI.'
+          '${windowMaterial ? '' : ' This version of Windows has no Mica to give, so uwuBoard frosts its own.'}';
+    case GlassStyle.tahoe:
+      return 'The glass of macOS Tahoe: your desktop through the window, rounded glass and capsule buttons, in your accent colour and the system font.'
+          '${windowMaterial ? '' : ' Your Mac isn’t showing the desktop through windows (Reduce transparency may be on), so uwuBoard frosts its own.'}';
+    case GlassStyle.frosted:
+      return 'The frosted glass of Deepin (DDE) and COSMIC, in your accent colour and the system font.'
+          '${windowMaterial ? ' Your desktop blurs what’s behind the window.' : ' Your desktop doesn’t blur behind windows, so uwuBoard frosts its own.'}';
+  }
+}
+
 class ThemeSheet extends StatelessWidget {
   const ThemeSheet({super.key});
 
@@ -26,6 +43,8 @@ class ThemeSheet extends StatelessWidget {
         final t = ThemeController.I;
         final c = UwuColors.of(context);
         final material = t.isMaterial;
+        final native = t.isNative;
+        final glass = t.glassStyle;
         final accent = desktopAccentGet?.call() ?? false;
 
         Widget section(String text) => Padding(
@@ -81,11 +100,21 @@ class ThemeSheet extends StatelessWidget {
           title: 'Theme',
           children: [
             section('Look'),
-            seg<String>([(lookMaterial, 'palette', 'Material You'), (lookUwuApps, 'sun', 'UwU Apps')], t.look, t.setLook, key: 'look'),
+            seg<String>(
+              [
+                if (Env.desktop) (lookNative, 'monitor', glass.label) else (lookMaterial, 'palette', 'Material You'),
+                (lookUwuApps, 'sun', 'UwU Apps'),
+              ],
+              t.look,
+              t.setLook,
+              key: 'look',
+            ),
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                material
+                native
+                    ? _glassNote(glass, t.windowMaterial)
+                    : material
                     ? (t.hasDynamic
                           ? 'Colours and fonts from your device.'
                           : 'Material You’s colours and fonts. This device has no palette of its own to share, so it uses uwuBoard’s green.')
@@ -100,7 +129,7 @@ class ThemeSheet extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text('Following the clock. Currently ${t.mode}.', style: TextStyle(color: c.muted, fontSize: 12.5)),
               ),
-            if (!material) ...[
+            if (!material && !native) ...[
               if (Env.desktop && desktopAccentSet != null) ...[
                 section('System accent'),
                 SwitchListTile(

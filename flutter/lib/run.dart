@@ -31,6 +31,7 @@ Future<void> runUwuBoard(List<String> args) async {
   }
 
   final desktop = Env.desktop && !kIsWeb;
+  ThemeController.isDesktop = () => Env.desktop;
   if (desktop) await desktopBeforeApp(args);
   await Native.start();
 

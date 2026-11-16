@@ -45,7 +45,9 @@ website has, under the same storage keys and API:
 - **Android**: Material You by default, with the site's UwU Apps look a switch away in Theme; an
   Updates page listing every version, updating itself from GitHub Releases; notifications of new
   versions through Firebase (`flutter/FIREBASE-SETUP.md`). Also on Google Play (`GOOGLE-PLAY.md`).
-- **Windows, macOS and Linux**: their own title bar and command bar (`Ctrl+K`), the boards beside
+- **Windows, macOS and Linux**: the UwU Apps look, or the system's own glass a switch away in
+  Theme (Fluent 2's Acrylic and Mica on Windows, macOS Tahoe on a Mac, Deepin (DDE) and COSMIC's
+  frosted glass on Linux); their own title bar and command bar (`Ctrl+K`), the boards beside
   the open one, the tray with due-card notifications and a tray countdown, desktop widgets, the
   Jump List and Dock, screenshots, and self-updating installers built by GitHub Actions.
 

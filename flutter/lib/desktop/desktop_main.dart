@@ -23,6 +23,7 @@ import '../features/theme/theme_sheet.dart';
 import '../native/bridge.dart';
 import '../theme/theme.dart';
 import 'adaptive.dart';
+import 'backdrop.dart';
 import 'chrome.dart';
 import 'desk.dart';
 import 'glance.dart';
@@ -89,7 +90,8 @@ Future<void> _welcome() async {
 /// widgets, links, start at sign-in, and the update checks.
 Future<void> desktopAfterApp(List<String> args) async {
   desktopChrome = (context, child) => DesktopChrome(child: child);
-  desktopAccentScheme = (b) => ColorScheme.fromSeed(seedColor: _systemAccent(), brightness: b);
+  desktopAccentScheme = (b) => ColorScheme.fromSeed(seedColor: _systemAccent() ?? _green, brightness: b);
+  desktopAccent = _systemAccent;
   desktopAccentGet = () => ThemeController.I.systemAccent;
   desktopAccentSet = (on) {
     DeskSettings.write({'useSystemAccent': on});
@@ -130,6 +132,7 @@ Future<void> desktopAfterApp(List<String> args) async {
   };
 
   await DeskNotify.init();
+  WindowBackdrop.start();
   await Desktop.firstShow();
   unawaited(DeskTray.I.start());
   Glance.start();
@@ -139,8 +142,51 @@ Future<void> desktopAfterApp(List<String> args) async {
   Updater.start();
 }
 
-/// The system's accent colour where it can be read, else uwuBoard's green.
-Color _systemAccent() {
+/// The system's accent colour, read again at most every half a minute: the theme asks on every
+/// build, and reading it starts a process. Null where the system has none to give.
+Color? _systemAccent() {
+  final now = DateTime.now();
+  if (now.difference(_accentAt) < const Duration(seconds: 30)) return _accent;
+  _accentAt = now;
+  return _accent = _readSystemAccent();
+}
+
+Color? _accent;
+DateTime _accentAt = DateTime(0);
+
+/// uwuBoard's green, for "Use system accent colour" where the system has none.
+const _green = Color(0xFF22A85A);
+
+Color? _hex(String s) {
+  final m = RegExp(r'#([0-9a-fA-F]{6})').firstMatch(s);
+  return m == null ? null : Color(0xFF000000 | int.parse(m.group(1)!, radix: 16));
+}
+
+/// COSMIC keeps its accent as RON, `(red: 0.38, green: 0.81, blue: 0.87, …)`, in the theme
+/// builder's file for the mode it's in (the theme's own, if the builder's is the default).
+Color? _cosmicAccent() {
+  final home = Platform.environment['HOME'];
+  if (home == null) return null;
+  final config = Platform.environment['XDG_CONFIG_HOME'] ?? '$home/.config';
+  String read(String path) {
+    final f = File('$config/cosmic/$path');
+    return f.existsSync() ? f.readAsStringSync() : '';
+  }
+
+  final dark = read('com.system76.CosmicTheme.Mode/v1/is_dark').trim() != 'false';
+  final mode = dark ? 'Dark' : 'Light';
+  for (final path in ['com.system76.CosmicTheme.$mode.Builder/v1/accent', 'com.system76.CosmicTheme.$mode/v1/accent']) {
+    final m = RegExp(r'red:\s*([\d.]+),\s*green:\s*([\d.]+),\s*blue:\s*([\d.]+)').firstMatch(read(path));
+    if (m != null) {
+      int c(int i) => (double.parse(m.group(i)!) * 255).round().clamp(0, 255);
+      return Color.fromARGB(255, c(1), c(2), c(3));
+    }
+  }
+  return null;
+}
+
+/// The system's accent colour where it can be read.
+Color? _readSystemAccent() {
   try {
     if (Platform.isWindows) {
       final r = Process.runSync('reg', ['query', r'HKCU\Software\Microsoft\Windows\DWM', '/v', 'AccentColor']);
@@ -163,6 +209,16 @@ Color _systemAccent() {
       };
       return accents['${r.stdout}'.trim()] ?? const Color(0xFF007AFF);
     } else {
+      final desktop = (Platform.environment['XDG_CURRENT_DESKTOP'] ?? '').toUpperCase();
+      if (desktop.contains('COSMIC')) {
+        final c = _cosmicAccent();
+        if (c != null) return c;
+      }
+      if (desktop.contains('DEEPIN') || desktop.contains('DDE')) {
+        final r = Process.runSync('gsettings', ['get', 'com.deepin.dde.appearance', 'qt-active-color']);
+        final c = _hex('${r.stdout}');
+        if (c != null) return c;
+      }
       final r = Process.runSync('gsettings', ['get', 'org.gnome.desktop.interface', 'accent-color']);
       const accents = {
         'blue': Color(0xFF3584E4),
@@ -179,5 +235,5 @@ Color _systemAccent() {
       if (c != null) return c;
     }
   } catch (_) {}
-  return const Color(0xFF22A85A);
+  return null;
 }

@@ -14,7 +14,7 @@
 
 // The main window, hosting the Flutter view, and the app's own channel to Windows
 // (org.uwuapps.board/desktop, lib/desktop/runner.dart): the Jump List and the taskbar's thumbnail
-// buttons for the favourite boards.
+// buttons for the favourite boards, and Mica behind the window for native glass.
 class FlutterWindow : public Win32Window {
  public:
   explicit FlutterWindow(const flutter::DartProject& project);
@@ -37,6 +37,7 @@ class FlutterWindow : public Win32Window {
   void UpdateJumpList();
   void UpdateThumbButtons();
   void OnThumb(int button);
+  bool SetBackdrop(const std::string& kind, bool dark);
 
   flutter::DartProject project_;
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
@@ -46,6 +47,10 @@ class FlutterWindow : public Win32Window {
   int current_ = 0;
   bool thumbs_added_ = false;
   UINT taskbar_created_ = 0;
+
+  // The window's system backdrop (DWMSBT_*), 1 for none, and whether it's drawn dark.
+  int backdrop_ = 1;
+  bool backdrop_dark_ = false;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

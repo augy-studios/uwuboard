@@ -16,7 +16,7 @@ lib/
   features/               auth, board (Kanban), card, timeline, theme, sync, tour, profile, update
   native/bridge.dart      the one way to platform code: Native.call / has / on
   share/                  PeerJS over WebRTC, STUN only, for Sync (the site's js/p2p.js)
-  theme/                  Material You and the UwU Apps look; the site's icons
+  theme/                  Material You, native glass and the UwU Apps look; the site's icons
   widgets/                shared widgets, and AppSheet (bottom sheet, dialog or side panel)
   desktop/                Windows, macOS and Linux only: the window, tray, title bar and
                           command bar, updater, welcome and update windows, widgets, glance
@@ -36,6 +36,13 @@ Android 12 and later open in **Material You**, the phone's own font and wallpape
 Phones without a palette, and the desktop apps, open in the UwU Apps look; on the desktop
 **Use system accent colour** borrows the computer's accent instead of the brand colour. The
 Updates page is always Material You.
+
+On the desktop, Theme's second look is the system's own glass in place of Material You, as near
+to iOS's Liquid Glass as each system draws it: **Fluent 2 (Acrylic & Mica)** on Windows, **macOS
+Tahoe** on a Mac, and **Deepin (DDE) & COSMIC Frosted Glass** on Linux, in the computer's accent
+colour and font. The runner puts the system's material behind the window where it has one
+(Mica on Windows 11 22H2 and later, the blurred desktop on a Mac, the compositor's blur on DDE
+and KDE under X11; `lib/desktop/backdrop.dart`); elsewhere the app frosts its own.
 
 ## Build the APK and App Bundle
 

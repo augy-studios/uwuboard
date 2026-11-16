@@ -10,6 +10,7 @@ import '../app/env.dart';
 import '../app/nav.dart';
 import '../theme/icons.dart';
 import '../theme/theme.dart';
+import '../widgets/glass.dart';
 import '../widgets/sheet.dart';
 
 Future<T?> showDesktopSheet<T>(
@@ -30,18 +31,22 @@ Future<T?> showDesktopSheet<T>(
     pageBuilder: (context, _, _) {
       final c = UwuColors.of(context);
       final size = MediaQuery.sizeOf(context);
-      final panel = Material(
-        color: Theme.of(context).dialogTheme.backgroundColor,
+      final style = c.native;
+      final radius = kind == SheetKind.drawer ? BorderRadius.zero : BorderRadius.circular(c.windowRadius);
+      Widget panel = Material(
+        // Native glass: Acrylic, or the system's own glass, over what it opens on.
+        color: style == null ? Theme.of(context).dialogTheme.backgroundColor : Color.alphaBlend(c.surfaceStrong, c.bg).withValues(alpha: 0.8),
         shape: kind == SheetKind.drawer
-            ? Border(left: BorderSide(color: c.border))
+            ? Border(left: BorderSide(color: c.edge))
             : RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-                side: BorderSide(color: c.border),
+                borderRadius: radius,
+                side: BorderSide(color: c.edge),
               ),
         clipBehavior: Clip.antiAlias,
-        elevation: 12,
+        elevation: style == null ? 12 : 0,
         child: builder(context),
       );
+      if (style != null) panel = NativeGlass(style: style, radius: radius, child: panel);
       if (kind == SheetKind.drawer) {
         return Align(
           alignment: Alignment.centerRight,
@@ -103,8 +108,8 @@ Future<void> showContextMenu(BuildContext context, Offset position, List<MenuAct
     position: RelativeRect.fromRect(at & const Size(1, 1), Offset.zero & overlay.size),
     color: Color.alphaBlend(c.surfaceStrong, c.bg),
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(10),
-      side: BorderSide(color: c.border),
+      borderRadius: BorderRadius.circular(c.round(10)),
+      side: BorderSide(color: c.edge),
     ),
     items: [
       for (var i = 0; i < actions.length; i++)

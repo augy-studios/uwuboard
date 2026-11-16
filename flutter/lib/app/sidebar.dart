@@ -297,7 +297,7 @@ class Sidebar extends StatelessWidget {
         width: full,
         decoration: BoxDecoration(
           color: Color.alphaBlend(c.surfaceStrong, c.bg),
-          border: Border(right: BorderSide(color: c.border)),
+          border: Border(right: BorderSide(color: c.edge)),
         ),
         child: child,
       );
@@ -310,7 +310,7 @@ class Sidebar extends StatelessWidget {
       width: width,
       color: c.surface,
       // Drawn over what's in it, so it's on the edge at every width and takes no room.
-      foregroundDecoration: BoxDecoration(border: Border(right: BorderSide(color: c.border))),
+      foregroundDecoration: BoxDecoration(border: Border(right: BorderSide(color: c.edge))),
       child: ClipRect(
         child: OverflowBox(
           alignment: Alignment.topLeft,

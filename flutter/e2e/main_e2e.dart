@@ -11,6 +11,8 @@
 //   ?desktop=1     drawn as the desktop apps are: their title bar and command bar, dialogs and
 //                  side panels, the boards' right-click menu (for the store's desktop pictures)
 //   ?welcome=1     the desktop's Make it yours window
+//   ?glass=…       with ?desktop=1, the native glass to offer: fluent (Windows), tahoe (macOS) or
+//                  frosted (Linux); else the browser's system's
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
@@ -91,6 +93,9 @@ Future<void> main() async {
           MenuAction('Set as Tray Countdown', () {}, icon: 'pin'),
         ];
     ViewHistory.start();
+    for (final g in GlassStyle.values) {
+      if (g.name == q['glass']) ThemeController.glassStyleOf = () => g;
+    }
   }
   await runUwuBoard(const []);
 }

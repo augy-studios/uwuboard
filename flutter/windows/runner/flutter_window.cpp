@@ -1,5 +1,6 @@
 #include "flutter_window.h"
 
+#include <dwmapi.h>
 #include <objbase.h>
 #include <propkey.h>
 #include <propvarutil.h>
@@ -22,6 +23,14 @@ constexpr wchar_t kAppId[] = L"AugyStudios.uwuBoard";
 constexpr int kThumbPrevious = 1001;
 constexpr int kThumbRefresh = 1002;
 constexpr int kThumbNext = 1003;
+
+// DWM's window attributes and backdrops, by number: older SDKs don't name them.
+constexpr DWORD kDwmUseImmersiveDarkMode = 20;  // DWMWA_USE_IMMERSIVE_DARK_MODE
+constexpr DWORD kDwmSystemBackdropType = 38;    // DWMWA_SYSTEMBACKDROP_TYPE, Windows 11 22H2
+constexpr int kBackdropNone = 1;                // DWMSBT_NONE
+constexpr int kBackdropMica = 2;                // DWMSBT_MAINWINDOW
+constexpr int kBackdropAcrylic = 3;             // DWMSBT_TRANSIENTWINDOW
+constexpr int kBackdropMicaAlt = 4;             // DWMSBT_TABBEDWINDOW
 
 std::wstring Widen(const std::string& s) {
   if (s.empty()) return std::wstring();
@@ -161,6 +170,20 @@ bool FlutterWindow::OnCreate() {
       result->Success();
     } else if (call.method_name() == "setBadge") {
       result->Success();
+    } else if (call.method_name() == "setBackdrop") {
+      std::string kind = "none";
+      bool dark = false;
+      if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+        auto k = args->find(flutter::EncodableValue("kind"));
+        if (k != args->end()) {
+          if (const auto* s = std::get_if<std::string>(&k->second)) kind = *s;
+        }
+        auto d = args->find(flutter::EncodableValue("dark"));
+        if (d != args->end()) {
+          if (const auto* b = std::get_if<bool>(&d->second)) dark = *b;
+        }
+      }
+      result->Success(flutter::EncodableValue(SetBackdrop(kind, dark)));
     } else {
       result->NotImplemented();
     }
@@ -271,6 +294,46 @@ void FlutterWindow::OnThumb(int button) {
   channel_->InvokeMethod("thumb", std::make_unique<flutter::EncodableValue>(what));
 }
 
+// Native glass's window (lib/desktop/backdrop.dart): Mica, Mica Alt or Acrylic behind the whole
+// window, light or dark to match the app rather than Windows. The frame is extended over the
+// client area so the material shows wherever Flutter draws see-through, and the system menu
+// style is taken off meanwhile: with the frame over the client, DWM would draw its own caption
+// buttons there, under the app's. Windows before 11 22H2 have no backdrop to give: false, and
+// the window is left as it was.
+bool FlutterWindow::SetBackdrop(const std::string& kind, bool dark) {
+  HWND hwnd = GetHandle();
+  if (!hwnd) return false;
+  int type = kBackdropNone;
+  if (kind == "mica") type = kBackdropMica;
+  if (kind == "micaAlt") type = kBackdropMicaAlt;
+  if (kind == "acrylic") type = kBackdropAcrylic;
+
+  BOOL use_dark = dark ? TRUE : FALSE;
+  bool on = false;
+  if (type != kBackdropNone) {
+    ::DwmSetWindowAttribute(hwnd, kDwmUseImmersiveDarkMode, &use_dark, sizeof(use_dark));
+    on = SUCCEEDED(::DwmSetWindowAttribute(hwnd, kDwmSystemBackdropType, &type, sizeof(type)));
+  }
+  if (!on) {
+    int none = kBackdropNone;
+    if (backdrop_ != kBackdropNone) ::DwmSetWindowAttribute(hwnd, kDwmSystemBackdropType, &none, sizeof(none));
+    type = kBackdropNone;
+  }
+
+  MARGINS margins = {0, 0, 0, 0};
+  if (on) margins = {-1, -1, -1, -1};
+  ::DwmExtendFrameIntoClientArea(hwnd, &margins);
+  LONG_PTR style = ::GetWindowLongPtr(hwnd, GWL_STYLE);
+  LONG_PTR want = on ? (style & ~static_cast<LONG_PTR>(WS_SYSMENU)) : (style | WS_SYSMENU);
+  if (want != style) {
+    ::SetWindowLongPtr(hwnd, GWL_STYLE, want);
+    ::SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+  }
+  backdrop_ = type;
+  backdrop_dark_ = dark;
+  return on;
+}
+
 LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
@@ -302,5 +365,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       break;
   }
 
-  return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+  LRESULT handled = Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+  // Windows' own light or dark is put back on a colour change (win32_window.cpp): native glass's
+  // Mica follows the app's mode instead.
+  if (message == WM_DWMCOLORIZATIONCOLORCHANGED && backdrop_ != kBackdropNone) {
+    BOOL use_dark = backdrop_dark_ ? TRUE : FALSE;
+    ::DwmSetWindowAttribute(hwnd, kDwmUseImmersiveDarkMode, &use_dark, sizeof(use_dark));
+  }
+  return handled;
 }

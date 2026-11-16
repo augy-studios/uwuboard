@@ -1,6 +1,6 @@
-// The app's root: the theme (the device's Material You palette when there is one), the
-// navigator and messenger keys, the sign-in screen or the boards, and the desktop's chrome
-// round all of it where it applies.
+// The app's root: the theme (the device's Material You palette when there is one, or the
+// desktop's accent in native glass), the navigator and messenger keys, the sign-in screen or the
+// boards, and the desktop's chrome round all of it where it applies, on native glass's backdrop.
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 
@@ -9,6 +9,7 @@ import '../features/auth/auth_screen.dart';
 import '../features/bug/bug_report.dart';
 import '../features/update/update_bar.dart';
 import '../theme/theme.dart';
+import '../widgets/glass.dart';
 import '../widgets/sheet.dart';
 import 'env.dart';
 import 'home.dart';
@@ -25,6 +26,9 @@ ColorScheme? testDarkDynamic;
 
 /// The desktop's system accent, as a colour scheme, when "Use system accent colour" is on.
 ColorScheme? Function(Brightness brightness)? desktopAccentScheme;
+
+/// The desktop's system accent as it is, for native glass.
+Color? Function()? desktopAccent;
 
 class UwuBoardApp extends StatefulWidget {
   const UwuBoardApp({super.key});
@@ -58,7 +62,7 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
             ThemeData make(Brightness b, {bool hc = false}) {
               final ColorScheme? dyn = t.isMaterial
                   ? (b == Brightness.dark ? darkDynamic : lightDynamic)?.harmonized()
-                  : (t.systemAccent ? desktopAccentScheme?.call(b) : null);
+                  : (t.systemAccent && !t.isNative ? desktopAccentScheme?.call(b) : null);
               return buildTheme(
                 look: t.look,
                 brightness: b,
@@ -67,6 +71,8 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
                 systemAccent: t.systemAccent,
                 highContrast: hc,
                 desktop: Env.desktop,
+                glassStyle: t.glassStyle,
+                accent: t.isNative ? desktopAccent?.call() : null,
               );
             }
 
@@ -103,7 +109,8 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
                 );
                 final chrome = desktopChrome;
                 if (chrome != null) app = chrome(context, app);
-                return app;
+                // Native glass: the window under all of it, title bar included.
+                return GlassBackdrop(child: app);
               },
               home: AppState.I.shown ? const HomeScreen() : const AuthScreen(),
             );

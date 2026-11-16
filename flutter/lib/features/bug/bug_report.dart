@@ -34,6 +34,7 @@ import '../../native/bridge.dart';
 import '../../theme/icons.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/glass.dart';
 import '../../widgets/sheet.dart';
 import '../board/whole_board.dart';
 
@@ -127,6 +128,7 @@ class BugShot {
     final board = AppState.I.activeBoard;
     final ratio = MediaQuery.devicePixelRatioOf(context);
     final screen = MediaQuery.sizeOf(context) * ratio;
+    final bg = UwuColors.of(context).bg;
     ui.Image? shot;
     var whole = false;
     if (board != null && !AppSheet.anyOpen) {
@@ -136,7 +138,7 @@ class BugShot {
     if (shot == null) {
       final box = AppNav.repaintKey.currentContext?.findRenderObject();
       if (box is! RenderRepaintBoundary) return null;
-      shot = await box.toImage(pixelRatio: math.min(2, ratio));
+      shot = await flattenOnto(await box.toImage(pixelRatio: math.min(2, ratio)), bg);
     }
     final png = await shot.toByteData(format: ui.ImageByteFormat.png);
     shot.dispose();

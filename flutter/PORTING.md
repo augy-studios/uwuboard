@@ -13,7 +13,7 @@ and the ported logic against the site's JavaScript.
 | `script.js` export and import (board files with images inside) | `lib/app/state.dart`, `lib/features/card/card_sheet.dart`, `lib/app/files.dart` | Done. Android saves into Downloads |
 | `script.js` profile, avatar, delete account in three steps | `lib/features/profile/profile_sheet.dart` | Done |
 | `js/timeline.js` the Gantt view, drag and resize, keyboard, zoom, dependencies, today | `lib/data/timeline_logic.dart`, `lib/features/timeline/timeline_view.dart` | Done; logic checked against the site |
-| `js/theme.js` brand colours, light, dark, time-based | `lib/theme/theme.dart`, `lib/features/theme/theme_sheet.dart` | Done, plus Material You |
+| `js/theme.js` brand colours, light, dark, time-based | `lib/theme/theme.dart`, `lib/features/theme/theme_sheet.dart`, `lib/widgets/glass.dart` | Done, plus Material You (Android) and native glass (desktop) |
 | `js/sync.js`, `js/p2p.js`, `js/qr.js` device sync over PeerJS | `lib/data/sync_logic.dart`, `lib/features/sync/`, `lib/share/` | Done; merging checked against the site. Talks to the site in a browser and back |
 | `js/images.js` images by bytes, never addresses | `lib/data/images.dart` | Done. New pictures are JPEG or PNG (Dart has no WebP writer); the site and server take both |
 | `js/tour.js` first-visit tours, Show me around | `lib/features/tour/tour.dart` | Done |

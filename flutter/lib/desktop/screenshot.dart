@@ -16,6 +16,8 @@ import 'package:pasteboard/pasteboard.dart';
 import '../app/nav.dart';
 import '../app/state.dart';
 import '../features/board/whole_board.dart';
+import '../theme/theme.dart';
+import '../widgets/glass.dart';
 import 'desk.dart';
 import 'notify.dart';
 
@@ -57,8 +59,10 @@ class Screenshots {
     busy.value = true;
     try {
       final ratio = MediaQuery.devicePixelRatioOf(context);
-      final image = await _capture(AppNav.repaintKey, ratio);
-      if (image == null) throw StateError('nothing to capture');
+      final bg = UwuColors.of(context).bg;
+      final shot = await _capture(AppNav.repaintKey, ratio);
+      if (shot == null) throw StateError('nothing to capture');
+      final image = await flattenOnto(shot, bg);
       await _save(image, '${Desktop.name} ${_stamp()}.png', 'Screenshot saved');
     } catch (_) {
       AppNav.toast('Couldn’t take a screenshot', error: true);

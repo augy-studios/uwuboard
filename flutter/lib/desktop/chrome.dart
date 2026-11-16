@@ -1,6 +1,7 @@
 // The desktop's own title bar and command bar, round the shared app (docs/desktop-features-spec.md
 // §5, docs/flutter-desktop-app-spec.md §2.3–2.5). 40 px tall, in the brand colour (writing light
-// or dark by contrast), draggable where there's nothing to click, double-click to maximise:
+// or dark by contrast; in native glass, clear, on the window's glass as the system's own title
+// bars are), draggable where there's nothing to click, double-click to maximise:
 //
 //   (macOS traffic lights) Back Forward Reload  [ Command / Search bar ]  Copy link Screenshot
 //   Long screenshot (Update) (Windows, Linux: minimise, maximise, close)
@@ -278,8 +279,8 @@ class _DesktopChromeState extends State<DesktopChrome> {
               elevation: 12,
               color: Color.alphaBlend(c.surfaceStrong, c.bg),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: c.border),
+                borderRadius: BorderRadius.circular(c.round(12)),
+                side: BorderSide(color: c.edge),
               ),
               clipBehavior: Clip.antiAlias,
               child: ConstrainedBox(
@@ -384,10 +385,11 @@ class _DesktopChromeState extends State<DesktopChrome> {
 
   Widget _bar(BuildContext context) {
     final c = UwuColors.of(context);
+    final native = c.native != null;
     final brand = c.glass ? ThemeController.I.colorTheme.color : c.brandFill;
     final dark = c.glass && ThemeController.I.brightness == Brightness.dark;
-    final bg = dark ? Color.lerp(brand, Colors.black, 0.72)! : brand;
-    final ink = ThemeData.estimateBrightnessForColor(bg) == Brightness.dark ? Colors.white : const Color(0xFF121815);
+    final bg = native ? Colors.transparent : (dark ? Color.lerp(brand, Colors.black, 0.72)! : brand);
+    final ink = native ? c.ink : (ThemeData.estimateBrightnessForColor(bg) == Brightness.dark ? Colors.white : const Color(0xFF121815));
     final mac = Env.macOS;
     Widget tool(String icon, String label, VoidCallback? onTap, {Color? colour}) => Tooltip(
       excludeFromSemantics: true,
@@ -436,7 +438,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
               child: DragToMoveArea(
                 child: SizedBox(
                   height: titleBarHeight,
-                  child: Center(child: _commandBar(c, ink, bg)),
+                  child: Center(child: _commandBar(c, ink, native)),
                 ),
               ),
             ),
@@ -476,7 +478,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
     );
   }
 
-  Widget _commandBar(UwuColors c, Color ink, Color bg) {
+  Widget _commandBar(UwuColors c, Color ink, bool native) {
     final board = AppState.I.activeBoard;
     final rest = _message.isNotEmpty ? _message : (board == null ? 'uwuBoard' : '${board['name']}');
     return CompositedTransformTarget(
@@ -497,7 +499,9 @@ class _DesktopChromeState extends State<DesktopChrome> {
               decoration: InputDecoration(
                 isDense: true,
                 filled: true,
-                fillColor: _focus.hasFocus ? c.surfaceStrong : Colors.black.withValues(alpha: 0.08),
+                fillColor: _focus.hasFocus
+                    ? (native ? Color.alphaBlend(c.surfaceStrong, c.bg) : c.surfaceStrong)
+                    : (native ? c.surfaceStrong : Colors.black.withValues(alpha: 0.08)),
                 hintText: _focus.hasFocus ? 'Search boards, cards and commands, or paste a link' : rest,
                 hintStyle: TextStyle(fontSize: 13, color: _focus.hasFocus ? c.muted : ink.withValues(alpha: 0.85)),
                 prefixIcon: Padding(
@@ -506,10 +510,13 @@ class _DesktopChromeState extends State<DesktopChrome> {
                 ),
                 prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 0),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(_barRadius(c)), borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(_barRadius(c)),
+                  borderSide: native ? BorderSide(color: c.edge) : BorderSide.none,
+                ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(_barRadius(c)),
                   borderSide: BorderSide(color: c.brandInk, width: 1.5),
                 ),
               ),
@@ -520,6 +527,13 @@ class _DesktopChromeState extends State<DesktopChrome> {
     );
   }
 }
+
+/// The command bar's corners: Fluent's search box is barely rounded, Tahoe's a capsule.
+double _barRadius(UwuColors c) => switch (c.native) {
+  GlassStyle.fluent => 4,
+  GlassStyle.tahoe => 14,
+  _ => 8,
+};
 
 /// Minimise, maximise or restore, and close (which keeps the app in the tray): full bar height,
 /// 46 px wide each, close turning red on hover.

@@ -2,8 +2,9 @@ import Cocoa
 import FlutterMacOS
 
 // The app's own channel to macOS (org.uwuapps.board/desktop, lib/desktop/runner.dart): the Dock's
-// menu of favourite boards and its badge; uwu://board/ links opened from elsewhere; a click on the
-// Dock icon bringing the window back. Closing the window leaves the app running in the menu bar.
+// menu of favourite boards and its badge; native glass's window (MainFlutterWindow.swift);
+// uwu://board/ links opened from elsewhere; a click on the Dock icon bringing the window back.
+// Closing the window leaves the app running in the menu bar.
 @main
 class AppDelegate: FlutterAppDelegate {
   var channel: FlutterMethodChannel?
@@ -34,6 +35,12 @@ class AppDelegate: FlutterAppDelegate {
       case "setBadge":
         NSApp.dockTile.badgeLabel = (call.arguments as? String).flatMap { $0.isEmpty ? nil : $0 }
         result(nil)
+      case "setBackdrop":
+        let args = call.arguments as? [String: Any]
+        let kind = args?["kind"] as? String ?? "none"
+        let dark = args?["dark"] as? Bool ?? false
+        let window = NSApp.windows.compactMap { $0 as? MainFlutterWindow }.first
+        result(window?.setGlass(kind != "none", dark: dark) ?? false)
       default:
         result(FlutterMethodNotImplemented)
       }

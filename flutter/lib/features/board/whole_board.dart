@@ -11,6 +11,7 @@ import 'package:flutter/rendering.dart';
 import '../../app/nav.dart';
 import '../../app/state.dart';
 import '../../data/board.dart';
+import '../../theme/theme.dart';
 import '../timeline/timeline_view.dart';
 import 'kanban_view.dart';
 
@@ -45,7 +46,8 @@ Future<ui.Image?> drawWholeBoard(BuildContext context, Json board, {double maxHe
             child: Theme(
               data: theme,
               child: Material(
-                color: theme.scaffoldBackgroundColor,
+                // The page's colour: native glass's page is see-through.
+                color: theme.extension<UwuColors>()!.bg,
                 child: MediaQuery(
                   data: mq,
                   child: timeline
