@@ -28,7 +28,9 @@ class TimelineView extends StatefulWidget {
   final bool fullHeight;
 
   @override
-  State<TimelineView> createState() => _TimelineViewState();
+  State<TimelineView> createState() {
+    return _TimelineViewState();
+  }
 }
 
 class _TimelineViewState extends State<TimelineView> {
@@ -780,7 +782,9 @@ class _Bar extends StatefulWidget {
   final void Function(Json card) onChanged;
 
   @override
-  State<_Bar> createState() => _BarState();
+  State<_Bar> createState() {
+    return _BarState();
+  }
 }
 
 class _BarState extends State<_Bar> {

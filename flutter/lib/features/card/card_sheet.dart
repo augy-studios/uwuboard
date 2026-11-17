@@ -55,7 +55,9 @@ class CardSheet extends StatefulWidget {
   final String columnId;
 
   @override
-  State<CardSheet> createState() => _CardSheetState();
+  State<CardSheet> createState() {
+    return _CardSheetState();
+  }
 }
 
 class _CardSheetState extends State<CardSheet> {

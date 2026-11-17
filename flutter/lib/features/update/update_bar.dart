@@ -707,7 +707,9 @@ class _Release extends StatefulWidget {
   final bool last;
 
   @override
-  State<_Release> createState() => _ReleaseState();
+  State<_Release> createState() {
+    return _ReleaseState();
+  }
 }
 
 class _ReleaseState extends State<_Release> {
@@ -985,7 +987,9 @@ class _GroupCard extends StatefulWidget {
   final int index;
 
   @override
-  State<_GroupCard> createState() => _GroupCardState();
+  State<_GroupCard> createState() {
+    return _GroupCardState();
+  }
 }
 
 class _GroupCardState extends State<_GroupCard> {
