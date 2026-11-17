@@ -9,47 +9,96 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const site = join(here, '../../main-site/js');
+const toolDirectory = dirname(fileURLToPath(import.meta.url));
+const siteScripts = join(toolDirectory, '../../main-site/js');
 
 // timeline.js: its exported helpers, with the page it would touch stubbed out.
-const ctx = { window: {}, document: { getElementById: () => null }, localStorage: { getItem: () => null, setItem() {} }, console };
-vm.createContext(ctx);
-vm.runInContext(readFileSync(join(site, 'timeline.js'), 'utf8'), ctx);
-const T = ctx.window.Timeline;
+const timelineContext = {
+  window: {},
+  document: {
+    getElementById: () => {
+      return null;
+    },
+  },
+  localStorage: {
+    getItem: () => {
+      return null;
+    },
+    setItem() {},
+  },
+  console,
+};
+vm.createContext(timelineContext);
+vm.runInContext(readFileSync(join(siteScripts, 'timeline.js'), 'utf8'), timelineContext);
+const Timeline = timelineContext.window.Timeline;
 
 // sync.js keeps its helpers inside its closure: the pure ones are lifted out by name.
-const syncSrc = readFileSync(join(site, 'sync.js'), 'utf8');
-const grab = (name) => {
-  const start = syncSrc.indexOf(`function ${name}(`);
-  if (start < 0) throw new Error(`no function ${name} in sync.js`);
+const syncSource = readFileSync(join(siteScripts, 'sync.js'), 'utf8');
+
+// The source of `function name(...) { ... }` in sync.js, found by counting braces from the
+// first `{` after the name until they balance again.
+const functionSource = (name) => {
+  const start = syncSource.indexOf(`function ${name}(`);
+  if (start < 0) {
+    throw new Error(`no function ${name} in sync.js`);
+  }
   let depth = 0;
-  for (let i = syncSrc.indexOf('{', start); i < syncSrc.length; i++) {
-    if (syncSrc[i] === '{') depth++;
-    if (syncSrc[i] === '}' && --depth === 0) return syncSrc.slice(start, i + 1);
+  for (let index = syncSource.indexOf('{', start); index < syncSource.length; index = index + 1) {
+    if (syncSource[index] === '{') {
+      depth = depth + 1;
+    }
+    if (syncSource[index] === '}') {
+      depth = depth - 1;
+      if (depth === 0) {
+        return syncSource.slice(start, index + 1);
+      }
+    }
   }
   throw new Error(`unbalanced ${name}`);
 };
-// A `const name = …;`, however many lines it runs to.
-const constLine = (name) => {
-  const start = syncSrc.indexOf(`const ${name} = `);
-  if (start < 0) throw new Error(`no const ${name} in sync.js`);
+
+// A `const name = …;`, however many lines it runs to: up to the first `;` outside any
+// brackets.
+const constSource = (name) => {
+  const start = syncSource.indexOf(`const ${name} = `);
+  if (start < 0) {
+    throw new Error(`no const ${name} in sync.js`);
+  }
   let depth = 0;
-  for (let i = start; i < syncSrc.length; i++) {
-    const ch = syncSrc[i];
-    if ('([{'.includes(ch)) depth++;
-    if (')]}'.includes(ch)) depth--;
-    if (ch === ';' && depth === 0) return syncSrc.slice(start, i + 1);
+  for (let index = start; index < syncSource.length; index = index + 1) {
+    const character = syncSource[index];
+    if ('([{'.includes(character)) {
+      depth = depth + 1;
+    }
+    if (')]}'.includes(character)) {
+      depth = depth - 1;
+    }
+    if (character === ';' && depth === 0) {
+      return syncSource.slice(start, index + 1);
+    }
   }
   throw new Error(`unended ${name}`);
 };
-const lifted = [
-  'MAX_BOARDS', 'MAX_COLUMNS', 'MAX_CARDS', 'MAX_IMAGES', 'ID_RE', 'isId', 'text', 'list', 'PRIORITIES', 'clone', 'stamp', 'cardSig',
-].map(constLine).join('\n') + '\n' + ['cleanCard', 'cleanBoards', 'mergeBoardInto', 'wouldChange'].map(grab).join('\n');
-const S = {};
-vm.runInNewContext(`${lifted}\nout.cleanBoards = cleanBoards; out.mergeBoardInto = mergeBoardInto; out.wouldChange = wouldChange; out.clone = clone;`, { out: S, JSON });
 
-const card = (id, title, extra = {}) => ({ id, title, description: '', labels: [], checklist: [], due: '', priority: '', images: [], thumbnailId: null, updatedAt: 10, ...extra });
+const liftedConstants = [
+  'MAX_BOARDS', 'MAX_COLUMNS', 'MAX_CARDS', 'MAX_IMAGES', 'ID_PATTERN', 'isId', 'text', 'list', 'PRIORITIES', 'clone', 'stamp', 'cardSignature',
+].map(constSource).join('\n');
+const liftedFunctions = ['cleanCard', 'cleanBoards', 'mergeBoardInto', 'wouldChange'].map(functionSource).join('\n');
+const lifted = liftedConstants + '\n' + liftedFunctions;
+const syncHelpers = {};
+vm.runInNewContext(`${lifted}\nexported.cleanBoards = cleanBoards; exported.mergeBoardInto = mergeBoardInto; exported.wouldChange = wouldChange; exported.clone = clone;`, { exported: syncHelpers, JSON });
+
+// A card with every field at its empty value, plus whatever `extra` sets.
+const card = (id, title, extra = {}) => {
+  return { id, title, description: '', labels: [], checklist: [], due: '', priority: '', images: [], thumbnailId: null, updatedAt: 10, ...extra };
+};
+
+// All the cards on a board, column after column.
+const allCards = (board) => {
+  return board.columns.flatMap((column) => {
+    return column.cards;
+  });
+};
 
 // ---- Timeline ----
 const spanCards = [
@@ -68,19 +117,35 @@ const board = {
   ],
 };
 const timeline = {
-  spans: spanCards.map((c) => ({ id: c.id, span: T.span(c) })),
+  spans: spanCards.map((spanCard) => {
+    return { id: spanCard.id, span: Timeline.span(spanCard) };
+  }),
   clashes: [
     ['a', 'b'], ['b', 'c'], ['a', 'f'],
-  ].map(([p, k]) => {
-    const all = board.columns.flatMap((c) => c.cards);
-    return { pred: p, card: k, clash: T.clashes(all.find((x) => x.id === p), all.find((x) => x.id === k)) };
+  ].map(([predecessorId, cardId]) => {
+    const all = allCards(board);
+    const predecessor = all.find((candidate) => {
+      return candidate.id === predecessorId;
+    });
+    const waitingCard = all.find((candidate) => {
+      return candidate.id === cardId;
+    });
+    return { pred: predecessorId, card: cardId, clash: Timeline.clashes(predecessor, waitingCard) };
   }),
-  waitingOn: ['a', 'b', 'c'].map((id) => ({ id, waiting: [...T.waitingOn(board, id)].sort() })),
+  waitingOn: ['a', 'b', 'c'].map((id) => {
+    return { id, waiting: [...Timeline.waitingOn(board, id)].sort() };
+  }),
 };
-const pruned = S.clone(board);
+const pruned = syncHelpers.clone(board);
 pruned.columns[0].cards.splice(0, 1);
-T.pruneDeps(pruned);
-timeline.pruned = pruned.columns.flatMap((c) => c.cards).map((c) => ({ id: c.id, dependsOn: c.dependsOn || null }));
+Timeline.pruneDeps(pruned);
+timeline.pruned = allCards(pruned).map((prunedCard) => {
+  let dependsOn = prunedCard.dependsOn;
+  if (!dependsOn) {
+    dependsOn = null;
+  }
+  return { id: prunedCard.id, dependsOn };
+});
 
 // ---- Sync ----
 const raw = [
@@ -97,31 +162,31 @@ const raw = [
   { id: 'b2', name: '   ', columns: [] },
   { id: 'b3', name: 'Plain', columns: 'not a list' },
 ];
-const dest = {
+const destinationBoard = {
   id: 'm1', name: 'Mine', view: 'kanban', updatedAt: 100, columns: [
     { id: 'c1', name: 'To Do', updatedAt: 100, cards: [card('x1', 'Old copy', { updatedAt: 5 }), card('x2', 'Newer here', { updatedAt: 50 }), card('x3', 'Same', { updatedAt: 5 })] },
     { id: 'c2', name: 'Done', updatedAt: 1, cards: [card('x4', 'Moving', { updatedAt: 5 })] },
   ],
 };
-const src = {
+const sourceBoard = {
   id: 'm1', name: 'Theirs', view: 'timeline', updatedAt: 200, columns: [
     { id: 'c1', name: 'To Do', updatedAt: 1, cards: [card('x1', 'New copy', { updatedAt: 9 }), card('x2', 'Older there', { updatedAt: 20 }), card('x3', 'Same', { updatedAt: 9 }), card('x4', 'Moving', { updatedAt: 9 })] },
     { id: 'c2', name: 'Finished', updatedAt: 2, cards: [] },
     { id: 'c3', name: 'New column', updatedAt: 3, cards: [card('x5', 'Brand new')] },
   ],
 };
-const merged = S.clone(dest);
-const changes = S.mergeBoardInto(merged, S.clone(src));
+const merged = syncHelpers.clone(destinationBoard);
+const changes = syncHelpers.mergeBoardInto(merged, syncHelpers.clone(sourceBoard));
 const sync = {
   raw,
-  cleaned: S.cleanBoards(raw),
-  dest,
-  src,
+  cleaned: syncHelpers.cleanBoards(raw),
+  dest: destinationBoard,
+  src: sourceBoard,
   merged,
   changes,
-  wouldChangeSame: S.wouldChange([S.clone(merged)], S.clone(src)),
-  wouldChangeNew: S.wouldChange([], S.clone(src)),
+  wouldChangeSame: syncHelpers.wouldChange([syncHelpers.clone(merged)], syncHelpers.clone(sourceBoard)),
+  wouldChangeNew: syncHelpers.wouldChange([], syncHelpers.clone(sourceBoard)),
 };
 
-writeFileSync(join(here, '../test/fixtures/expected.json'), JSON.stringify({ timeline, sync }, null, 2) + '\n');
+writeFileSync(join(toolDirectory, '../test/fixtures/expected.json'), JSON.stringify({ timeline, sync }, null, 2) + '\n');
 console.log('test/fixtures/expected.json written');

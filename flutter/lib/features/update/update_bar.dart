@@ -771,9 +771,12 @@ class _ReleaseState extends State<_Release> {
     final meta = metaParts.join(' · ');
     final hasNotes = notes.groups.isNotEmpty || notes.summary.isNotEmpty;
     final ring = widget.isNew || widget.installed;
-    var reduceMotion = MediaQuery.maybeDisableAnimationsOf(context);
-    if (reduceMotion == null) {
+    final disableAnimations = MediaQuery.maybeDisableAnimationsOf(context);
+    bool reduceMotion;
+    if (disableAnimations == null) {
       reduceMotion = false;
+    } else {
+      reduceMotion = disableAnimations;
     }
     final page = release['page'];
 
