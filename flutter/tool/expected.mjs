@@ -138,7 +138,7 @@ const timeline = {
 };
 const pruned = syncHelpers.clone(board);
 pruned.columns[0].cards.splice(0, 1);
-Timeline.pruneDeps(pruned);
+Timeline.pruneDependencies(pruned);
 timeline.pruned = allCards(pruned).map((prunedCard) => {
   let dependsOn = prunedCard.dependsOn;
   if (!dependsOn) {

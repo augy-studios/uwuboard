@@ -30,7 +30,7 @@
      { type: 'pull', id, boards }        either way: send me these boards (by id), which the
                                          other side answers with img chunks and an add.
 
-   Loaded before script.js and uses its state and helpers (S, api, persistBoard, ...), so
+   Loaded before script.js and uses its state and helpers (state, api, persistBoard, ...), so
    nothing here runs until script.js calls Sync.init().
 
    Note for maintainers: flutter/tool/expected.mjs copies some of the functions and constants
@@ -212,7 +212,7 @@
   }
 
   const ownBoards = () => {
-    return S.boards.map(listBoard);
+    return state.boards.map(listBoard);
   };
 
   // Boards from the other device, checked field by field. They're input from another machine,
@@ -561,7 +561,7 @@
   // Every image this device has, by id, wherever it is.
   function ownImages() {
     const images = new Map();
-    for (const board of S.boards) {
+    for (const board of state.boards) {
       for (const column of board.columns) {
         for (const card of column.cards) {
           let cardImages = card.images;
@@ -600,7 +600,7 @@
           if (!data) {
             continue;
           }
-          if (S.isGuest) {
+          if (state.isGuest) {
             kept.push({ id: image.id, name: image.name, data });
             continue;
           }
@@ -642,13 +642,13 @@
     const local = ownImages();
     const changed = [];
     for (const source of boards) {
-      let destination = S.boards.find((board) => {
+      let destination = state.boards.find((board) => {
         return board.id === source.id;
       });
       if (!destination) {
         destination = { id: source.id, name: source.name, view: source.view, updatedAt: stamp(source.updatedAt), columns: [] };
         mergeBoardInto(destination, source);
-        S.boards.push(destination);
+        state.boards.push(destination);
         changed.push(destination);
       } else if (mergeBoardInto(destination, source) > 0) {
         changed.push(destination);
@@ -659,7 +659,7 @@
     }
 
     if (changed.length) {
-      if (S.isGuest) {
+      if (state.isGuest) {
         saveGuest();
       } else {
         await Promise.all(changed.map((board) => {
@@ -1179,7 +1179,7 @@
       return;
     }
     const ids = new Set(message.boards.filter(isId));
-    const chosen = S.boards.filter((board) => {
+    const chosen = state.boards.filter((board) => {
       return ids.has(board.id);
     }).map(clone);
     const connection = sync.connection;
@@ -1325,7 +1325,7 @@
       } else {
         showNote(`Sending ${chosenCount} things…`);
       }
-      const fullBoards = S.boards.filter((board) => {
+      const fullBoards = state.boards.filter((board) => {
         return boards.some((chosenBoard) => {
           return chosenBoard.id === board.id;
         });
@@ -1560,8 +1560,8 @@
         tagHtml = '';
       }
       return `<label class="syncItem${doneClass}">` +
-        `<input type="checkbox" data-sync-key="${esc(key)}"${checkboxState}>` +
-        `<span class="syncItemText"><span class="name">${esc(title)}</span><span class="sub">${esc(summary)}</span></span>` +
+        `<input type="checkbox" data-sync-key="${escapeHtml(key)}"${checkboxState}>` +
+        `<span class="syncItemText"><span class="name">${escapeHtml(title)}</span><span class="sub">${escapeHtml(summary)}</span></span>` +
         tagHtml +
         '</label>';
     };

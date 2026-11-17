@@ -16,7 +16,7 @@
    What it needs from script.js: getActiveBoard(), isTimeline(), setViewOverride(),
    firstCard(), openFirstCard(), closeCardModal(), openNewBoardModal() and
    closeNewBoardModal(); a `pagechange` event on window whenever what's on screen changes; and
-   S.boardsReady once the boards have loaded. */
+   state.boardsReady once the boards have loaded. */
 (function () {
   const WELCOME_KEY = 'uwuboard.tour.welcome';
   const PAGES_KEY = 'uwuboard.tour.pages';
@@ -177,10 +177,10 @@
     if (!(VIEWS.includes(id) || id === 'empty')) {
       return true;
     }
-    if (typeof S === 'undefined') {
+    if (typeof state === 'undefined') {
       return false;
     }
-    return Boolean(S.boardsReady);
+    return Boolean(state.boardsReady);
   };
 
   /* ---- state ---- */

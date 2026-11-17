@@ -12,7 +12,7 @@
    and the scale zooms between weeks, months and quarters.
 
    Dates are kept as YYYY-MM-DD and worked in whole days (UTC day numbers), so a clock change
-   never moves a bar. Uses script.js's state and helpers (S, esc, touch, persistBoard, ...),
+   never moves a bar. Uses script.js's state and helpers (state, escapeHtml, touch, persistBoard, ...),
    so nothing here runs until script.js calls Timeline.render(). */
 (function () {
   const ZOOM_KEY = 'uwuboard.timeline.zoom';
@@ -266,8 +266,8 @@
   function listRowHtml(row) {
     const style = `top:${row.y}px;height:${row.height}px`;
     if (row.kind === 'phase') {
-      return `<button type="button" class="tl-phase" style="${style}" data-phase="${esc(row.column.id)}" title="Rename or delete this phase">` +
-        `<span class="tl-swatch" style="background:${row.colour}"></span><span class="tl-name">${esc(row.column.name)}</span>` +
+      return `<button type="button" class="tl-phase" style="${style}" data-phase="${escapeHtml(row.column.id)}" title="Rename or delete this phase">` +
+        `<span class="tl-swatch" style="background:${row.colour}"></span><span class="tl-name">${escapeHtml(row.column.name)}</span>` +
         `<span class="tl-count">${row.column.cards.length}</span></button>`;
     }
     if (row.kind === 'task') {
@@ -294,12 +294,12 @@
       } else {
         diamond = '';
       }
-      return `<button type="button" class="tl-task${undatedClass}" style="${style}" data-card="${esc(row.card.id)}" data-col="${esc(row.column.id)}">` +
-        `<span class="tl-name">${diamond}${esc(row.card.title)}</span>` +
+      return `<button type="button" class="tl-task${undatedClass}" style="${style}" data-card="${escapeHtml(row.card.id)}" data-col="${escapeHtml(row.column.id)}">` +
+        `<span class="tl-name">${diamond}${escapeHtml(row.card.title)}</span>` +
         `<span class="tl-when">${when}</span></button>`;
     }
     if (row.kind === 'add') {
-      return `<button type="button" class="tl-add" style="${style}" data-add="${esc(row.column.id)}">+ Add task</button>`;
+      return `<button type="button" class="tl-add" style="${style}" data-add="${escapeHtml(row.column.id)}">+ Add task</button>`;
     }
     return `<button type="button" class="tl-add tl-add-phase" style="${style}" data-add-phase>+ Add phase</button>`;
   }
@@ -355,15 +355,15 @@
           return taskSpan.end;
         }));
         return `<div class="tl-row tl-row-phase" style="top:${row.y}px;height:${row.height}px">` +
-          `<span class="tl-rollup" style="left:${xOfDay(firstDay)}px;width:${(lastDay - firstDay + 1) * pixelsPerDay}px;background:${row.colour}" title="${esc(row.column.name)}: ${formatDay(firstDay)} – ${formatDay(lastDay)}"></span></div>`;
+          `<span class="tl-rollup" style="left:${xOfDay(firstDay)}px;width:${(lastDay - firstDay + 1) * pixelsPerDay}px;background:${row.colour}" title="${escapeHtml(row.column.name)}: ${formatDay(firstDay)} – ${formatDay(lastDay)}"></span></div>`;
       }
       if (row.kind !== 'task') {
         return '';
       }
       const taskSpan = span(row.card);
-      const id = esc(row.card.id);
+      const id = escapeHtml(row.card.id);
       if (!taskSpan) {
-        return `<div class="tl-row tl-row-task undated" style="top:${row.y}px;height:${row.height}px" data-card="${id}" data-col="${esc(row.column.id)}" title="Press a day to give “${esc(row.card.title)}” dates"></div>`;
+        return `<div class="tl-row tl-row-task undated" style="top:${row.y}px;height:${row.height}px" data-card="${id}" data-col="${escapeHtml(row.column.id)}" title="Press a day to give “${escapeHtml(row.card.title)}” dates"></div>`;
       }
       const startX = xOfDay(taskSpan.start);
       const endX = xOfDay(taskSpan.end) + pixelsPerDay;
@@ -372,8 +372,8 @@
       const late = !row.card.milestone && isIso(row.card.due) && row.card.due < todayIso() && progress(row.card) < 1;
       if (row.card.milestone) {
         return `<div class="tl-row tl-row-task" style="top:${row.y}px;height:${row.height}px">` +
-          `<div class="tl-milestone" style="left:${startX + pixelsPerDay / 2 - 11}px" data-card="${id}" data-col="${esc(row.column.id)}" tabindex="0" role="button" aria-label="${esc(row.card.title)}, milestone, ${formatDay(taskSpan.start)}">` +
-          `<span class="tl-diamond" style="background:${row.colour}"></span><span class="tl-label">${esc(row.card.title)}</span></div></div>`;
+          `<div class="tl-milestone" style="left:${startX + pixelsPerDay / 2 - 11}px" data-card="${id}" data-col="${escapeHtml(row.column.id)}" tabindex="0" role="button" aria-label="${escapeHtml(row.card.title)}, milestone, ${formatDay(taskSpan.start)}">` +
+          `<span class="tl-diamond" style="background:${row.colour}"></span><span class="tl-label">${escapeHtml(row.card.title)}</span></div></div>`;
       }
       let lateClass;
       let lateText;
@@ -386,7 +386,7 @@
       }
       // The title just past the bar's end, where it reads whatever the bar's colour.
       // A late task says so in words, not only with its red edge (WCAG 1.4.1).
-      const label = `<span class="tl-label${lateClass}" style="left:${endX + 8}px">${esc(row.card.title)}${lateText}</span>`;
+      const label = `<span class="tl-label${lateClass}" style="left:${endX + 8}px">${escapeHtml(row.card.title)}${lateText}</span>`;
       const percentDone = Math.round(progress(row.card) * 100);
       let checklist = row.card.checklist;
       if (!checklist) {
@@ -399,8 +399,8 @@
         doneText = '';
       }
       return `<div class="tl-row tl-row-task" style="top:${row.y}px;height:${row.height}px">` +
-        `<div class="tl-bar${lateClass}" style="left:${startX}px;width:${endX - startX}px;--bar:${row.colour}" data-card="${id}" data-col="${esc(row.column.id)}" tabindex="0" role="button" ` +
-        `aria-label="${esc(row.card.title)}, ${formatDay(taskSpan.start)} to ${formatDay(taskSpan.end)}${doneText}">` +
+        `<div class="tl-bar${lateClass}" style="left:${startX}px;width:${endX - startX}px;--bar:${row.colour}" data-card="${id}" data-col="${escapeHtml(row.column.id)}" tabindex="0" role="button" ` +
+        `aria-label="${escapeHtml(row.card.title)}, ${formatDay(taskSpan.start)} to ${formatDay(taskSpan.end)}${doneText}">` +
         `<span class="tl-fill" style="width:${percentDone}%"></span><span class="tl-h tl-h-start" aria-hidden="true"></span><span class="tl-h tl-h-end" aria-hidden="true"></span></div>` +
         label + '</div>';
     }).join('');
@@ -443,7 +443,7 @@
           markerSuffix = '';
           clashTitle = '';
         }
-        arrows.push(`<path class="tl-dep${clashClass}" d="${pathData}" marker-end="url(#tl-arrow${markerSuffix})"><title>${esc(predecessor.title)} → ${esc(row.card.title)}${clashTitle}</title></path>`);
+        arrows.push(`<path class="tl-dep${clashClass}" d="${pathData}" marker-end="url(#tl-arrow${markerSuffix})"><title>${escapeHtml(predecessor.title)} → ${escapeHtml(row.card.title)}${clashTitle}</title></path>`);
       }
     }
 
@@ -574,7 +574,7 @@
   }
 
   // A card that's gone is waited for by nobody.
-  function pruneDeps(board) {
+  function pruneDependencies(board) {
     const ids = new Set(board.columns.flatMap((column) => {
       return column.cards.map((card) => {
         return card.id;
@@ -626,7 +626,7 @@
       }
       const phase = event.target.closest('[data-phase]');
       if (phase) {
-        openRenameColModal(board.columns.find((column) => {
+        openRenameColumnModal(board.columns.find((column) => {
           return column.id === phase.dataset.phase;
         }));
         return;
@@ -789,5 +789,5 @@
     element.addEventListener('pointercancel', onUp);
   }
 
-  window.Timeline = { render, span, waitingOn, pruneDeps, clashes, isIso };
+  window.Timeline = { render, span, waitingOn, pruneDependencies, clashes, isIso };
 })();

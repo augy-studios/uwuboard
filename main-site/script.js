@@ -1,7 +1,7 @@
 'use strict';
 
 /* ── State ── */
-const S = {
+const state = {
   session: null,          // { token, userId, username } | null (guest)
   isGuest: false,
   boards: [],             // [{ id, name, columns:[{id,name,cards:[...]}] }]
@@ -114,8 +114,8 @@ async function api(method, path, body) {
     method,
     headers: { 'Content-Type': 'application/json' },
   };
-  if (S.session !== null && S.session !== undefined && S.session.token) {
-    options.headers['Authorization'] = `Bearer ${S.session.token}`;
+  if (state.session !== null && state.session !== undefined && state.session.token) {
+    options.headers['Authorization'] = `Bearer ${state.session.token}`;
   }
   if (body) {
     options.body = JSON.stringify(body);
@@ -135,10 +135,10 @@ async function api(method, path, body) {
 /* ── Local storage (guest) ── */
 const LOCAL_STORAGE_BOARDS = 'kanbanflow_guest_boards';
 function saveGuest() {
-  if (!S.isGuest) {
+  if (!state.isGuest) {
     return;
   }
-  localStorage.setItem(LOCAL_STORAGE_BOARDS, JSON.stringify(S.boards));
+  localStorage.setItem(LOCAL_STORAGE_BOARDS, JSON.stringify(state.boards));
   if (window.Sync !== null && window.Sync !== undefined) {
     window.Sync.changed();
   }
@@ -160,7 +160,7 @@ function loadGuest() {
 // initial while it loads, or when there isn't one.
 function showAvatar(element, round) {
   let initial;
-  if (!S.isGuest && S.session) {
+  if (!state.isGuest && state.session) {
     let shownName = elementById('user-name').textContent;
     if (!shownName) {
       shownName = 'U';
@@ -170,12 +170,12 @@ function showAvatar(element, round) {
     initial = 'G';
   }
   element.textContent = initial;
-  if (S.isGuest || !S.session || !S.hasAvatar) {
+  if (state.isGuest || !state.session || !state.hasAvatar) {
     return;
   }
-  const session = S.session;
+  const session = state.session;
   ImageStore.avatar().then((url) => {
-    if (S.session !== session) {
+    if (state.session !== session) {
       return;
     }
     let roundStyle = '';
@@ -217,10 +217,10 @@ function appShown() {
 
 // Signed in: keeps the session in memory and in this browser, and shows the app.
 function setSession(session, username, displayName, hasAvatar) {
-  S.session = session;
-  S.username = username;
-  S.hasAvatar = Boolean(hasAvatar);
-  S.isGuest = false;
+  state.session = session;
+  state.username = username;
+  state.hasAvatar = Boolean(hasAvatar);
+  state.isGuest = false;
   let token;
   if (session !== null && session !== undefined) {
     token = session.token;
@@ -232,7 +232,7 @@ function setSession(session, username, displayName, hasAvatar) {
   if (!shown) {
     shown = username;
   }
-  localStorage.setItem('uwuboard_session', JSON.stringify({ session, username, displayName: shown, hasAvatar: S.hasAvatar }));
+  localStorage.setItem('uwuboard_session', JSON.stringify({ session, username, displayName: shown, hasAvatar: state.hasAvatar }));
   elementById('user-name').textContent = shown;
   elementById('user-role').textContent = 'Signed in';
   updateSidebarAvatar();
@@ -241,17 +241,17 @@ function setSession(session, username, displayName, hasAvatar) {
 
 // A guest: boards come from this browser's storage.
 function setGuest() {
-  S.session = null;
-  S.isGuest = true;
-  S.hasAvatar = false;
+  state.session = null;
+  state.isGuest = true;
+  state.hasAvatar = false;
   elementById('user-name').textContent = 'Guest';
   elementById('user-role').textContent = 'Guest session';
   elementById('user-avatar').textContent = 'G';
-  S.boards = loadGuest();
-  S.boardsReady = true;
+  state.boards = loadGuest();
+  state.boardsReady = true;
   renderBoardList();
-  if (S.boards.length) {
-    selectBoard(S.boards[0].id);
+  if (state.boards.length) {
+    selectBoard(state.boards[0].id);
   }
   appShown();
 }
@@ -259,8 +259,8 @@ function setGuest() {
 // Signs out (or leaves guest mode): tells the server, forgets everything this account had in
 // memory and in the service worker's cache, and goes back to the sign-in screen.
 function logout() {
-  if (!S.isGuest && S.session) {
-    fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${S.session.token}` } }).catch(() => {});
+  if (!state.isGuest && state.session) {
+    fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${state.session.token}` } }).catch(() => {});
   }
   // Whatever was open belongs to the account going away: a sync session ends with its window.
   document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach((openWindow) => {
@@ -268,12 +268,12 @@ function logout() {
   });
   Tour.end();
   localStorage.removeItem('uwuboard_session');
-  S.session = null;
-  S.isGuest = false;
-  S.hasAvatar = false;
-  S.boards = [];
-  S.boardsReady = false;
-  S.activeBoardId = null;
+  state.session = null;
+  state.isGuest = false;
+  state.hasAvatar = false;
+  state.boards = [];
+  state.boardsReady = false;
+  state.activeBoardId = null;
   // Nothing of this account is left for the next: its images' URLs, and the worker's copies
   // of its API answers.
   ImageStore.clear();
@@ -392,15 +392,15 @@ setupFileImport(elementById('guest-import-file'), elementById('guest-import-zone
 
 /* ── Boards ── */
 async function loadUserBoards() {
-  if (S.isGuest) {
+  if (state.isGuest) {
     return;
   }
   try {
     const data = await api('GET', '/boards/list');
-    S.boards = data.boards;
+    state.boards = data.boards;
     renderBoardList();
-    if (S.boards.length) {
-      selectBoard(S.boards[0].id);
+    if (state.boards.length) {
+      selectBoard(state.boards[0].id);
     }
     if (window.Sync !== null && window.Sync !== undefined) {
       window.Sync.changed();
@@ -408,21 +408,21 @@ async function loadUserBoards() {
   } catch (error) {
     toast('Failed to load boards', 'error');
   }
-  S.boardsReady = true;
+  state.boardsReady = true;
 }
 
 function renderBoardList() {
   const list = elementById('board-list');
   list.innerHTML = '';
-  S.boards.forEach((board) => {
+  state.boards.forEach((board) => {
     const item = document.createElement('div');
     let className = 'board-item';
-    if (board.id === S.activeBoardId) {
+    if (board.id === state.activeBoardId) {
       className = className + ' active';
     }
     item.className = className;
     item.dataset.id = board.id;
-    item.innerHTML = `<span class="board-dot"></span><span>${esc(board.name)}</span>`;
+    item.innerHTML = `<span class="board-dot"></span><span>${escapeHtml(board.name)}</span>`;
     item.addEventListener('click', () => {
       selectBoard(board.id);
     });
@@ -431,8 +431,8 @@ function renderBoardList() {
 }
 
 function selectBoard(id) {
-  S.activeBoardId = id;
-  const board = S.boards.find((candidate) => {
+  state.activeBoardId = id;
+  const board = state.boards.find((candidate) => {
     return candidate.id === id;
   });
   if (!board) {
@@ -442,7 +442,7 @@ function selectBoard(id) {
   elementById('edit-board-title-btn').classList.remove('hidden');
   setBoardActions(true);
   elementById('empty-state').classList.add('hidden');
-  S.viewOverride = null;
+  state.viewOverride = null;
   renderBoardList();
   renderBoard(board);
   pageChanged();
@@ -450,7 +450,7 @@ function selectBoard(id) {
 
 // No board open: neither view on show.
 function hideBoardViews() {
-  S.viewOverride = null;
+  state.viewOverride = null;
   elementById('columns-container').classList.add('hidden');
   elementById('timeline-container').classList.add('hidden');
   elementById('timeline-container').innerHTML = '';
@@ -458,8 +458,8 @@ function hideBoardViews() {
 }
 
 function getActiveBoard() {
-  return S.boards.find((board) => {
-    return board.id === S.activeBoardId;
+  return state.boards.find((board) => {
+    return board.id === state.activeBoardId;
   });
 }
 
@@ -474,11 +474,11 @@ function setBoardActions(visible) {
 /* ── Kanban or Timeline ── */
 // The same board either way: its columns are a timeline's phases and its cards the tasks.
 // Show me around can show the open board as the other view for its tour (js/tour.js); that's
-// S.viewOverride, which is never saved and goes when the tour ends or another board opens.
+// state.viewOverride, which is never saved and goes when the tour ends or another board opens.
 const isTimeline = (board) => {
   let view;
-  if (board && board === getActiveBoard() && S.viewOverride) {
-    view = S.viewOverride;
+  if (board && board === getActiveBoard() && state.viewOverride) {
+    view = state.viewOverride;
   } else if (board !== null && board !== undefined) {
     view = board.view;
   } else {
@@ -501,9 +501,9 @@ function setViewOverride(view) {
     own = 'kanban';
   }
   if (view && view !== own) {
-    S.viewOverride = view;
+    state.viewOverride = view;
   } else {
-    S.viewOverride = null;
+    state.viewOverride = null;
   }
   renderBoard(board);
   pageChanged();
@@ -540,7 +540,7 @@ elementById('board-view-btn').addEventListener('click', () => {
   } else {
     board.view = 'timeline';
   }
-  S.viewOverride = null;
+  state.viewOverride = null;
   touch(board);
   persistBoard(board);
   renderBoard(board);
@@ -557,8 +557,8 @@ function boardsChanged(changed) {
   renderBoardList();
   const active = getActiveBoard();
   if (!active) {
-    if (S.boards.length) {
-      selectBoard(S.boards[0].id);
+    if (state.boards.length) {
+      selectBoard(state.boards[0].id);
     }
   } else if (changed.includes(active)) {
     elementById('board-title').textContent = active.name;
@@ -630,7 +630,7 @@ function buildColumn(column) {
   columnElement.innerHTML = `
     <div class="column-header">
       <div class="col-title-wrap">
-        <span class="col-title">${esc(column.name)}</span>
+        <span class="col-title">${escapeHtml(column.name)}</span>
         <span class="col-count">${column.cards.length}</span>
       </div>
       <button class="mini-btn col-menu-btn" title="Column options">
@@ -662,7 +662,7 @@ function buildColumn(column) {
   });
   columnElement.querySelector('.col-reorder-btn').addEventListener('click', openReorderColumnsModal);
   columnElement.querySelector('.col-menu-btn').addEventListener('click', () => {
-    openRenameColModal(column);
+    openRenameColumnModal(column);
   });
 
   setupColumnDrop(cardsList, column.id);
@@ -689,7 +689,7 @@ function buildCard(card, columnId) {
       } else {
         textColor = '#121815';
       }
-      return `<span class="card-label" style="background:${label.color};border-color:rgba(${rgb},0.6);color:${textColor}">${esc(label.text)}</span>`;
+      return `<span class="card-label" style="background:${label.color};border-color:rgba(${rgb},0.6);color:${textColor}">${escapeHtml(label.text)}</span>`;
     }).join('');
     labelsHtml = `<div class="card-labels">${labelChips}</div>`;
   }
@@ -763,7 +763,7 @@ function buildCard(card, columnId) {
   if (thumbnail) {
     thumbnailHtml = `<div class="card-thumb"><img alt="" /></div>`;
   }
-  cardElement.innerHTML = `${thumbnailHtml}${labelsHtml}<div class="card-title">${esc(card.title)}</div>${metaHtml}${checkHtml}`;
+  cardElement.innerHTML = `${thumbnailHtml}${labelsHtml}<div class="card-title">${escapeHtml(card.title)}</div>${metaHtml}${checkHtml}`;
   if (thumbnail) {
     ImageStore.show(cardElement.querySelector('.card-thumb img'), thumbnail);
   }
@@ -771,7 +771,7 @@ function buildCard(card, columnId) {
     openCardModal(card.id, columnId);
   });
   cardElement.addEventListener('dragstart', (event) => {
-    S.dragCard = { cardId: card.id, columnId: columnId };
+    state.dragCard = { cardId: card.id, columnId: columnId };
     cardElement.classList.add('dragging');
     event.dataTransfer.effectAllowed = 'move';
   });
@@ -841,7 +841,7 @@ async function addCard(columnId, title) {
   const card = touch({ id: makeId(), title, description: '', labels: [], checklist: [], due: '', priority: '', images: [], thumbnailId: null });
   column.cards.push(card);
 
-  if (!S.isGuest) {
+  if (!state.isGuest) {
     try {
       await api('PUT', `/boards/update`, { board });
     } catch (error) {
@@ -893,13 +893,13 @@ function setupColumnDrop(cardsList, columnId) {
     if (placeholder !== null) {
       placeholder.remove();
     }
-    if (!S.dragCard) {
+    if (!state.dragCard) {
       return;
     }
 
     const board = getActiveBoard();
     const sourceColumn = board.columns.find((candidate) => {
-      return candidate.id === S.dragCard.columnId;
+      return candidate.id === state.dragCard.columnId;
     });
     const targetColumn = board.columns.find((candidate) => {
       return candidate.id === columnId;
@@ -909,7 +909,7 @@ function setupColumnDrop(cardsList, columnId) {
     }
 
     const cardIndex = sourceColumn.cards.findIndex((candidate) => {
-      return candidate.id === S.dragCard.cardId;
+      return candidate.id === state.dragCard.cardId;
     });
     if (cardIndex === -1) {
       return;
@@ -931,7 +931,7 @@ function setupColumnDrop(cardsList, columnId) {
       targetColumn.cards.splice(insertAt, 0, card);
     }
 
-    S.dragCard = null;
+    state.dragCard = null;
     persistBoard(board);
     renderBoard(board);
   });
@@ -965,7 +965,7 @@ function renderReorderList(columns) {
       downDisabled = 'disabled';
     }
     row.innerHTML = `
-      <span class="reorder-name">${esc(column.name)}</span>
+      <span class="reorder-name">${escapeHtml(column.name)}</span>
       <div class="reorder-btns">
         <button class="reorder-btn" data-dir="-1" ${upDisabled} title="Move up">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 9l5-5 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1048,8 +1048,8 @@ function openCardModal(cardId, columnId) {
     return;
   }
 
-  S.editingCardId = cardId;
-  S.editingColumnId = columnId;
+  state.editingCardId = cardId;
+  state.editingColumnId = columnId;
 
   elementById('card-modal-title').value = card.title;
   let description = card.description;
@@ -1112,13 +1112,13 @@ function editingCard() {
   let column;
   if (board !== null && board !== undefined) {
     column = board.columns.find((candidate) => {
-      return candidate.id === S.editingColumnId;
+      return candidate.id === state.editingColumnId;
     });
   }
   let card;
   if (column !== undefined) {
     card = column.cards.find((candidate) => {
-      return candidate.id === S.editingCardId;
+      return candidate.id === state.editingCardId;
     });
   }
   if (!card) {
@@ -1155,8 +1155,8 @@ function renderDependencies(card) {
       clashClass = ' clash';
       clashTitle = 'Its dates clash with this task';
     }
-    return `<span class="dep-chip${clashClass}" title="${clashTitle}">${esc(other.title)}` +
-      `<button type="button" data-dep="${esc(id)}" aria-label="Stop waiting for ${esc(other.title)}"><span data-icon="close"></span></button></span>`;
+    return `<span class="dep-chip${clashClass}" title="${clashTitle}">${escapeHtml(other.title)}` +
+      `<button type="button" data-dep="${escapeHtml(id)}" aria-label="Stop waiting for ${escapeHtml(other.title)}"><span data-icon="close"></span></button></span>`;
   }).join('');
   if (!chipsHtml) {
     chipsHtml = '<span class="dep-none">Doesn’t wait for anything</span>';
@@ -1175,7 +1175,7 @@ function renderDependencies(card) {
   }
   elementById('card-dep-add').innerHTML = `<option value="">${promptText}</option>` +
     choices.map((other) => {
-      return `<option value="${esc(other.id)}">${esc(other.title)}</option>`;
+      return `<option value="${escapeHtml(other.id)}">${escapeHtml(other.title)}</option>`;
     }).join('');
   elementById('card-dep-add').disabled = !choices.length;
 }
@@ -1229,16 +1229,16 @@ function renderModalLabels(labels) {
       textColor = '#121815';
     }
     chip.style.cssText = `background:${label.color};border-color:rgba(${rgb},0.6);color:${textColor}`;
-    chip.innerHTML = `${esc(label.text)}<button data-i="${index}" title="Remove"><span data-icon="close"></span></button>`;
+    chip.innerHTML = `${escapeHtml(label.text)}<button data-i="${index}" title="Remove"><span data-icon="close"></span></button>`;
     chip.querySelector('button').addEventListener('click', () => {
       const board = getActiveBoard();
       const column = board.columns.find((candidate) => {
-        return candidate.id === S.editingColumnId;
+        return candidate.id === state.editingColumnId;
       });
       let card;
       if (column !== undefined) {
         card = column.cards.find((candidate) => {
-          return candidate.id === S.editingCardId;
+          return candidate.id === state.editingCardId;
         });
       }
       if (card) {
@@ -1268,17 +1268,17 @@ function renderChecklist(items) {
     }
     row.innerHTML = `
       <input type="checkbox" ${checkedAttribute} data-i="${index}" />
-      <span class="${doneClass}">${esc(item.text)}</span>
+      <span class="${doneClass}">${escapeHtml(item.text)}</span>
       <button class="del-check" data-i="${index}" title="Remove"><span data-icon="close"></span></button>`;
     row.querySelector('input').addEventListener('change', (event) => {
       const board = getActiveBoard();
       const column = board.columns.find((candidate) => {
-        return candidate.id === S.editingColumnId;
+        return candidate.id === state.editingColumnId;
       });
       let card;
       if (column !== undefined) {
         card = column.cards.find((candidate) => {
-          return candidate.id === S.editingCardId;
+          return candidate.id === state.editingCardId;
         });
       }
       if (card) {
@@ -1289,12 +1289,12 @@ function renderChecklist(items) {
     row.querySelector('.del-check').addEventListener('click', () => {
       const board = getActiveBoard();
       const column = board.columns.find((candidate) => {
-        return candidate.id === S.editingColumnId;
+        return candidate.id === state.editingColumnId;
       });
       let card;
       if (column !== undefined) {
         card = column.cards.find((candidate) => {
-          return candidate.id === S.editingCardId;
+          return candidate.id === state.editingCardId;
         });
       }
       if (card) {
@@ -1315,12 +1315,12 @@ elementById('add-label-btn').addEventListener('click', () => {
   }
   const board = getActiveBoard();
   const column = board.columns.find((candidate) => {
-    return candidate.id === S.editingColumnId;
+    return candidate.id === state.editingColumnId;
   });
   let card;
   if (column !== undefined) {
     card = column.cards.find((candidate) => {
-      return candidate.id === S.editingCardId;
+      return candidate.id === state.editingCardId;
     });
   }
   if (!card) {
@@ -1341,12 +1341,12 @@ elementById('add-check-btn').addEventListener('click', () => {
   }
   const board = getActiveBoard();
   const column = board.columns.find((candidate) => {
-    return candidate.id === S.editingColumnId;
+    return candidate.id === state.editingColumnId;
   });
   let card;
   if (column !== undefined) {
     card = column.cards.find((candidate) => {
-      return candidate.id === S.editingCardId;
+      return candidate.id === state.editingCardId;
     });
   }
   if (!card) {
@@ -1376,12 +1376,12 @@ elementById('new-label-input').addEventListener('keydown', (event) => {
 elementById('save-card-btn').addEventListener('click', () => {
   const board = getActiveBoard();
   const column = board.columns.find((candidate) => {
-    return candidate.id === S.editingColumnId;
+    return candidate.id === state.editingColumnId;
   });
   let card;
   if (column !== undefined) {
     card = column.cards.find((candidate) => {
-      return candidate.id === S.editingCardId;
+      return candidate.id === state.editingCardId;
     });
   }
   if (!card) {
@@ -1445,13 +1445,13 @@ elementById('save-card-btn').addEventListener('click', () => {
   touch(card);
 
   const targetColumnId = elementById('card-modal-col').value;
-  if (targetColumnId && targetColumnId !== S.editingColumnId) {
+  if (targetColumnId && targetColumnId !== state.editingColumnId) {
     const targetColumn = board.columns.find((candidate) => {
       return candidate.id === targetColumnId;
     });
     if (targetColumn) {
       column.cards = column.cards.filter((candidate) => {
-        return candidate.id !== S.editingCardId;
+        return candidate.id !== state.editingCardId;
       });
       targetColumn.cards.push(card);
     }
@@ -1469,15 +1469,15 @@ elementById('delete-card-btn').addEventListener('click', () => {
   }
   const board = getActiveBoard();
   const column = board.columns.find((candidate) => {
-    return candidate.id === S.editingColumnId;
+    return candidate.id === state.editingColumnId;
   });
   if (!column) {
     return;
   }
   column.cards = column.cards.filter((candidate) => {
-    return candidate.id !== S.editingCardId;
+    return candidate.id !== state.editingCardId;
   });
-  Timeline.pruneDeps(board);
+  Timeline.pruneDependencies(board);
   closeCardModal();
   persistBoard(board);
   renderBoard(board);
@@ -1571,7 +1571,7 @@ function renderCardImages(card) {
       thumbnailButtonText = 'Thumbnail';
     }
     item.innerHTML = `
-      <img alt="${esc(image.name)}" title="Open image" />
+      <img alt="${escapeHtml(image.name)}" title="Open image" />
       <div class="img-actions">
         <button type="button" class="img-action-btn thumb-img-btn${thumbnailButtonActive}" title="${thumbnailButtonTitle}">
           <svg width="11" height="11" viewBox="0 0 11 11"><path d="M5.5 1l1.2 2.4 2.8.4-2 2 .5 2.7-2.5-1.4L3 8.5l.5-2.7-2-2 2.8-.4z" fill="currentColor"/></svg>
@@ -1608,7 +1608,7 @@ function renderCardImages(card) {
       renderCardImages(card);
     });
     item.querySelector('.del-img-btn').addEventListener('click', async () => {
-      if (!S.isGuest && (image.file || image.path)) {
+      if (!state.isGuest && (image.file || image.path)) {
         try {
           let deleteBody;
           if (image.file) {
@@ -1653,13 +1653,13 @@ elementById('card-img-input').addEventListener('change', async (event) => {
   let column;
   if (board !== null && board !== undefined) {
     column = board.columns.find((candidate) => {
-      return candidate.id === S.editingColumnId;
+      return candidate.id === state.editingColumnId;
     });
   }
   let card;
   if (column !== undefined) {
     card = column.cards.find((candidate) => {
-      return candidate.id === S.editingCardId;
+      return candidate.id === state.editingCardId;
     });
   }
   if (!card) {
@@ -1670,7 +1670,7 @@ elementById('card-img-input').addEventListener('change', async (event) => {
   }
   for (const file of files) {
     const imageData = await resizeImage(file);
-    if (S.isGuest) {
+    if (state.isGuest) {
       card.images.push({ id: makeId(), data: imageData, name: file.name });
     } else {
       try {
@@ -1690,8 +1690,8 @@ elementById('card-img-input').addEventListener('change', async (event) => {
 });
 
 /* ── Rename/delete column modal ── */
-function openRenameColModal(column) {
-  S.editingColumnId = column.id;
+function openRenameColumnModal(column) {
+  state.editingColumnId = column.id;
   // On a timeline, a column is a phase.
   let word;
   if (isTimeline(getActiveBoard())) {
@@ -1709,7 +1709,7 @@ function openRenameColModal(column) {
 elementById('save-col-name-btn').addEventListener('click', () => {
   const board = getActiveBoard();
   const column = board.columns.find((candidate) => {
-    return candidate.id === S.editingColumnId;
+    return candidate.id === state.editingColumnId;
   });
   if (!column) {
     return;
@@ -1737,9 +1737,9 @@ elementById('delete-col-btn').addEventListener('click', () => {
   }
   const board = getActiveBoard();
   board.columns = board.columns.filter((candidate) => {
-    return candidate.id !== S.editingColumnId;
+    return candidate.id !== state.editingColumnId;
   });
-  Timeline.pruneDeps(board);
+  Timeline.pruneDependencies(board);
   elementById('rename-col-modal').classList.add('hidden');
   persistBoard(board);
   renderBoard(board);
@@ -1789,7 +1789,7 @@ const STARTING_COLUMNS = {
 
 function openNewBoardModal() {
   // A fresh start each time: Kanban, with its usual columns.
-  S.newBoardType = null;
+  state.newBoardType = null;
   setNewBoardType('kanban');
   elementById('new-board-name').value = '';
   elementById('new-board-modal').classList.remove('hidden');
@@ -1801,8 +1801,8 @@ function openNewBoardModal() {
 
 // Kanban or Timeline. The starting columns follow, unless they've been changed by hand.
 function setNewBoardType(type) {
-  const previousType = S.newBoardType;
-  S.newBoardType = type;
+  const previousType = state.newBoardType;
+  state.newBoardType = type;
   document.querySelectorAll('#new-board-type [data-type]').forEach((button) => {
     const selected = button.dataset.type === type;
     button.classList.toggle('active', selected);
@@ -1815,9 +1815,9 @@ function setNewBoardType(type) {
     columnsLabel = 'Starting columns';
   }
   elementById('new-board-cols-label').textContent = columnsLabel;
-  const untouched = !previousType || JSON.stringify(S.columnChips) === JSON.stringify(STARTING_COLUMNS[previousType]);
+  const untouched = !previousType || JSON.stringify(state.columnChips) === JSON.stringify(STARTING_COLUMNS[previousType]);
   if (untouched) {
-    S.columnChips = [...STARTING_COLUMNS[type]];
+    state.columnChips = [...STARTING_COLUMNS[type]];
   }
   renderColumnChips();
 }
@@ -1835,12 +1835,12 @@ elementById('new-board-type').addEventListener('keydown', (event) => {
     return;
   }
   event.preventDefault();
-  if (S.newBoardType === 'kanban') {
+  if (state.newBoardType === 'kanban') {
     setNewBoardType('timeline');
   } else {
     setNewBoardType('kanban');
   }
-  document.querySelector(`#new-board-type [data-type="${S.newBoardType}"]`).focus();
+  document.querySelector(`#new-board-type [data-type="${state.newBoardType}"]`).focus();
 });
 
 // The new board's starting columns as chips (clicking one removes it), and a "+ Add" button
@@ -1848,12 +1848,12 @@ elementById('new-board-type').addEventListener('keydown', (event) => {
 function renderColumnChips() {
   const container = elementById('new-board-cols');
   container.innerHTML = '';
-  S.columnChips.forEach((name, index) => {
+  state.columnChips.forEach((name, index) => {
     const chip = document.createElement('span');
     chip.className = 'col-chip removable';
-    chip.innerHTML = `${esc(name)}<span class="chip-x" data-icon="close"></span>`;
+    chip.innerHTML = `${escapeHtml(name)}<span class="chip-x" data-icon="close"></span>`;
     chip.addEventListener('click', () => {
-      S.columnChips.splice(index, 1);
+      state.columnChips.splice(index, 1);
       renderColumnChips();
     });
     container.appendChild(chip);
@@ -1877,7 +1877,7 @@ elementById('new-col-chip-input').addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     const columnName = event.target.value.trim();
     if (columnName) {
-      S.columnChips.push(columnName);
+      state.columnChips.push(columnName);
       event.target.value = '';
       event.target.classList.add('hidden');
       renderColumnChips();
@@ -1897,7 +1897,7 @@ elementById('create-board-btn').addEventListener('click', async () => {
     return;
   }
   let view;
-  if (S.newBoardType === 'timeline') {
+  if (state.newBoardType === 'timeline') {
     view = 'timeline';
   } else {
     view = 'kanban';
@@ -1906,13 +1906,13 @@ elementById('create-board-btn').addEventListener('click', async () => {
     id: makeId(),
     name,
     view: view,
-    columns: S.columnChips.map((columnName) => {
+    columns: state.columnChips.map((columnName) => {
       return touch({ id: makeId(), name: columnName, cards: [] });
     }),
   });
-  S.boards.push(board);
+  state.boards.push(board);
 
-  if (!S.isGuest) {
+  if (!state.isGuest) {
     try {
       await api('POST', '/boards/create', { board });
     } catch (error) {
@@ -1971,7 +1971,7 @@ elementById('delete-board-btn').addEventListener('click', async () => {
     return;
   }
 
-  if (!S.isGuest) {
+  if (!state.isGuest) {
     try {
       await api('DELETE', '/boards/delete', { boardId: board.id });
     } catch (error) {
@@ -1979,12 +1979,12 @@ elementById('delete-board-btn').addEventListener('click', async () => {
     }
   }
 
-  S.boards = S.boards.filter((other) => {
+  state.boards = state.boards.filter((other) => {
     return other.id !== board.id;
   });
-  S.activeBoardId = null;
+  state.activeBoardId = null;
   saveGuest();
-  if (!S.isGuest) {
+  if (!state.isGuest) {
     if (window.Sync !== null && window.Sync !== undefined) {
       window.Sync.changed();
     }
@@ -1996,8 +1996,8 @@ elementById('delete-board-btn').addEventListener('click', async () => {
   elementById('edit-board-title-btn').classList.add('hidden');
   setBoardActions(false);
   toast('Board deleted');
-  if (S.boards.length) {
-    selectBoard(S.boards[0].id);
+  if (state.boards.length) {
+    selectBoard(state.boards[0].id);
   }
 });
 
@@ -2168,21 +2168,21 @@ async function importBoardFromJSON(json, asNew) {
     toast('Invalid board file', 'error');
     return;
   }
-  if (asNew || !S.activeBoardId) {
+  if (asNew || !state.activeBoardId) {
     json.id = makeId();
   } else {
-    json.id = S.activeBoardId;
+    json.id = state.activeBoardId;
   }
-  if (!S.isGuest) {
+  if (!state.isGuest) {
     await uploadImportedImages(json);
   }
-  const index = S.boards.findIndex((board) => {
+  const index = state.boards.findIndex((board) => {
     return board.id === json.id;
   });
   if (index !== -1) {
-    S.boards[index] = json;
+    state.boards[index] = json;
   } else {
-    S.boards.push(json);
+    state.boards.push(json);
   }
   await persistBoard(json);
   renderBoardList();
@@ -2192,7 +2192,7 @@ async function importBoardFromJSON(json, asNew) {
 
 /* ── Persist board ── */
 async function persistBoard(board) {
-  if (S.isGuest) {
+  if (state.isGuest) {
     saveGuest();
     return;
   }
@@ -2267,7 +2267,7 @@ document.addEventListener('keydown', (event) => {
 
 /* ── Escape helper ── */
 // Makes text safe to put inside HTML: & < > and " become their HTML entities.
-function esc(text) {
+function escapeHtml(text) {
   let value = text;
   if (value === null || value === undefined) {
     value = '';
@@ -2281,11 +2281,11 @@ function esc(text) {
 
 /* ── Profile Modal ── */
 function openProfileModal() {
-  if (S.isGuest) {
+  if (state.isGuest) {
     toast('Sign in to edit your profile', 'error');
     return;
   }
-  let username = S.username;
+  let username = state.username;
   if (!username) {
     username = '';
   }
@@ -2294,7 +2294,7 @@ function openProfileModal() {
   elementById('profile-new-pass').value = '';
   elementById('profile-confirm-pass').value = '';
   clearError('profile-error');
-  S._pendingAvatarData = null;
+  state._pendingAvatarData = null;
   showAvatar(elementById('profile-modal-avatar'), false);
   elementById('profile-modal').classList.remove('hidden');
 }
@@ -2322,7 +2322,7 @@ elementById('profile-pic-input').addEventListener('change', async (event) => {
   const dataUrl = await resizeImage(file, 200);
   // Preview immediately
   elementById('profile-modal-avatar').innerHTML = `<img src="${dataUrl}" alt="" style="width:100%;height:100%;object-fit:cover;" />`;
-  S._pendingAvatarData = dataUrl;
+  state._pendingAvatarData = dataUrl;
 });
 
 // Save in the profile window: checks the name and password, then sends whichever of the
@@ -2363,10 +2363,10 @@ elementById('save-profile-btn').addEventListener('click', async () => {
         saveSession({ displayName: result.displayName });
       }
     }
-    if (S._pendingAvatarData) {
-      await api('PUT', '/auth/update-avatar', { imageData: S._pendingAvatarData });
-      S.hasAvatar = true;
-      S._pendingAvatarData = null;
+    if (state._pendingAvatarData) {
+      await api('PUT', '/auth/update-avatar', { imageData: state._pendingAvatarData });
+      state.hasAvatar = true;
+      state._pendingAvatarData = null;
       saveSession({ hasAvatar: true });
       // The new one, not the copy of the old one this session already has.
       ImageStore.avatar({ fresh: true }).catch(() => {});
@@ -2420,7 +2420,7 @@ elementById('delete-step3-confirm').addEventListener('click', async () => {
   try {
     elementById('delete-step3-confirm').disabled = true;
     await api('DELETE', '/auth/delete-account', { password: password });
-    localStorage.removeItem('uwuboard_avatar_' + S.session.userId);
+    localStorage.removeItem('uwuboard_avatar_' + state.session.userId);
     elementById('delete-account-modal').classList.add('hidden');
     logout();
     toast('Account deleted');
@@ -2452,18 +2452,18 @@ elementById('delete-step3-confirm').addEventListener('click', async () => {
   if (hasAvatar === null || hasAvatar === undefined) {
     hasAvatar = Boolean(parsed.avatarUrl);
   }
-  S.session = session;
+  state.session = session;
   try {
     const data = await api('GET', '/boards/list');
     setSession(session, username, displayName, hasAvatar);
-    S.boards = data.boards;
-    S.boardsReady = true;
+    state.boards = data.boards;
+    state.boardsReady = true;
     renderBoardList();
-    if (S.boards.length) {
-      selectBoard(S.boards[0].id);
+    if (state.boards.length) {
+      selectBoard(state.boards[0].id);
     }
   } catch {
-    S.session = null;
+    state.session = null;
     localStorage.removeItem('uwuboard_session');
   }
 })();
