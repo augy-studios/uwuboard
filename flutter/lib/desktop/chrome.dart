@@ -39,46 +39,69 @@ const titleBarHeight = 40.0;
 /// Back and Forward through the boards opened.
 class ViewHistory {
   ViewHistory._();
+
+  /// The boards opened, oldest first, and where in that list the open board is.
   static final List<String> _stack = [];
-  static int _at = -1;
+  static int _position = -1;
+
+  /// True while Back or Forward is opening a board (so that opening isn't added to the list).
   static bool _moving = false;
   static final ValueNotifier<int> changed = ValueNotifier(0);
 
+  /// Starts noting each board opened. Opening a board after going back drops the boards that
+  /// were ahead, as a browser does.
   static void start() {
     AppState.I.addListener(() {
       final id = AppState.I.activeBoardId;
-      if (_moving || id == null) return;
-      if (_at >= 0 && _stack[_at] == id) return;
-      _stack.removeRange(_at + 1, _stack.length);
+      if (_moving || id == null) {
+        return;
+      }
+      if (_position >= 0 && _stack[_position] == id) {
+        return;
+      }
+      _stack.removeRange(_position + 1, _stack.length);
       _stack.add(id);
-      _at = _stack.length - 1;
-      changed.value++;
+      _position = _stack.length - 1;
+      changed.value = changed.value + 1;
     });
   }
 
-  static bool get canBack => _at > 0;
-  static bool get canForward => _at < _stack.length - 1;
-
-  static void _go(int d) {
-    final to = _at + d;
-    if (to < 0 || to >= _stack.length) return;
-    _at = to;
-    _moving = true;
-    AppState.I.selectBoard(_stack[_at]);
-    _moving = false;
-    changed.value++;
+  static bool get canBack {
+    return _position > 0;
   }
 
-  static void back() => _go(-1);
-  static void forward() => _go(1);
+  static bool get canForward {
+    return _position < _stack.length - 1;
+  }
+
+  /// Opens the board `steps` places back (negative) or forward (positive), if there is one.
+  static void _go(int steps) {
+    final target = _position + steps;
+    if (target < 0 || target >= _stack.length) {
+      return;
+    }
+    _position = target;
+    _moving = true;
+    AppState.I.selectBoard(_stack[_position]);
+    _moving = false;
+    changed.value = changed.value + 1;
+  }
+
+  static void back() {
+    _go(-1);
+  }
+
+  static void forward() {
+    _go(1);
+  }
 }
 
 /// One thing the command bar offers.
-class _Hit {
-  _Hit(this.icon, this.title, this.sub, this.run);
+class _SearchHit {
+  _SearchHit(this.icon, this.title, this.subtitle, this.run);
   final String icon;
   final String title;
-  final String sub;
+  final String subtitle;
   final VoidCallback run;
 }
 
@@ -87,137 +110,252 @@ class DesktopChrome extends StatefulWidget {
   final Widget child;
 
   @override
-  State<DesktopChrome> createState() => _DesktopChromeState();
+  State<DesktopChrome> createState() {
+    return _DesktopChromeState();
+  }
 }
 
 class _DesktopChromeState extends State<DesktopChrome> {
-  final _search = TextEditingController();
-  final _focus = FocusNode();
-  final _layer = LayerLink();
-  OverlayEntry? _results;
+  final _searchController = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  /// Ties the results list to the command bar, so it opens just under it.
+  final _resultsLink = LayerLink();
+  OverlayEntry? _resultsEntry;
+
+  /// A short message shown in the command bar for a moment ('Link copied').
   String _message = '';
   Timer? _messageTimer;
   bool _reloading = false;
 
+  /// Focusing the command bar selects what's in it and opens the results; leaving it closes
+  /// them (a moment later, so a click on a result still lands).
   @override
   void initState() {
     super.initState();
-    _focus.addListener(() {
-      if (_focus.hasFocus) {
-        _search.selection = TextSelection(baseOffset: 0, extentOffset: _search.text.length);
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus) {
+        _searchController.selection = TextSelection(baseOffset: 0, extentOffset: _searchController.text.length);
         _showResults();
       } else {
         Timer(const Duration(milliseconds: 150), _hideResults);
       }
     });
-    _search.addListener(() => _results?.markNeedsBuild());
+    _searchController.addListener(() {
+      final resultsEntry = _resultsEntry;
+      if (resultsEntry != null) {
+        resultsEntry.markNeedsBuild();
+      }
+    });
   }
 
   @override
   void dispose() {
     _hideResults();
-    _search.dispose();
-    _focus.dispose();
+    _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
+  /// Shows `text` in the command bar for a second and a half.
   void say(String text) {
-    _messageTimer?.cancel();
-    setState(() => _message = text);
+    final oldTimer = _messageTimer;
+    if (oldTimer != null) {
+      oldTimer.cancel();
+    }
+    setState(() {
+      _message = text;
+    });
     _messageTimer = Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) setState(() => _message = '');
+      if (mounted) {
+        setState(() {
+          _message = '';
+        });
+      }
     });
   }
 
-  BuildContext? get _ctx => AppNav.context;
-
-  void _focusSearch() {
-    _search.text = '';
-    _focus.requestFocus();
+  /// The app's context under the navigator, for opening sheets.
+  BuildContext? get _appContext {
+    return AppNav.context;
   }
 
+  void _focusSearch() {
+    _searchController.text = '';
+    _searchFocus.requestFocus();
+  }
+
+  /// Fetches the boards again (signed in) and redraws the page.
   Future<void> _reload() async {
-    if (_reloading) return;
-    setState(() => _reloading = true);
-    if (AppState.I.signedIn) await AppState.I.loadUserBoards();
+    if (_reloading) {
+      return;
+    }
+    setState(() {
+      _reloading = true;
+    });
+    if (AppState.I.signedIn) {
+      await AppState.I.loadUserBoards();
+    }
     AppState.I.pageChanged();
-    if (mounted) setState(() => _reloading = false);
+    if (mounted) {
+      setState(() {
+        _reloading = false;
+      });
+    }
   }
 
   Future<void> _copyLink() async {
     final link = linkFor(boardId: AppState.I.activeBoardId);
-    if (link == null) return;
+    if (link == null) {
+      return;
+    }
     await copyText(link);
     say('Link copied');
   }
 
+  /// Ctrl+W: closes the open sheet or page if there is one, or else hides the window.
   void _closeTop() {
-    if (AppSheet.anyOpen || (AppNav.navigatorKey.currentState?.canPop() ?? false)) {
-      AppNav.navigatorKey.currentState?.maybePop();
+    bool somethingToClose;
+    if (AppSheet.anyOpen) {
+      somethingToClose = true;
+    } else {
+      final navigator = AppNav.navigatorKey.currentState;
+      if (navigator != null) {
+        somethingToClose = navigator.canPop();
+      } else {
+        somethingToClose = false;
+      }
+    }
+    if (somethingToClose) {
+      final navigator = AppNav.navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.maybePop();
+      }
     } else {
       Desktop.hide();
     }
   }
 
+  /// Escape: leaves the command bar, then full screen, then closes the open sheet or page.
   void _escape() {
-    if (_focus.hasFocus) {
-      _focus.unfocus();
+    if (_searchFocus.hasFocus) {
+      _searchFocus.unfocus();
       return;
     }
     if (Desktop.fullScreen.value) {
       Desktop.setFullScreen(false);
       return;
     }
-    AppNav.navigatorKey.currentState?.maybePop();
+    final navigator = AppNav.navigatorKey.currentState;
+    if (navigator != null) {
+      navigator.maybePop();
+    }
   }
 
-  /// What the command bar finds for what's typed.
-  List<_Hit> _hits(String q) {
-    final ctx = _ctx;
+  /// The command that switches the open board between Kanban and Timeline.
+  _SearchHit _viewToggleHit(AppState app) {
+    String icon;
+    String title;
+    if (app.isTimeline(app.activeBoard)) {
+      icon = 'kanban';
+      title = 'Show as Kanban';
+    } else {
+      icon = 'timeline';
+      title = 'Show as Timeline';
+    }
+    return _SearchHit(icon, title, 'Command', app.toggleView);
+  }
+
+  /// What the command bar finds for what's typed: a link to open, then the app's commands,
+  /// boards and (when something's typed) cards whose words match. At most 12.
+  List<_SearchHit> _hits(String typed) {
+    final appContext = _appContext;
     final app = AppState.I;
-    final query = q.trim().toLowerCase();
-    final hits = <_Hit>[];
-    final text = q.trim();
+    final query = typed.trim().toLowerCase();
+    final hits = <_SearchHit>[];
+    final text = typed.trim();
     if (text.isNotEmpty && parseLink(text) != null) {
-      hits.add(_Hit('link', 'Open $text', 'Link', () => _openTyped(text)));
+      hits.add(
+        _SearchHit('link', 'Open $text', 'Link', () {
+          _openTyped(text);
+        }),
+      );
     }
-    final commands = <_Hit>[
-      _Hit('plus', 'New board', 'Command', () => ctx == null ? null : openNewBoard(ctx)),
-      _Hit('sync', 'Sync with another device', 'Command', () => ctx == null ? null : openSync(ctx)),
-      _Hit('sun', 'Theme', 'Command · Ctrl+,', () => ctx == null ? null : openThemeSheet(ctx)),
-      _Hit('help', 'Show me around', 'Command', () => ctx == null ? null : openTourPicker(ctx)),
-      _Hit('bug', 'Report a bug', 'Command', () => ctx == null ? null : openBugReport(ctx)),
+    final commands = <_SearchHit>[
+      _SearchHit('plus', 'New board', 'Command', () {
+        if (appContext != null) {
+          openNewBoard(appContext);
+        }
+      }),
+      _SearchHit('sync', 'Sync with another device', 'Command', () {
+        if (appContext != null) {
+          openSync(appContext);
+        }
+      }),
+      _SearchHit('sun', 'Theme', 'Command · Ctrl+,', () {
+        if (appContext != null) {
+          openThemeSheet(appContext);
+        }
+      }),
+      _SearchHit('help', 'Show me around', 'Command', () {
+        if (appContext != null) {
+          openTourPicker(appContext);
+        }
+      }),
+      _SearchHit('bug', 'Report a bug', 'Command', () {
+        if (appContext != null) {
+          openBugReport(appContext);
+        }
+      }),
       if (app.activeBoard != null) ...[
-        _Hit(
-          app.isTimeline(app.activeBoard) ? 'kanban' : 'timeline',
-          app.isTimeline(app.activeBoard) ? 'Show as Kanban' : 'Show as Timeline',
-          'Command',
-          app.toggleView,
-        ),
-        _Hit('file-export', 'Export this board to a file', 'Command', exportActiveBoard),
-        _Hit('file-import', 'Import a board file over this board', 'Command', importOverActiveBoard),
+        _viewToggleHit(app),
+        _SearchHit('file-export', 'Export this board to a file', 'Command', exportActiveBoard),
+        _SearchHit('file-import', 'Import a board file over this board', 'Command', importOverActiveBoard),
       ],
-      _Hit('screenshot', 'Screenshot', 'Command', () => ctx == null ? null : Screenshots.take(ctx)),
-      _Hit('refresh', 'Reload', 'Command · F5', _reload),
+      _SearchHit('screenshot', 'Screenshot', 'Command', () {
+        if (appContext != null) {
+          Screenshots.take(appContext);
+        }
+      }),
+      _SearchHit('refresh', 'Reload', 'Command · F5', _reload),
     ];
-    for (final c in commands) {
-      if (query.isEmpty || c.title.toLowerCase().contains(query)) hits.add(c);
-    }
-    for (final b in app.boards) {
-      if (query.isEmpty || '${b['name']}'.toLowerCase().contains(query)) {
-        hits.add(_Hit(b['view'] == 'timeline' ? 'timeline' : 'kanban', '${b['name']}', 'Board', () => app.selectBoard('${b['id']}')));
+    for (final command in commands) {
+      if (query.isEmpty || command.title.toLowerCase().contains(query)) {
+        hits.add(command);
       }
     }
+    for (final board in app.boards) {
+      if (query.isEmpty || '${board['name']}'.toLowerCase().contains(query)) {
+        String boardIcon;
+        if (board['view'] == 'timeline') {
+          boardIcon = 'timeline';
+        } else {
+          boardIcon = 'kanban';
+        }
+        hits.add(
+          _SearchHit(boardIcon, '${board['name']}', 'Board', () {
+            app.selectBoard('${board['id']}');
+          }),
+        );
+      }
+    }
+    // Cards, by title or description, only once something's typed.
     if (query.isNotEmpty) {
-      for (final b in app.boards) {
-        for (final col in columnsOf(b)) {
-          for (final card in cardsOf(col)) {
-            if ('${card['title']}'.toLowerCase().contains(query) || '${card['description'] ?? ''}'.toLowerCase().contains(query)) {
+      for (final board in app.boards) {
+        for (final column in columnsOf(board)) {
+          for (final card in cardsOf(column)) {
+            Object? description = card['description'];
+            if (description == null) {
+              description = '';
+            }
+            if ('${card['title']}'.toLowerCase().contains(query) || '$description'.toLowerCase().contains(query)) {
               hits.add(
-                _Hit('pencil', '${card['title']}', 'Card in ${b['name']} · ${col['name']}', () {
-                  app.selectBoard('${b['id']}');
-                  final c = _ctx;
-                  if (c != null) openCardSheet(c, b, '${card['id']}');
+                _SearchHit('pencil', '${card['title']}', 'Card in ${board['name']} · ${column['name']}', () {
+                  app.selectBoard('${board['id']}');
+                  final cardContext = _appContext;
+                  if (cardContext != null) {
+                    openCardSheet(cardContext, board, '${card['id']}');
+                  }
                 }),
               );
             }
@@ -228,6 +366,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
     return hits.take(12).toList();
   }
 
+  /// Opens a typed link: another site's in the browser, the app's own in the app.
   Future<void> _openTyped(String text) async {
     final target = parseLink(text);
     if (target is LinkOut) {
@@ -235,23 +374,28 @@ class _DesktopChromeState extends State<DesktopChrome> {
       say('Opened in your browser');
       return;
     }
-    if (!await Links.open(text)) say('Not found');
+    if (!await Links.open(text)) {
+      say('Not found');
+    }
   }
 
+  /// Enter in the command bar: opens a link or address, or else runs the first result.
   void _submit(String text) {
-    _focus.unfocus();
-    final t = text.trim();
-    if (t.isEmpty) return;
-    if (parseLink(t) != null) {
-      _openTyped(t);
+    _searchFocus.unfocus();
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    if (parseLink(trimmed) != null) {
+      _openTyped(trimmed);
       return;
     }
     // A bare address: the site's own, or another's.
-    if (RegExp(r'^[^\s/?#]+\.[^\s/?#]+').hasMatch(t) && !t.contains(' ')) {
-      _openTyped('https://$t');
+    if (RegExp(r'^[^\s/?#]+\.[^\s/?#]+').hasMatch(trimmed) && !trimmed.contains(' ')) {
+      _openTyped('https://$trimmed');
       return;
     }
-    final hits = _hits(t);
+    final hits = _hits(trimmed);
     if (hits.isEmpty) {
       say('Not found');
     } else {
@@ -259,118 +403,160 @@ class _DesktopChromeState extends State<DesktopChrome> {
     }
   }
 
+  /// Opens the results list under the command bar, rebuilt as the typing changes.
   void _showResults() {
-    if (_results != null) return;
+    if (_resultsEntry != null) {
+      return;
+    }
     // The chrome sits above the navigator, so its overlay is the navigator's.
-    final overlay = AppNav.navigatorKey.currentState?.overlay;
-    if (overlay == null) return;
-    _results = OverlayEntry(
+    final navigator = AppNav.navigatorKey.currentState;
+    OverlayState? overlay;
+    if (navigator != null) {
+      overlay = navigator.overlay;
+    }
+    if (overlay == null) {
+      return;
+    }
+    final resultsEntry = OverlayEntry(
       builder: (context) {
-        final c = UwuColors.of(context);
-        final hits = _hits(_search.text);
+        final colors = UwuColors.of(context);
+        final hits = _hits(_searchController.text);
+        Widget resultsList;
+        if (hits.isEmpty) {
+          resultsList = Padding(
+            padding: const EdgeInsets.all(14),
+            child: Text('Nothing found', style: TextStyle(color: colors.muted)),
+          );
+        } else {
+          resultsList = ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            children: [
+              for (final hit in hits)
+                ListTile(
+                  dense: true,
+                  leading: AppIcon(hit.icon, size: 16, color: colors.muted),
+                  title: Text(
+                    hit.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: colors.ink, fontSize: 13.5),
+                  ),
+                  subtitle: Text(
+                    hit.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: colors.muted, fontSize: 11.5),
+                  ),
+                  onTap: () {
+                    _searchFocus.unfocus();
+                    hit.run();
+                  },
+                ),
+            ],
+          );
+        }
         return Positioned(
           width: 520,
           child: CompositedTransformFollower(
-            link: _layer,
+            link: _resultsLink,
             targetAnchor: Alignment.bottomCenter,
             followerAnchor: Alignment.topCenter,
             offset: const Offset(0, 6),
             child: Material(
               elevation: 12,
-              color: Color.alphaBlend(c.surfaceStrong, c.bg),
+              color: Color.alphaBlend(colors.surfaceStrong, colors.bg),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(c.round(12)),
-                side: BorderSide(color: c.edge),
+                borderRadius: BorderRadius.circular(colors.round(12)),
+                side: BorderSide(color: colors.edge),
               ),
               clipBehavior: Clip.antiAlias,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 420),
-                child: hits.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Text('Nothing found', style: TextStyle(color: c.muted)),
-                      )
-                    : ListView(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        children: [
-                          for (final h in hits)
-                            ListTile(
-                              dense: true,
-                              leading: AppIcon(h.icon, size: 16, color: c.muted),
-                              title: Text(
-                                h.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: c.ink, fontSize: 13.5),
-                              ),
-                              subtitle: Text(
-                                h.sub,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: c.muted, fontSize: 11.5),
-                              ),
-                              onTap: () {
-                                _focus.unfocus();
-                                h.run();
-                              },
-                            ),
-                        ],
-                      ),
+                child: resultsList,
               ),
             ),
           ),
         );
       },
     );
-    overlay.insert(_results!);
+    _resultsEntry = resultsEntry;
+    overlay.insert(resultsEntry);
   }
 
   void _hideResults() {
-    _results?.remove();
-    _results = null;
+    final resultsEntry = _resultsEntry;
+    if (resultsEntry != null) {
+      resultsEntry.remove();
+    }
+    _resultsEntry = null;
   }
 
+  /// The keyboard shortcuts: Ctrl on Windows and Linux, ⌘ on macOS, plus each system's own keys
+  /// for Back, Forward and full screen.
   Map<ShortcutActivator, VoidCallback> get _shortcuts {
     final mac = Env.macOS;
-    SingleActivator mod(LogicalKeyboardKey k, {bool shift = false}) => SingleActivator(k, control: !mac, meta: mac, shift: shift);
-    final ctx = _ctx;
+
+    /// A key with the system's command modifier (Ctrl, or ⌘ on macOS).
+    SingleActivator withModifier(LogicalKeyboardKey key, {bool shift = false}) {
+      return SingleActivator(key, control: !mac, meta: mac, shift: shift);
+    }
+
+    final appContext = _appContext;
     return {
-      mod(LogicalKeyboardKey.keyK): _focusSearch,
-      mod(LogicalKeyboardKey.keyF): _focusSearch,
-      mod(LogicalKeyboardKey.keyL): _focusSearch,
+      withModifier(LogicalKeyboardKey.keyK): _focusSearch,
+      withModifier(LogicalKeyboardKey.keyF): _focusSearch,
+      withModifier(LogicalKeyboardKey.keyL): _focusSearch,
       const SingleActivator(LogicalKeyboardKey.f6): _focusSearch,
-      mod(LogicalKeyboardKey.keyC, shift: true): _copyLink,
+      withModifier(LogicalKeyboardKey.keyC, shift: true): _copyLink,
       const SingleActivator(LogicalKeyboardKey.f5): _reload,
-      mod(LogicalKeyboardKey.keyR): _reload,
-      mod(LogicalKeyboardKey.comma): () => ctx == null ? null : openThemeSheet(ctx),
-      mod(LogicalKeyboardKey.keyW): _closeTop,
+      withModifier(LogicalKeyboardKey.keyR): _reload,
+      withModifier(LogicalKeyboardKey.comma): () {
+        if (appContext != null) {
+          openThemeSheet(appContext);
+        }
+      },
+      withModifier(LogicalKeyboardKey.keyW): _closeTop,
       const SingleActivator(LogicalKeyboardKey.escape): _escape,
       if (mac) ...{
         const SingleActivator(LogicalKeyboardKey.bracketLeft, meta: true): ViewHistory.back,
         const SingleActivator(LogicalKeyboardKey.bracketRight, meta: true): ViewHistory.forward,
-        const SingleActivator(LogicalKeyboardKey.keyF, meta: true, control: true): () => Desktop.setFullScreen(!Desktop.fullScreen.value),
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true, control: true): () {
+          Desktop.setFullScreen(!Desktop.fullScreen.value);
+        },
         const SingleActivator(LogicalKeyboardKey.keyQ, meta: true): Desktop.quit,
-        const SingleActivator(LogicalKeyboardKey.keyM, meta: true): () => windowManager.minimize(),
+        const SingleActivator(LogicalKeyboardKey.keyM, meta: true): () {
+          windowManager.minimize();
+        },
       } else ...{
         const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): ViewHistory.back,
         const SingleActivator(LogicalKeyboardKey.arrowRight, alt: true): ViewHistory.forward,
-        const SingleActivator(LogicalKeyboardKey.f11): () => Desktop.setFullScreen(!Desktop.fullScreen.value),
+        const SingleActivator(LogicalKeyboardKey.f11): () {
+          Desktop.setFullScreen(!Desktop.fullScreen.value);
+        },
       },
-      mod(LogicalKeyboardKey.keyN): () => ctx == null ? null : openNewBoard(ctx),
+      withModifier(LogicalKeyboardKey.keyN): () {
+        if (appContext != null) {
+          openNewBoard(appContext);
+        }
+      },
     };
   }
 
+  /// The title bar (hidden in full screen) over the app, with the shortcuts, and on macOS the
+  /// menu bar.
   @override
   Widget build(BuildContext context) {
     final body = ValueListenableBuilder<bool>(
       valueListenable: Desktop.fullScreen,
-      builder: (context, full, _) => Column(
-        children: [
-          if (!full) _bar(context),
-          Expanded(child: widget.child),
-        ],
-      ),
+      builder: (context, fullScreen, child) {
+        return Column(
+          children: [
+            if (!fullScreen) _bar(context),
+            Expanded(child: widget.child),
+          ],
+        );
+      },
     );
     Widget app = CallbackShortcuts(
       bindings: _shortcuts,
@@ -379,97 +565,177 @@ class _DesktopChromeState extends State<DesktopChrome> {
       // fills the title bar.
       child: Focus(autofocus: true, child: Overlay.wrap(child: body)),
     );
-    if (Env.macOS) app = _MacMenus(chrome: this, child: app);
+    if (Env.macOS) {
+      app = _MacMenus(chrome: this, child: app);
+    }
     return app;
   }
 
+  /// The title bar itself: its colour and writing colour worked out from the theme, then Back,
+  /// Forward, Reload, the command bar, Copy link, the screenshot buttons, Update (when one's
+  /// ready) and the window buttons.
   Widget _bar(BuildContext context) {
-    final c = UwuColors.of(context);
-    final native = c.native != null;
-    final brand = c.glass ? ThemeController.I.colorTheme.color : c.brandFill;
-    final dark = c.glass && ThemeController.I.brightness == Brightness.dark;
-    final bg = native ? Colors.transparent : (dark ? Color.lerp(brand, Colors.black, 0.72)! : brand);
-    final ink = native ? c.ink : (ThemeData.estimateBrightnessForColor(bg) == Brightness.dark ? Colors.white : const Color(0xFF121815));
+    final colors = UwuColors.of(context);
+    final native = colors.native != null;
+    Color brand;
+    if (colors.glass) {
+      brand = ThemeController.I.colorTheme.color;
+    } else {
+      brand = colors.brandFill;
+    }
+    final dark = colors.glass && ThemeController.I.brightness == Brightness.dark;
+    // The bar's colour: clear on native glass, a deep shade of the brand in dark glass, or else
+    // the brand colour itself.
+    Color background;
+    if (native) {
+      background = Colors.transparent;
+    } else if (dark) {
+      background = Color.lerp(brand, Colors.black, 0.72)!;
+    } else {
+      background = brand;
+    }
+    // The writing colour: light or dark, whichever stands out on the bar.
+    Color ink;
+    if (native) {
+      ink = colors.ink;
+    } else if (ThemeData.estimateBrightnessForColor(background) == Brightness.dark) {
+      ink = Colors.white;
+    } else {
+      ink = const Color(0xFF121815);
+    }
     final mac = Env.macOS;
-    Widget tool(String icon, String label, VoidCallback? onTap, {Color? colour}) => Tooltip(
-      excludeFromSemantics: true,
-      message: label,
-      child: Semantics(
-        button: true,
-        label: label,
-        excludeSemantics: true,
-        child: InkWell(
-          mouseCursor: WidgetStateMouseCursor.clickable,
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          child: SizedBox(
-            width: 32,
-            height: 30,
-            child: Center(child: AppIcon(icon, size: 16, color: onTap == null ? ink.withValues(alpha: 0.35) : (colour ?? ink))),
+
+    /// One of the bar's icon buttons; faded when `onTap` is null (not available now).
+    Widget tool(String icon, String label, VoidCallback? onTap, {Color? colour}) {
+      Color iconColor;
+      if (onTap == null) {
+        iconColor = ink.withValues(alpha: 0.35);
+      } else if (colour != null) {
+        iconColor = colour;
+      } else {
+        iconColor = ink;
+      }
+      return Tooltip(
+        excludeFromSemantics: true,
+        message: label,
+        child: Semantics(
+          button: true,
+          label: label,
+          excludeSemantics: true,
+          child: InkWell(
+            mouseCursor: WidgetStateMouseCursor.clickable,
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              width: 32,
+              height: 30,
+              child: Center(child: AppIcon(icon, size: 16, color: iconColor)),
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
+
+    // On macOS the traffic lights sit at the left.
+    double leadingGap;
+    if (mac) {
+      leadingGap = 78;
+    } else {
+      leadingGap = 8;
+    }
     return Material(
-      color: bg,
+      color: background,
       child: SizedBox(
         height: titleBarHeight,
         child: Row(
           children: [
-            SizedBox(width: mac ? 78 : 8),
+            SizedBox(width: leadingGap),
             ValueListenableBuilder<int>(
               valueListenable: ViewHistory.changed,
-              builder: (context, _, _) => Row(
-                children: [
-                  tool('arrow-left', 'Back', ViewHistory.canBack ? ViewHistory.back : null),
-                  tool('arrow-right', 'Forward', ViewHistory.canForward ? ViewHistory.forward : null),
-                ],
-              ),
+              builder: (context, changeCount, child) {
+                VoidCallback? onBack;
+                if (ViewHistory.canBack) {
+                  onBack = ViewHistory.back;
+                } else {
+                  onBack = null;
+                }
+                VoidCallback? onForward;
+                if (ViewHistory.canForward) {
+                  onForward = ViewHistory.forward;
+                } else {
+                  onForward = null;
+                }
+                return Row(
+                  children: [
+                    tool('arrow-left', 'Back', onBack),
+                    tool('arrow-right', 'Forward', onForward),
+                  ],
+                );
+              },
             ),
-            _reloading
-                ? SizedBox(
-                    width: 32,
-                    child: Center(
-                      child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: ink)),
-                    ),
-                  )
-                : tool('refresh', 'Reload', _reload),
+            if (_reloading)
+              SizedBox(
+                width: 32,
+                child: Center(
+                  child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: ink)),
+                ),
+              )
+            else
+              tool('refresh', 'Reload', _reload),
             Expanded(
               child: DragToMoveArea(
                 child: SizedBox(
                   height: titleBarHeight,
-                  child: Center(child: _commandBar(c, ink, native)),
+                  child: Center(child: _commandBar(colors, ink, native)),
                 ),
               ),
             ),
             tool('link', 'Copy link', _copyLink),
             ValueListenableBuilder<bool>(
               valueListenable: Screenshots.busy,
-              builder: (context, busy, _) => Row(
-                children: [
-                  tool('screenshot', 'Screenshot', busy ? null : () => Screenshots.take(context)),
-                  tool('screenshot-long', 'Long screenshot', busy ? null : () => Screenshots.takeLong(context)),
-                ],
-              ),
+              builder: (context, busy, child) {
+                VoidCallback? onScreenshot;
+                VoidCallback? onLongScreenshot;
+                if (busy) {
+                  onScreenshot = null;
+                  onLongScreenshot = null;
+                } else {
+                  onScreenshot = () {
+                    Screenshots.take(context);
+                  };
+                  onLongScreenshot = () {
+                    Screenshots.takeLong(context);
+                  };
+                }
+                return Row(
+                  children: [
+                    tool('screenshot', 'Screenshot', onScreenshot),
+                    tool('screenshot-long', 'Long screenshot', onLongScreenshot),
+                  ],
+                );
+              },
             ),
             ValueListenableBuilder<String?>(
               valueListenable: Updater.ready,
-              builder: (context, ready, _) => ready == null
-                  ? const SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF16A34A),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          minimumSize: const Size(0, 28),
-                        ),
-                        onPressed: Updater.restartToUpdate,
-                        icon: const AppIcon('download', size: 14, color: Colors.white),
-                        label: Text('Update to $ready', style: const TextStyle(fontSize: 12)),
-                      ),
+              builder: (context, ready, child) {
+                if (ready == null) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A34A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      minimumSize: const Size(0, 28),
                     ),
+                    onPressed: Updater.restartToUpdate,
+                    icon: const AppIcon('download', size: 14, color: Colors.white),
+                    label: Text('Update to $ready', style: const TextStyle(fontSize: 12)),
+                  ),
+                );
+              },
             ),
             if (!mac) _WindowButtons(ink: ink) else const SizedBox(width: 8),
           ],
@@ -478,49 +744,94 @@ class _DesktopChromeState extends State<DesktopChrome> {
     );
   }
 
-  Widget _commandBar(UwuColors c, Color ink, bool native) {
+  /// The command bar: at rest it shows the open board's name (or a message), centred in the
+  /// bar's writing colour; focused, it's a search field in the theme's own colours.
+  Widget _commandBar(UwuColors colors, Color ink, bool native) {
     final board = AppState.I.activeBoard;
-    final rest = _message.isNotEmpty ? _message : (board == null ? 'uwuBoard' : '${board['name']}');
+    String rest;
+    if (_message.isNotEmpty) {
+      rest = _message;
+    } else if (board == null) {
+      rest = 'uwuBoard';
+    } else {
+      rest = '${board['name']}';
+    }
     return CompositedTransformTarget(
-      link: _layer,
+      link: _resultsLink,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520, minWidth: 160),
         child: SizedBox(
           height: 28,
           child: ListenableBuilder(
-            listenable: Listenable.merge([_focus, AppState.I]),
-            builder: (context, _) => TextField(
-              controller: _search,
-              focusNode: _focus,
-              onSubmitted: _submit,
-              textAlign: _focus.hasFocus ? TextAlign.start : TextAlign.center,
-              style: TextStyle(fontSize: 13, color: _focus.hasFocus ? c.ink : ink),
-              cursorColor: c.brandInk,
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: _focus.hasFocus
-                    ? (native ? Color.alphaBlend(c.surfaceStrong, c.bg) : c.surfaceStrong)
-                    : (native ? c.surfaceStrong : Colors.black.withValues(alpha: 0.08)),
-                hintText: _focus.hasFocus ? 'Search boards, cards and commands, or paste a link' : rest,
-                hintStyle: TextStyle(fontSize: 13, color: _focus.hasFocus ? c.muted : ink.withValues(alpha: 0.85)),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 8, right: 6),
-                  child: AppIcon('search', size: 14, color: _focus.hasFocus ? c.muted : ink.withValues(alpha: 0.7)),
+            listenable: Listenable.merge([_searchFocus, AppState.I]),
+            builder: (context, child) {
+              final focused = _searchFocus.hasFocus;
+              TextAlign textAlign;
+              Color textColor;
+              Color fillColor;
+              String hintText;
+              Color hintColor;
+              Color iconColor;
+              if (focused) {
+                textAlign = TextAlign.start;
+                textColor = colors.ink;
+                if (native) {
+                  fillColor = Color.alphaBlend(colors.surfaceStrong, colors.bg);
+                } else {
+                  fillColor = colors.surfaceStrong;
+                }
+                hintText = 'Search boards, cards and commands, or paste a link';
+                hintColor = colors.muted;
+                iconColor = colors.muted;
+              } else {
+                textAlign = TextAlign.center;
+                textColor = ink;
+                if (native) {
+                  fillColor = colors.surfaceStrong;
+                } else {
+                  fillColor = Colors.black.withValues(alpha: 0.08);
+                }
+                hintText = rest;
+                hintColor = ink.withValues(alpha: 0.85);
+                iconColor = ink.withValues(alpha: 0.7);
+              }
+              BorderSide enabledBorderSide;
+              if (native) {
+                enabledBorderSide = BorderSide(color: colors.edge);
+              } else {
+                enabledBorderSide = BorderSide.none;
+              }
+              return TextField(
+                controller: _searchController,
+                focusNode: _searchFocus,
+                onSubmitted: _submit,
+                textAlign: textAlign,
+                style: TextStyle(fontSize: 13, color: textColor),
+                cursorColor: colors.brandInk,
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: fillColor,
+                  hintText: hintText,
+                  hintStyle: TextStyle(fontSize: 13, color: hintColor),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 6),
+                    child: AppIcon('search', size: 14, color: iconColor),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 0),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(_barRadius(colors)), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(_barRadius(colors)),
+                    borderSide: enabledBorderSide,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(_barRadius(colors)),
+                    borderSide: BorderSide(color: colors.brandInk, width: 1.5),
+                  ),
                 ),
-                prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 0),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(_barRadius(c)), borderSide: BorderSide.none),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(_barRadius(c)),
-                  borderSide: native ? BorderSide(color: c.edge) : BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(_barRadius(c)),
-                  borderSide: BorderSide(color: c.brandInk, width: 1.5),
-                ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -529,11 +840,16 @@ class _DesktopChromeState extends State<DesktopChrome> {
 }
 
 /// The command bar's corners: Fluent's search box is barely rounded, Tahoe's a capsule.
-double _barRadius(UwuColors c) => switch (c.native) {
-  GlassStyle.fluent => 4,
-  GlassStyle.tahoe => 14,
-  _ => 8,
-};
+double _barRadius(UwuColors colors) {
+  switch (colors.native) {
+    case GlassStyle.fluent:
+      return 4;
+    case GlassStyle.tahoe:
+      return 14;
+    default:
+      return 8;
+  }
+}
 
 /// Minimise, maximise or restore, and close (which keeps the app in the tray): full bar height,
 /// 46 px wide each, close turning red on hover.
@@ -545,24 +861,42 @@ class _WindowButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<bool>(
       valueListenable: Desktop.maximized,
-      builder: (context, max, _) => Row(
-        children: [
-          _WinButton(icon: 'minimise', label: 'Minimise', ink: ink, onTap: windowManager.minimize),
-          _WinButton(
-            icon: max ? 'restore' : 'maximise',
-            label: max ? 'Restore' : 'Maximise',
-            ink: ink,
-            onTap: () async => max ? windowManager.unmaximize() : windowManager.maximize(),
-          ),
-          _WinButton(icon: 'close', label: 'Close', ink: ink, close: true, onTap: Desktop.hide),
-        ],
-      ),
+      builder: (context, maximized, child) {
+        String middleIcon;
+        String middleLabel;
+        if (maximized) {
+          middleIcon = 'restore';
+          middleLabel = 'Restore';
+        } else {
+          middleIcon = 'maximise';
+          middleLabel = 'Maximise';
+        }
+        return Row(
+          children: [
+            _WindowButton(icon: 'minimise', label: 'Minimise', ink: ink, onTap: windowManager.minimize),
+            _WindowButton(
+              icon: middleIcon,
+              label: middleLabel,
+              ink: ink,
+              onTap: () async {
+                if (maximized) {
+                  await windowManager.unmaximize();
+                } else {
+                  await windowManager.maximize();
+                }
+              },
+            ),
+            _WindowButton(icon: 'close', label: 'Close', ink: ink, close: true, onTap: Desktop.hide),
+          ],
+        );
+      },
     );
   }
 }
 
-class _WinButton extends StatefulWidget {
-  const _WinButton({required this.icon, required this.label, required this.ink, required this.onTap, this.close = false});
+/// One of the window buttons, highlighted under the mouse (close in red).
+class _WindowButton extends StatefulWidget {
+  const _WindowButton({required this.icon, required this.label, required this.ink, required this.onTap, this.close = false});
   final String icon;
   final String label;
   final Color ink;
@@ -570,30 +904,58 @@ class _WinButton extends StatefulWidget {
   final bool close;
 
   @override
-  State<_WinButton> createState() => _WinButtonState();
+  State<_WindowButton> createState() {
+    return _WindowButtonState();
+  }
 }
 
-class _WinButtonState extends State<_WinButton> {
-  bool _over = false;
+class _WindowButtonState extends State<_WindowButton> {
+  /// True while the mouse is over it.
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final hover = widget.close ? const Color(0xFFE81123) : widget.ink.withValues(alpha: 0.12);
+    Color hoverColor;
+    if (widget.close) {
+      hoverColor = const Color(0xFFE81123);
+    } else {
+      hoverColor = widget.ink.withValues(alpha: 0.12);
+    }
+    Color background;
+    if (_hovered) {
+      background = hoverColor;
+    } else {
+      background = Colors.transparent;
+    }
+    Color iconColor;
+    if (_hovered && widget.close) {
+      iconColor = Colors.white;
+    } else {
+      iconColor = widget.ink;
+    }
     return Semantics(
       button: true,
       label: widget.label,
       excludeSemantics: true,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _over = true),
-        onExit: (_) => setState(() => _over = false),
+        onEnter: (event) {
+          setState(() {
+            _hovered = true;
+          });
+        },
+        onExit: (event) {
+          setState(() {
+            _hovered = false;
+          });
+        },
         child: GestureDetector(
           onTap: widget.onTap,
           child: Container(
             width: 46,
             height: titleBarHeight,
-            color: _over ? hover : Colors.transparent,
-            child: Center(child: AppIcon(widget.icon, size: 14, stroke: 1.4, color: _over && widget.close ? Colors.white : widget.ink)),
+            color: background,
+            child: Center(child: AppIcon(widget.icon, size: 14, stroke: 1.4, color: iconColor)),
           ),
         ),
       ),
@@ -609,9 +971,13 @@ class _MacMenus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ctx = AppNav.context;
-    PlatformMenuItem item(String label, VoidCallback onTap, [MenuSerializableShortcut? key]) =>
-        PlatformMenuItem(label: label, onSelected: onTap, shortcut: key);
+    final appContext = AppNav.context;
+
+    /// One menu item, with its keyboard shortcut if it has one.
+    PlatformMenuItem item(String label, VoidCallback onTap, [MenuSerializableShortcut? shortcut]) {
+      return PlatformMenuItem(label: label, onSelected: onTap, shortcut: shortcut);
+    }
+
     return PlatformMenuBar(
       menus: [
         PlatformMenu(
@@ -619,7 +985,11 @@ class _MacMenus extends StatelessWidget {
           menus: [
             PlatformMenuItemGroup(
               members: [
-                item('Settings…', () => ctx == null ? null : openThemeSheet(ctx), const SingleActivator(LogicalKeyboardKey.comma, meta: true)),
+                item('Settings…', () {
+                  if (appContext != null) {
+                    openThemeSheet(appContext);
+                  }
+                }, const SingleActivator(LogicalKeyboardKey.comma, meta: true)),
                 item('Check for Updates…', Updater.checkNow),
               ],
             ),
@@ -630,7 +1000,11 @@ class _MacMenus extends StatelessWidget {
         PlatformMenu(
           label: 'File',
           menus: [
-            item('New Board', () => ctx == null ? null : openNewBoard(ctx), const SingleActivator(LogicalKeyboardKey.keyN, meta: true)),
+            item('New Board', () {
+              if (appContext != null) {
+                openNewBoard(appContext);
+              }
+            }, const SingleActivator(LogicalKeyboardKey.keyN, meta: true)),
             item('Export Board…', exportActiveBoard),
             item('Import Board…', importOverActiveBoard),
             item('Close', chrome._closeTop, const SingleActivator(LogicalKeyboardKey.keyW, meta: true)),
@@ -651,7 +1025,9 @@ class _MacMenus extends StatelessWidget {
             item('Forward', ViewHistory.forward, const SingleActivator(LogicalKeyboardKey.bracketRight, meta: true)),
             item(
               'Toggle Full Screen',
-              () => Desktop.setFullScreen(!Desktop.fullScreen.value),
+              () {
+                Desktop.setFullScreen(!Desktop.fullScreen.value);
+              },
               const SingleActivator(LogicalKeyboardKey.keyF, meta: true, control: true),
             ),
           ],
@@ -659,16 +1035,32 @@ class _MacMenus extends StatelessWidget {
         PlatformMenu(
           label: 'Window',
           menus: [
-            item('Minimise', () => windowManager.minimize(), const SingleActivator(LogicalKeyboardKey.keyM, meta: true)),
-            item('Sync with Another Device…', () => ctx == null ? null : openSync(ctx)),
+            item('Minimise', () {
+              windowManager.minimize();
+            }, const SingleActivator(LogicalKeyboardKey.keyM, meta: true)),
+            item('Sync with Another Device…', () {
+              if (appContext != null) {
+                openSync(appContext);
+              }
+            }),
           ],
         ),
         PlatformMenu(
           label: 'Help',
           menus: [
-            item('Show Me Around', () => ctx == null ? null : openTourPicker(ctx)),
-            item('Report a Bug…', () => ctx == null ? null : openBugReport(ctx)),
-            item('uwuBoard on the Web', () => Desktop.openExternal(Desktop.site)),
+            item('Show Me Around', () {
+              if (appContext != null) {
+                openTourPicker(appContext);
+              }
+            }),
+            item('Report a Bug…', () {
+              if (appContext != null) {
+                openBugReport(appContext);
+              }
+            }),
+            item('uwuBoard on the Web', () {
+              Desktop.openExternal(Desktop.site);
+            }),
           ],
         ),
       ],
