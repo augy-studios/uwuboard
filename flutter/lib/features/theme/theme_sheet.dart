@@ -68,9 +68,9 @@ class ThemeSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: ThemeController.I,
+      listenable: ThemeController.instance,
       builder: (context, child) {
-        final themeController = ThemeController.I;
+        final themeController = ThemeController.instance;
         final colors = UwuColors.of(context);
         final material = themeController.isMaterial;
         final native = themeController.isNative;
@@ -239,7 +239,7 @@ class ThemeSheet extends StatelessWidget {
             section('Look'),
             segmentedControl<String>(
               [
-                if (Env.desktop) (lookNative, 'monitor', glass.label) else (lookMaterial, 'palette', 'Material You'),
+                if (Environment.desktop) (lookNative, 'monitor', glass.label) else (lookMaterial, 'palette', 'Material You'),
                 (lookUwuApps, 'sun', 'UwU Apps'),
               ],
               themeController.look,
@@ -261,7 +261,7 @@ class ThemeSheet extends StatelessWidget {
                 child: Text('Following the clock. Currently ${themeController.mode}.', style: TextStyle(color: colors.muted, fontSize: 12.5)),
               ),
             if (!material && !native) ...[
-              if (Env.desktop && desktopAccentSet != null) ...[
+              if (Environment.desktop && desktopAccentSet != null) ...[
                 section('System accent'),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,

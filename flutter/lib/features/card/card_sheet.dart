@@ -71,7 +71,7 @@ class _CardSheetState extends State<CardSheet> {
   bool _uploading = false;
 
   bool get _isTimeline {
-    return AppState.I.isTimeline(widget.board);
+    return AppState.instance.isTimeline(widget.board);
   }
 
   /// The draft's list under this key, made (and kept on the draft) when there isn't one yet.
@@ -99,7 +99,7 @@ class _CardSheetState extends State<CardSheet> {
       return;
     }
     setState(() {
-      _draft[key] = timeline.todayIso(picked);
+      _draft[key] = timeline.todayIsoDate(picked);
     });
   }
 
@@ -116,17 +116,17 @@ class _CardSheetState extends State<CardSheet> {
     for (final file in files) {
       final data = resizeToDataUrl(await file.readAsBytes());
       if (data == null) {
-        AppNav.toast('That image could not be read', error: true);
+        AppNavigation.toast('That image could not be read', error: true);
         continue;
       }
-      if (AppState.I.isGuest) {
-        _list('images').add({'id': uid(), 'data': data, 'name': file.name});
+      if (AppState.instance.isGuest) {
+        _list('images').add({'id': uniqueId(), 'data': data, 'name': file.name});
       } else {
         try {
           final response = await Api.call('POST', '/images/upload', {'imageData': data, 'fileName': file.name});
-          _list('images').add({'id': uid(), 'file': response['file'], 'name': file.name});
+          _list('images').add({'id': uniqueId(), 'file': response['file'], 'name': file.name});
         } on ApiError {
-          AppNav.toast('Image upload failed', error: true);
+          AppNavigation.toast('Image upload failed', error: true);
         }
       }
     }
@@ -143,7 +143,7 @@ class _CardSheetState extends State<CardSheet> {
   /// Deletes an image from storage (when signed in) and from the draft, and from the saved card
   /// straight away too, since it's gone from storage.
   Future<void> _deleteImage(Json image) async {
-    if (!AppState.I.isGuest && (image['file'] != null || image['path'] != null)) {
+    if (!AppState.instance.isGuest && (image['file'] != null || image['path'] != null)) {
       try {
         Map<String, dynamic> target;
         if (image['file'] != null) {
@@ -153,7 +153,7 @@ class _CardSheetState extends State<CardSheet> {
         }
         await Api.call('DELETE', '/images/delete', target);
       } on ApiError {
-        AppNav.toast('Could not delete image from storage', error: true);
+        AppNavigation.toast('Could not delete image from storage', error: true);
       }
     }
     setState(() {
@@ -181,7 +181,7 @@ class _CardSheetState extends State<CardSheet> {
       if (widget.card['thumbnailId'] == image['id']) {
         widget.card['thumbnailId'] = _draft['thumbnailId'];
       }
-      AppState.I.persistBoard(widget.board);
+      AppState.instance.persistBoard(widget.board);
     }
   }
 
@@ -198,10 +198,10 @@ class _CardSheetState extends State<CardSheet> {
       }
       final where = await saveFile(name, loaded.bytes, mime: loaded.type);
       if (where != null) {
-        AppNav.toast('Saved $name');
+        AppNavigation.toast('Saved $name');
       }
     } catch (error) {
-      AppNav.toast('That image could not be loaded', error: true);
+      AppNavigation.toast('That image could not be loaded', error: true);
     }
   }
 
@@ -263,7 +263,7 @@ class _CardSheetState extends State<CardSheet> {
       }
     }
     if (start.isNotEmpty && due.isNotEmpty && start.compareTo(due) > 0) {
-      AppNav.toast('The start date is after the due date', error: true);
+      AppNavigation.toast('The start date is after the due date', error: true);
       return;
     }
     final card = widget.card;
@@ -310,11 +310,11 @@ class _CardSheetState extends State<CardSheet> {
     touch(card);
     AppSheet.close(context);
     if (_columnId != widget.columnId) {
-      AppState.I.moveCard(widget.board, '${card['id']}', _columnId);
+      AppState.instance.moveCard(widget.board, '${card['id']}', _columnId);
     } else {
-      AppState.I.persistBoard(widget.board);
+      AppState.instance.persistBoard(widget.board);
     }
-    AppNav.toast('Card saved');
+    AppNavigation.toast('Card saved');
   }
 
   /// The sheet: the title on top, then description, due date and priority, the Timeline fields
@@ -344,11 +344,11 @@ class _CardSheetState extends State<CardSheet> {
         TextButton(
           style: TextButton.styleFrom(foregroundColor: colors.error),
           onPressed: () async {
-            if (!await AppNav.confirm('Delete this card?') || !context.mounted) {
+            if (!await AppNavigation.confirm('Delete this card?') || !context.mounted) {
               return;
             }
             AppSheet.close(context);
-            AppState.I.deleteCard(widget.board, '${widget.card['id']}');
+            AppState.instance.deleteCard(widget.board, '${widget.card['id']}');
           },
           child: const Text('Delete Card'),
         ),
@@ -771,7 +771,7 @@ class _CardSheetState extends State<CardSheet> {
       edgeColour = colors.brandInk;
       edgeWidth = 2;
       starLabel = 'Thumbnail';
-      starColour = colors.warn;
+      starColour = colors.warning;
     } else {
       edgeColour = colors.border;
       edgeWidth = 1;
@@ -862,7 +862,7 @@ class _CardSheetState extends State<CardSheet> {
                       width: 26,
                       height: 26,
                       decoration: BoxDecoration(
-                        color: Color(0xFF000000 | parseHex(hex)!),
+                        color: Color(0xFF000000 | parseHexColour(hex)!),
                         shape: BoxShape.circle,
                         border: Border.all(color: colors.border),
                       ),
@@ -880,7 +880,7 @@ class _CardSheetState extends State<CardSheet> {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: Color(0xFF000000 | parseHex(_labelColour)!),
+            color: Color(0xFF000000 | parseHexColour(_labelColour)!),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: colors.border, width: 1.5),
           ),
@@ -956,11 +956,11 @@ class _CardSheetState extends State<CardSheet> {
 
 /// Exports the open board to a file, its images inside it.
 Future<void> exportActiveBoard() async {
-  final board = AppState.I.activeBoard;
+  final board = AppState.instance.activeBoard;
   if (board == null) {
     return;
   }
-  final result = await AppState.I.exportBoard(board);
+  final result = await AppState.instance.exportBoard(board);
   final where = await saveFile(exportName(board), utf8.encode(result.json), mime: 'application/json');
   if (where == null) {
     return;
@@ -972,9 +972,9 @@ Future<void> exportActiveBoard() async {
     } else {
       missingText = '${result.missing} images';
     }
-    AppNav.toast('Board exported, without $missingText that wouldn’t load');
+    AppNavigation.toast('Board exported, without $missingText that wouldn’t load');
   } else {
-    AppNav.toast('Board exported');
+    AppNavigation.toast('Board exported');
   }
 }
 
@@ -988,8 +988,8 @@ Future<void> importOverActiveBoard() async {
   try {
     json = jsonDecode(await file.readAsString());
   } catch (error) {
-    AppNav.toast('Invalid JSON file', error: true);
+    AppNavigation.toast('Invalid JSON file', error: true);
     return;
   }
-  await AppState.I.importBoard(json, asNew: false);
+  await AppState.instance.importBoard(json, asNew: false);
 }

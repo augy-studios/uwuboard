@@ -164,13 +164,13 @@ class BugShot {
   /// Off to the app to find the page to take: the report's window closed, what's typed kept.
   static void start() {
     shooting.value = true;
-    AppNav.closeSheets();
+    AppNavigation.closeSheets();
   }
 
   /// Back from finding a page: the bar goes and the report's window opens again.
   static void back() {
     shooting.value = false;
-    final context = AppNav.context;
+    final context = AppNavigation.context;
     if (context != null) {
       openBugReport(context);
     }
@@ -179,10 +179,10 @@ class BugShot {
   /// The page as it is: with no window open, the open board drawn whole; otherwise the screen.
   /// Returns the picture and whether it's a whole page (bigger than the screen).
   static Future<(String, bool)?> take(BuildContext context) async {
-    final board = AppState.I.activeBoard;
+    final board = AppState.instance.activeBoard;
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final screen = MediaQuery.sizeOf(context) * devicePixelRatio;
-    final background = UwuColors.of(context).bg;
+    final background = UwuColors.of(context).background;
     ui.Image? picture;
     var whole = false;
     if (board != null && !AppSheet.anyOpen) {
@@ -192,8 +192,8 @@ class BugShot {
     // No board, a window open, or the board couldn't be drawn: the screen as it is.
     if (picture == null) {
       RenderObject? renderObject;
-      if (AppNav.repaintKey.currentContext != null) {
-        renderObject = AppNav.repaintKey.currentContext!.findRenderObject();
+      if (AppNavigation.repaintKey.currentContext != null) {
+        renderObject = AppNavigation.repaintKey.currentContext!.findRenderObject();
       }
       if (renderObject is! RenderRepaintBoundary) {
         return null;
@@ -258,7 +258,7 @@ class _BugShotBarState extends State<BugShotBar> {
         }
       }
     } catch (error) {
-      AppNav.toast('Couldn’t take a screenshot here. Take one with your device and add it instead.', error: true);
+      AppNavigation.toast('Couldn’t take a screenshot here. Take one with your device and add it instead.', error: true);
     }
     if (mounted) {
       setState(() {
@@ -360,7 +360,7 @@ class BugReport extends StatefulWidget {
     final screen = '${size.width.round()}×${size.height.round()}';
     final String platform;
     final String device;
-    if (Env.android) {
+    if (Environment.android) {
       platform = 'android';
       Object release = '';
       if (info != null) {
@@ -375,19 +375,19 @@ class BugReport extends StatefulWidget {
         if (info != null && info['sdk'] != null) 'API ${info['sdk']}',
         screen,
       ].join(' · ');
-    } else if (Env.desktop) {
+    } else if (Environment.desktop) {
       platform = 'desktop';
-      Object osValue = '';
+      Object operatingSystemValue = '';
       if (info != null) {
-        final infoOs = info['os'];
-        if (infoOs != null) {
-          osValue = infoOs;
+        final operatingSystemFromInfo = info['os'];
+        if (operatingSystemFromInfo != null) {
+          operatingSystemValue = operatingSystemFromInfo;
         }
       }
-      final os = '$osValue'.trim();
+      final operatingSystem = '$operatingSystemValue'.trim();
       String systemName;
-      if (os.isNotEmpty) {
-        systemName = os;
+      if (operatingSystem.isNotEmpty) {
+        systemName = operatingSystem;
       } else {
         systemName = defaultTargetPlatform.name;
       }
@@ -399,7 +399,7 @@ class BugReport extends StatefulWidget {
     String version;
     final nativeVersion = Native.version;
     if (nativeVersion == null) {
-      version = Env.version;
+      version = Environment.version;
     } else {
       version = nativeVersion;
     }
@@ -408,7 +408,7 @@ class BugReport extends StatefulWidget {
 
   /// The page on show, and the windows open over it, except this one: never a name.
   static String page() {
-    final app = AppState.I;
+    final app = AppState.instance;
     final board = app.activeBoard;
     String pageKind;
     if (board == null) {
@@ -462,7 +462,7 @@ class _BugReportState extends State<BugReport> {
   static Map<String, dynamic> _readDraft() {
     try {
       String saved;
-      final stored = Store.I.get(_draftKey);
+      final stored = Store.instance.get(_draftKey);
       if (stored == null) {
         saved = '{}';
       } else {
@@ -506,7 +506,7 @@ class _BugReportState extends State<BugReport> {
 
   /// Saves what's typed, so it's still there next time the window opens.
   void _keep() {
-    Store.I.put(_draftKey, jsonEncode({'text': _text.text, 'contact': _contact.text}));
+    Store.instance.put(_draftKey, jsonEncode({'text': _text.text, 'contact': _contact.text}));
   }
 
   /// Adds pictures from the device, as many as there's room for, each made a smaller JPEG.
@@ -576,7 +576,7 @@ class _BugReportState extends State<BugReport> {
       _text.clear();
       _contact.clear();
       BugPictures.clear();
-      Store.I.put(_draftKey, null);
+      Store.instance.put(_draftKey, null);
       if (id != null) {
         _status = 'Sent as report $id. Thank you! Augy will look into it.';
       } else {

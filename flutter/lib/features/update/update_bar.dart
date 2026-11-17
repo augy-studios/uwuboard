@@ -84,7 +84,7 @@ TextStyle? _recoloured(TextStyle? base, Color color, {FontWeight? fontWeight}) {
 /// notifications; everything the bar and the Updates page show.
 class AndroidUpdates extends ChangeNotifier with WidgetsBindingObserver {
   AndroidUpdates._();
-  static final AndroidUpdates I = AndroidUpdates._();
+  static final AndroidUpdates instance = AndroidUpdates._();
 
   /// The site's whole answer: the newest release, and `history`, every release newest first.
   Map<String, dynamic>? latest;
@@ -105,7 +105,7 @@ class AndroidUpdates extends ChangeNotifier with WidgetsBindingObserver {
   String get mine {
     final nativeVersion = Native.version;
     if (nativeVersion == null) {
-      return Env.version;
+      return Environment.version;
     }
     return nativeVersion;
   }
@@ -157,12 +157,12 @@ class AndroidUpdates extends ChangeNotifier with WidgetsBindingObserver {
   /// Once, on Android: watches for the app coming back, listens for the release notification
   /// being tapped, and looks for a newer release.
   void start() {
-    if (_started || !Env.android) {
+    if (_started || !Environment.android) {
       return;
     }
     _started = true;
     WidgetsBinding.instance.addObserver(this);
-    notices = Store.I.get(_releasesKey) == '1';
+    notices = Store.instance.get(_releasesKey) == '1';
     // The notification "x.y.z is out", tapped: this page.
     Native.on('App', 'openUpdates', (arguments) {
       openUpdates();
@@ -291,13 +291,13 @@ class AndroidUpdates extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         storedValue = '0';
       }
-      Store.I.put(_releasesKey, storedValue);
+      Store.instance.put(_releasesKey, storedValue);
       if (on) {
         toastText = 'You’ll get a notification the moment a new version is out.';
       } else {
         toastText = 'No more notifications of new versions.';
       }
-      AppNav.toast(toastText);
+      AppNavigation.toast(toastText);
     } on NativeError catch (nativeError) {
       notices = previous;
       String toastText;
@@ -306,7 +306,7 @@ class AndroidUpdates extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         toastText = 'Couldn’t reach Firebase. Check your connection and try again.';
       }
-      AppNav.toast(toastText, error: true);
+      AppNavigation.toast(toastText, error: true);
       if (nativeError.code == 'permission') {
         Native.tryCall('App', 'openSettings', {'page': 'notifications'});
       }
@@ -322,9 +322,9 @@ class UpdateBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: AndroidUpdates.I,
+      listenable: AndroidUpdates.instance,
       builder: (context, child) {
-        final updates = AndroidUpdates.I;
+        final updates = AndroidUpdates.instance;
         if (!updates.offered) {
           return const SizedBox.shrink();
         }
@@ -370,11 +370,11 @@ ColorScheme? darkDynamicScheme;
 
 /// Opens the Updates page, looking for a newer release (past the site's cache) as it opens.
 Future<void> openUpdates() async {
-  final navigator = AppNav.navigatorKey.currentState;
+  final navigator = AppNavigation.navigatorKey.currentState;
   if (navigator == null) {
     return;
   }
-  AndroidUpdates.I.check(fresh: true);
+  AndroidUpdates.instance.check(fresh: true);
   await navigator.push(
     MaterialPageRoute<void>(
       builder: (context) {
@@ -392,14 +392,14 @@ class UpdatesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = ThemeController.I.brightness;
+    final brightness = ThemeController.instance.brightness;
     ColorScheme? dynamicScheme;
     if (brightness == Brightness.dark) {
       dynamicScheme = darkDynamicScheme;
     } else {
       dynamicScheme = lightDynamicScheme;
     }
-    final theme = buildTheme(look: lookMaterial, brightness: brightness, brand: ThemeController.I.colorTheme.color, dynamicScheme: dynamicScheme);
+    final theme = buildTheme(look: lookMaterial, brightness: brightness, brand: ThemeController.instance.colorTheme.color, dynamicScheme: dynamicScheme);
     return Theme(data: theme, child: const _UpdatesBody());
   }
 }
@@ -414,9 +414,9 @@ class _UpdatesBody extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return ListenableBuilder(
-      listenable: AndroidUpdates.I,
+      listenable: AndroidUpdates.instance,
       builder: (context, child) {
-        final updates = AndroidUpdates.I;
+        final updates = AndroidUpdates.instance;
         final newer = updates.newer;
         final history = updates.history;
         // The notifications switch: off while unknown, and not pressable while it's changing.

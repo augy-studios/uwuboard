@@ -28,12 +28,12 @@ void main() {
   });
 
   test('on the desktop, the second look is native glass, and Material You kept from before means it', () {
-    final themeController = ThemeController.I;
+    final themeController = ThemeController.instance;
     expect(themeController.look, lookUwuApps);
     themeController.setLook(lookNative);
     expect(themeController.look, lookNative);
     expect(themeController.isNative, isTrue);
-    Store.I.put(keyLook, lookMaterial);
+    Store.instance.put(keyLook, lookMaterial);
     expect(themeController.look, lookNative);
     themeController.setLook(lookUwuApps);
     expect(themeController.look, lookUwuApps);
@@ -43,8 +43,8 @@ void main() {
     ThemeController.isDesktop = () {
       return false;
     };
-    Store.I.put(keyLook, lookNative);
-    expect(ThemeController.I.look, lookMaterial);
+    Store.instance.put(keyLook, lookNative);
+    expect(ThemeController.instance.look, lookMaterial);
   });
 
   // One test for every combination of glass style, light/dark mode and accent colour (null is the
@@ -63,15 +63,15 @@ void main() {
           test('${style.name}, ${brightness.name}, $accentLabel', () {
             final colors = glassColors(style, brightness, accent: accent);
             expect(colors.native, style);
-            final strong = Color.alphaBlend(colors.surfaceStrong, colors.bg);
-            final soft = Color.alphaBlend(colors.surface, colors.bg);
-            for (final background in [colors.bg, strong, soft]) {
+            final strong = Color.alphaBlend(colors.surfaceStrong, colors.background);
+            final soft = Color.alphaBlend(colors.surface, colors.background);
+            for (final background in [colors.background, strong, soft]) {
               expect(contrastRatio(colors.ink, background), greaterThanOrEqualTo(4.5), reason: 'ink');
               expect(contrastRatio(colors.muted, background), greaterThanOrEqualTo(4.5), reason: 'muted');
               expect(contrastRatio(colors.border, background), greaterThanOrEqualTo(3), reason: 'border');
               expect(contrastRatio(colors.error, background), greaterThanOrEqualTo(4.5), reason: 'error');
             }
-            for (final background in [colors.bg, strong]) {
+            for (final background in [colors.background, strong]) {
               expect(contrastRatio(colors.brandInk, background), greaterThanOrEqualTo(4.5), reason: 'accent words');
             }
             expect(contrastRatio(colors.onBrand, colors.brandFill), greaterThanOrEqualTo(4.5), reason: 'on accent fill');

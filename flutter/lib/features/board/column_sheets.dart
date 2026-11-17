@@ -15,7 +15,7 @@ import '../tour/tour.dart';
 /// cards after asking.
 Future<void> openRenameColumn(BuildContext context, Json board, Json column) {
   String word;
-  if (AppState.I.isTimeline(board)) {
+  if (AppState.instance.isTimeline(board)) {
     word = 'Phase';
   } else {
     word = 'Column';
@@ -29,7 +29,7 @@ Future<void> openRenameColumn(BuildContext context, Json board, Json column) {
       final colors = UwuColors.of(context);
       void save() {
         AppSheet.close(context);
-        AppState.I.renameColumn(board, column, name.text);
+        AppState.instance.renameColumn(board, column, name.text);
       }
 
       return SheetFrame(
@@ -38,19 +38,19 @@ Future<void> openRenameColumn(BuildContext context, Json board, Json column) {
           TextButton(
             style: TextButton.styleFrom(foregroundColor: colors.error),
             onPressed: () async {
-              final timeline = AppState.I.isTimeline(board);
+              final timeline = AppState.instance.isTimeline(board);
               String question;
               if (timeline) {
                 question = 'Delete this phase and all its tasks?';
               } else {
                 question = 'Delete this column and all its cards?';
               }
-              final confirmed = await AppNav.confirm(question);
+              final confirmed = await AppNavigation.confirm(question);
               if (!confirmed || !context.mounted) {
                 return;
               }
               AppSheet.close(context);
-              AppState.I.deleteColumn(board, '${column['id']}');
+              AppState.instance.deleteColumn(board, '${column['id']}');
             },
             child: Text('Delete $word'),
           ),
@@ -143,7 +143,7 @@ Future<void> openReorderColumns(BuildContext context, Json board) {
               FilledButton(
                 onPressed: () {
                   AppSheet.close(context);
-                  AppState.I.reorderColumns(board, order);
+                  AppState.instance.reorderColumns(board, order);
                 },
                 child: const Text('Apply'),
               ),
@@ -208,7 +208,7 @@ class _NewBoardState extends State<_NewBoard> {
       return;
     }
     AppSheet.close(context);
-    await AppState.I.createBoard(name, _type, _columns);
+    await AppState.instance.createBoard(name, _type, _columns);
   }
 
   /// The window: the name, the two board types to choose between, and the starting columns as

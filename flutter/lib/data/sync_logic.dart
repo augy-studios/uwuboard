@@ -15,12 +15,12 @@ const maxImages = 40;
 
 /// An image's chunks: a data URL split into pieces under the 16 KB PeerJS would split again.
 const chunkSize = 12000;
-const maxImageChars = 12 * 1024 * 1024;
+const maxImageCharacters = 12 * 1024 * 1024;
 
 final _identifierPattern = RegExp(r'^[\w-]{1,64}$');
 final _datePattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
 final _colourPattern = RegExp(r'^#[0-9a-f]{6}$', caseSensitive: false);
-final dataUrlRe = RegExp(r'^data:image/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$');
+final dataUrlPattern = RegExp(r'^data:image/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$');
 
 bool isId(Object? value) {
   return value is String && _identifierPattern.hasMatch(value);
@@ -231,7 +231,7 @@ List<Json>? cleanBoards(Object? raw) {
 /// What a card is, for telling whether two copies differ: everything but when it was stamped,
 /// and its images by id.
 String cardSignature(Json card) {
-  final sortedDependsOn = [...depsOf(card)];
+  final sortedDependsOn = [...dependenciesOf(card)];
   sortedDependsOn.sort();
   return jsonEncode([
     card['title'],

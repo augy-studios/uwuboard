@@ -88,7 +88,7 @@ void main() {
       final prunedBoard = board();
       // Take away the first card of the first column, then drop the links to it.
       ((prunedBoard['columns'] as List)[0]['cards'] as List).removeAt(0);
-      pruneDeps(prunedBoard);
+      pruneDependencies(prunedBoard);
       final got = [
         for (final remainingCard in allCards(prunedBoard)) {'id': remainingCard['id'], 'dependsOn': remainingCard['dependsOn']},
       ];

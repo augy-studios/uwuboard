@@ -12,7 +12,7 @@ import 'sync_controller.dart';
 /// Opens the Sync window. With a [code] (from a sync link), it starts joining that device
 /// straight away. Tells the controller when the window opens and closes.
 Future<void> openSync(BuildContext context, {String? code}) async {
-  final syncController = SyncController.I;
+  final syncController = SyncController.instance;
   syncController.opened();
   if (code != null) {
     syncController.fromLink(code);
@@ -38,20 +38,20 @@ class SyncSheet extends StatefulWidget {
 }
 
 class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
-  late final _code = TextEditingController(text: SyncController.I.codeInput);
+  late final _code = TextEditingController(text: SyncController.instance.codeInput);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    SyncController.I.addListener(_follow);
+    SyncController.instance.addListener(_follow);
   }
 
   /// Keeps the code box in step with the controller's code: always while connecting, and
   /// whenever the box is empty.
   void _follow() {
-    final codeInput = SyncController.I.codeInput;
-    if (codeInput != _code.text && SyncController.I.role != null) {
+    final codeInput = SyncController.instance.codeInput;
+    if (codeInput != _code.text && SyncController.instance.role != null) {
       _code.text = codeInput;
     }
     if (codeInput.isNotEmpty && _code.text.isEmpty) {
@@ -62,14 +62,14 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      SyncController.I.resumed(true);
+      SyncController.instance.resumed(true);
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    SyncController.I.removeListener(_follow);
+    SyncController.instance.removeListener(_follow);
     super.dispose();
   }
 
@@ -79,9 +79,9 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: SyncController.I,
+      listenable: SyncController.instance,
       builder: (context, child) {
-        final syncController = SyncController.I;
+        final syncController = SyncController.instance;
         final colors = UwuColors.of(context);
         final muted = TextStyle(color: colors.muted, fontSize: 12.5, height: 1.4);
         Color noteColor;
@@ -150,9 +150,9 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
     Color dotColor;
     switch (syncController.statusTone) {
       case 'ok':
-        dotColor = colors.ok;
+        dotColor = colors.success;
       case 'warn':
-        dotColor = colors.warn;
+        dotColor = colors.warning;
       case 'error':
         dotColor = colors.error;
       default:
@@ -374,7 +374,7 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
         value: checkboxValue,
         onChanged: onChanged,
         title: Text(item.title, style: TextStyle(color: titleColor, fontSize: 14)),
-        subtitle: Text(item.sub, style: TextStyle(color: colors.muted, fontSize: 12)),
+        subtitle: Text(item.subtitle, style: TextStyle(color: colors.muted, fontSize: 12)),
         secondary: badge,
       );
     }

@@ -66,7 +66,7 @@ class _EdgeTrayState extends State<EdgeTray> {
   @override
   void initState() {
     super.initState();
-    EdgeTray.open.value = Store.I.get(_trayKey) != '0';
+    EdgeTray.open.value = Store.instance.get(_trayKey) != '0';
   }
 
   /// Opens or closes the tray, and remembers which on this device.
@@ -75,9 +75,9 @@ class _EdgeTrayState extends State<EdgeTray> {
       EdgeTray.open.value = !_open;
     });
     if (_open) {
-      Store.I.put(_trayKey, '1');
+      Store.instance.put(_trayKey, '1');
     } else {
-      Store.I.put(_trayKey, '0');
+      Store.instance.put(_trayKey, '0');
     }
   }
 
@@ -103,7 +103,7 @@ class _EdgeTrayState extends State<EdgeTray> {
   @override
   Widget build(BuildContext context) {
     final colors = UwuColors.of(context);
-    final app = AppState.I;
+    final app = AppState.instance;
     final board = app.activeBoard;
     final timeline = app.isTimeline(board);
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
@@ -179,7 +179,7 @@ class _EdgeTrayState extends State<EdgeTray> {
   /// that board's (switch view, export, import over it, delete).
   Widget _trayButtons(BuildContext context, UwuColors colors, AppState app, Map<String, dynamic>? board, bool timeline) {
     final String themeIcon;
-    if (ThemeController.I.mode == 'dark') {
+    if (ThemeController.instance.mode == 'dark') {
       themeIcon = 'moon';
     } else {
       themeIcon = 'sun';
@@ -218,7 +218,7 @@ class _EdgeTrayState extends State<EdgeTray> {
               _button('tray-export', 'file-export', 'Export this board to a file', exportActiveBoard),
               _button('tray-import', 'file-import', 'Import a board file over this board', importOverActiveBoard),
               _button('tray-delete', 'trash', 'Delete this board', () async {
-                if (await AppNav.confirm('Delete board "${board['name']}"?')) {
+                if (await AppNavigation.confirm('Delete board "${board['name']}"?')) {
                   await app.deleteBoard(board);
                 }
               }, danger: true),

@@ -25,7 +25,7 @@ const keyBoardsCache = 'app.boardsCache';
 /// rebuild when [notifyListeners] is called after a change.
 class AppState extends ChangeNotifier {
   AppState._();
-  static final AppState I = AppState._();
+  static final AppState instance = AppState._();
 
   /// { token, userId }, or null as a guest or signed out.
   Json? session;
@@ -159,14 +159,14 @@ class AppState extends ChangeNotifier {
     if (!isGuest) {
       return;
     }
-    Store.I.put(keyGuestBoards, jsonEncode(boards));
+    Store.instance.put(keyGuestBoards, jsonEncode(boards));
     _notifyBoardsChanged();
   }
 
   List<Json> _loadGuest() {
     try {
       String savedText;
-      final stored = Store.I.get(keyGuestBoards);
+      final stored = Store.instance.get(keyGuestBoards);
       if (stored != null) {
         savedText = stored;
       } else {
@@ -183,7 +183,7 @@ class AppState extends ChangeNotifier {
     Json saved;
     try {
       String savedText;
-      final stored = Store.I.get(keySession);
+      final stored = Store.instance.get(keySession);
       if (stored != null) {
         savedText = stored;
       } else {
@@ -194,12 +194,12 @@ class AppState extends ChangeNotifier {
       saved = {};
     }
     saved.remove('avatarUrl');
-    Store.I.put(keySession, jsonEncode({...saved, ...changes}));
+    Store.instance.put(keySession, jsonEncode({...saved, ...changes}));
   }
 
   void _cacheBoards() {
     if (signedIn) {
-      Store.I.put(keyBoardsCache, jsonEncode(boards));
+      Store.instance.put(keyBoardsCache, jsonEncode(boards));
     }
   }
 
@@ -217,7 +217,7 @@ class AppState extends ChangeNotifier {
     } else {
       displayName = shownAs;
     }
-    Store.I.put(keySession, jsonEncode({'session': newSession, 'username': user, 'displayName': displayName, 'hasAvatar': avatarExists}));
+    Store.instance.put(keySession, jsonEncode({'session': newSession, 'username': user, 'displayName': displayName, 'hasAvatar': avatarExists}));
     shown = true;
     notifyListeners();
     pageChanged();
@@ -236,7 +236,7 @@ class AppState extends ChangeNotifier {
   /// The session saved on this device, if it still works. Offline, the boards as last
   /// fetched; a session the server refuses is forgotten.
   Future<void> restore() async {
-    final saved = Store.I.get(keySession);
+    final saved = Store.instance.get(keySession);
     if (saved == null) {
       return;
     }
@@ -244,12 +244,12 @@ class AppState extends ChangeNotifier {
     try {
       parsed = Map<String, dynamic>.from(jsonDecode(saved) as Map);
     } catch (error) {
-      Store.I.remove(keySession);
+      Store.instance.remove(keySession);
       return;
     }
     final savedSession = parsed['session'];
     if (savedSession is! Map || savedSession['token'] is! String) {
-      Store.I.remove(keySession);
+      Store.instance.remove(keySession);
       return;
     }
     final restoredSession = Map<String, dynamic>.from(savedSession);
@@ -270,15 +270,15 @@ class AppState extends ChangeNotifier {
     } on ApiError catch (error) {
       if (!error.offline) {
         Api.token = null;
-        Store.I.remove(keySession);
-        Store.I.remove(keyBoardsCache);
+        Store.instance.remove(keySession);
+        Store.instance.remove(keyBoardsCache);
         return;
       }
       // No network: what was here last time, and the offline bar says why.
       _setSession(restoredSession, _usernameFrom(parsed), parsed['displayName'] as String?, avatar);
       try {
         String cachedText;
-        final cached = Store.I.get(keyBoardsCache);
+        final cached = Store.instance.get(keyBoardsCache);
         if (cached != null) {
           cachedText = cached;
         } else {
@@ -387,8 +387,8 @@ class AppState extends ChangeNotifier {
     for (final callback in List.of(onLogout)) {
       callback();
     }
-    Store.I.remove(keySession);
-    Store.I.remove(keyBoardsCache);
+    Store.instance.remove(keySession);
+    Store.instance.remove(keyBoardsCache);
     session = null;
     Api.token = null;
     isGuest = false;
@@ -420,7 +420,7 @@ class AppState extends ChangeNotifier {
       }
       _notifyBoardsChanged();
     } on ApiError {
-      AppNav.toast('Failed to load boards', error: true);
+      AppNavigation.toast('Failed to load boards', error: true);
     }
     boardsReady = true;
     notifyListeners();
@@ -450,7 +450,7 @@ class AppState extends ChangeNotifier {
     try {
       await Api.call('PUT', '/boards/update', {'board': board});
     } on ApiError {
-      AppNav.toast('Sync error', error: true);
+      AppNavigation.toast('Sync error', error: true);
     }
     _notifyBoardsChanged();
   }
@@ -463,14 +463,14 @@ class AppState extends ChangeNotifier {
       try {
         await Api.call('POST', '/boards/create', {'board': board});
       } on ApiError {
-        AppNav.toast('Save error', error: true);
+        AppNavigation.toast('Save error', error: true);
       }
       _notifyBoardsChanged();
     } else {
       saveGuest();
     }
     selectBoard('${board['id']}');
-    AppNav.toast('Board "$name" created');
+    AppNavigation.toast('Board "$name" created');
   }
 
   void renameBoard(Json board, String name) {
@@ -489,7 +489,7 @@ class AppState extends ChangeNotifier {
       try {
         await Api.call('DELETE', '/boards/delete', {'boardId': board['id']});
       } on ApiError {
-        AppNav.toast('Delete error', error: true);
+        AppNavigation.toast('Delete error', error: true);
       }
     }
     boards.removeWhere((existingBoard) {
@@ -502,7 +502,7 @@ class AppState extends ChangeNotifier {
       _cacheBoards();
       _notifyBoardsChanged();
     }
-    AppNav.toast('Board deleted');
+    AppNavigation.toast('Board deleted');
     if (boards.isNotEmpty) {
       selectBoard('${boards.first['id']}');
     } else {
@@ -527,9 +527,9 @@ class AppState extends ChangeNotifier {
     persistBoard(board);
     pageChanged();
     if (isTimeline(board)) {
-      AppNav.toast('Showing as a timeline');
+      AppNavigation.toast('Showing as a timeline');
     } else {
-      AppNav.toast('Showing as a kanban board');
+      AppNavigation.toast('Showing as a kanban board');
     }
   }
 
@@ -588,12 +588,12 @@ class AppState extends ChangeNotifier {
     (board['columns'] as List).removeWhere((column) {
       return column is Map && column['id'] == columnId;
     });
-    timeline_logic.pruneDeps(board);
+    timeline_logic.pruneDependencies(board);
     persistBoard(board);
     if (timeline) {
-      AppNav.toast('Phase deleted');
+      AppNavigation.toast('Phase deleted');
     } else {
-      AppNav.toast('Column deleted');
+      AppNavigation.toast('Column deleted');
     }
   }
 
@@ -611,7 +611,7 @@ class AppState extends ChangeNotifier {
     ];
     board['columns'] = sorted;
     persistBoard(board);
-    AppNav.toast('Columns reordered');
+    AppNavigation.toast('Columns reordered');
   }
 
   Json? addCard(Json board, String columnId, String title) {
@@ -670,9 +670,9 @@ class AppState extends ChangeNotifier {
     (column['cards'] as List).removeWhere((card) {
       return card is Map && card['id'] == cardId;
     });
-    timeline_logic.pruneDeps(board);
+    timeline_logic.pruneDependencies(board);
     persistBoard(board);
-    AppNav.toast('Card deleted');
+    AppNavigation.toast('Card deleted');
   }
 
   /* ---- export and import ---- */
@@ -726,7 +726,7 @@ class AppState extends ChangeNotifier {
           if (image['id'] != null) {
             keptId = image['id'];
           } else {
-            keptId = uid();
+            keptId = uniqueId();
           }
           final dynamic keptFile = response['file'];
           final dynamic keptName;
@@ -757,12 +757,12 @@ class AppState extends ChangeNotifier {
   /// A board file, as a new board or over the open one.
   Future<void> importBoard(Object? json, {required bool asNew}) async {
     if (!isBoardFile(json)) {
-      AppNav.toast('Invalid board file', error: true);
+      AppNavigation.toast('Invalid board file', error: true);
       return;
     }
     final board = clone(Map<String, dynamic>.from(json as Map));
     if (asNew || activeBoardId == null) {
-      board['id'] = uid();
+      board['id'] = uniqueId();
     } else {
       board['id'] = activeBoardId;
     }
@@ -779,7 +779,7 @@ class AppState extends ChangeNotifier {
     }
     await persistBoard(board);
     selectBoard('${board['id']}');
-    AppNav.toast('Board imported');
+    AppNavigation.toast('Board imported');
   }
 
   /* ---- profile ---- */
@@ -817,7 +817,7 @@ class AppState extends ChangeNotifier {
         avatarVersion = avatarVersion + 1;
       }
       notifyListeners();
-      AppNav.toast('Profile updated');
+      AppNavigation.toast('Profile updated');
       return null;
     } on ApiError catch (error) {
       if (error.offline) {
@@ -835,7 +835,7 @@ class AppState extends ChangeNotifier {
     try {
       await Api.call('DELETE', '/auth/delete-account', {'password': password});
       logout();
-      AppNav.toast('Account deleted');
+      AppNavigation.toast('Account deleted');
       return null;
     } on ApiError catch (error) {
       if (error.offline) {

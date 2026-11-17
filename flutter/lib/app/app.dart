@@ -44,7 +44,7 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
   void initState() {
     super.initState();
     // A window opening or closing changes what's on screen, for the tours.
-    AppSheet.open.addListener(AppState.I.pageChanged);
+    AppSheet.open.addListener(AppState.instance.pageChanged);
   }
 
   /// Builds the whole app. The device's own palette (Material You on Android 12+) is read
@@ -68,7 +68,7 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
         } else {
           darkDynamic = deviceDark;
         }
-        ThemeController.I.setHasDynamic(lightDynamic != null && Env.android);
+        ThemeController.instance.setHasDynamic(lightDynamic != null && Environment.android);
         if (lightDynamic != null) {
           lightDynamicScheme = lightDynamic.harmonized();
         } else {
@@ -80,9 +80,9 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
           darkDynamicScheme = null;
         }
         return ListenableBuilder(
-          listenable: Listenable.merge([ThemeController.I, AppState.I]),
+          listenable: Listenable.merge([ThemeController.instance, AppState.instance]),
           builder: (context, listenableChild) {
-            final themeController = ThemeController.I;
+            final themeController = ThemeController.instance;
             final brand = themeController.colorTheme.color;
 
             /// Makes the app's theme for one brightness, with the device's palette on
@@ -131,7 +131,7 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
                 dynamicScheme: dynamicScheme,
                 systemAccent: themeController.systemAccent,
                 highContrast: highContrast,
-                desktop: Env.desktop,
+                desktop: Environment.desktop,
                 glassStyle: themeController.glassStyle,
                 accent: nativeAccent,
               );
@@ -142,7 +142,7 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
             final highContrastTheme = makeTheme(brightness, highContrast: true);
             // Signed in (or using it without an account): the boards. Otherwise the sign-in screen.
             final Widget homeScreen;
-            if (AppState.I.shown) {
+            if (AppState.instance.shown) {
               homeScreen = const HomeScreen();
             } else {
               homeScreen = const AuthScreen();
@@ -150,8 +150,8 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
             return MaterialApp(
               title: 'uwuBoard',
               debugShowCheckedModeBanner: false,
-              navigatorKey: AppNav.navigatorKey,
-              scaffoldMessengerKey: AppNav.messengerKey,
+              navigatorKey: AppNavigation.navigatorKey,
+              scaffoldMessengerKey: AppNavigation.messengerKey,
               scrollBehavior: const AppScrollBehavior(),
               theme: lightTheme,
               highContrastTheme: highContrastTheme,
@@ -174,7 +174,7 @@ class _UwuBoardAppState extends State<UwuBoardApp> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      Positioned.fill(child: RepaintBoundary(key: AppNav.repaintKey, child: page)),
+                      Positioned.fill(child: RepaintBoundary(key: AppNavigation.repaintKey, child: page)),
                       // A bug report's Screenshot a page: outside what's taken, so not in the picture.
                       ValueListenableBuilder<bool>(
                         valueListenable: BugShot.shooting,

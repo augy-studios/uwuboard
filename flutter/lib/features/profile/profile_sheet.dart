@@ -13,8 +13,8 @@ import '../../widgets/sheet.dart';
 
 /// Opens the Profile window; a guest has no profile, so they are told to sign in instead.
 Future<void> openProfile(BuildContext context) {
-  if (AppState.I.isGuest) {
-    AppNav.toast('Sign in to edit your profile', error: true);
+  if (AppState.instance.isGuest) {
+    AppNavigation.toast('Sign in to edit your profile', error: true);
     return Future.value();
   }
   return AppSheet.show(
@@ -37,7 +37,7 @@ class _Profile extends StatefulWidget {
 }
 
 class _ProfileState extends State<_Profile> {
-  late final _displayName = TextEditingController(text: AppState.I.shownName);
+  late final _displayName = TextEditingController(text: AppState.instance.shownName);
   final _newPassword = TextEditingController();
   final _confirmPassword = TextEditingController();
   String? _error;
@@ -68,7 +68,7 @@ class _ProfileState extends State<_Profile> {
       _busy = true;
       _error = null;
     });
-    final error = await AppState.I.updateProfile(name: _displayName.text.trim(), newPassword: _newPassword.text, confirm: _confirmPassword.text, avatarData: _avatarData);
+    final error = await AppState.instance.updateProfile(name: _displayName.text.trim(), newPassword: _newPassword.text, confirm: _confirmPassword.text, avatarData: _avatarData);
     if (!mounted) {
       return;
     }
@@ -137,7 +137,7 @@ class _ProfileState extends State<_Profile> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: colors.border),
           ),
-          child: Text(AppState.I.username, style: TextStyle(color: colors.muted)),
+          child: Text(AppState.instance.username, style: TextStyle(color: colors.muted)),
         ),
         const FieldLabel('Display Name'),
         TextField(
@@ -264,7 +264,7 @@ class _DeleteAccountState extends State<_DeleteAccount> {
             _busy = true;
             _error = null;
           });
-          final error = await AppState.I.deleteAccount(_password.text);
+          final error = await AppState.instance.deleteAccount(_password.text);
           if (!context.mounted) {
             return;
           }

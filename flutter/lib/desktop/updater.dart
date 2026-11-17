@@ -136,7 +136,7 @@ class Updater {
   static const _baseUrl = 'https://github.com/augy-studios/uwuboard/releases/latest/download';
   static const startupWait = Duration(seconds: 10);
   static String get userAgent {
-    return 'uwuBoardDesktop/${Env.version}';
+    return 'uwuBoardDesktop/${Environment.version}';
   }
 
   static final available = ValueNotifier<String?>(null);
@@ -277,7 +277,7 @@ class Updater {
     if (info == null) {
       throw const FormatException('update file');
     }
-    if (newer(info.version, Env.version)) {
+    if (newer(info.version, Environment.version)) {
       return info;
     } else {
       return null;
@@ -479,7 +479,7 @@ rm -rf "$4"
       final info = await find();
       if (info == null) {
         if (asked) {
-          DeskNotify.show(title: 'You’re up to date', body: '${Desktop.name} ${Env.version} is the newest version.');
+          DeskNotify.show(title: 'You’re up to date', body: '${Desktop.name} ${Environment.version} is the newest version.');
         }
         return;
       }

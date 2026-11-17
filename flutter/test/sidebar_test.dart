@@ -10,7 +10,7 @@ import 'package:uwuboard/theme/theme.dart';
 void main() {
   setUpAll(() {
     Store.memory();
-    Env.desktopOverride = true;
+    Environment.desktopOverride = true;
   });
 
   /// Shows the sidebar beside an empty page and returns a function that folds it (true) or

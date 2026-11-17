@@ -56,11 +56,11 @@ class DueCard {
 
 /// A board's cards with a due date, not all ticked off, soonest first.
 List<DueCard> dueCards(Json board, {DateTime? now}) {
-  final today = dayOf(todayIso(now));
+  final today = dayOf(todayIsoDate(now));
   final result = <DueCard>[];
   for (final card in allCards(board)) {
     final due = card['due'];
-    if (!isIso(due)) {
+    if (!isIsoDate(due)) {
       continue;
     }
     final checklist = checklistOf(card);
@@ -134,7 +134,7 @@ class Glance {
     if (stop != null) {
       followed.value = stop;
     }
-    AppState.I.addListener(_boardsChanged);
+    AppState.instance.addListener(_boardsChanged);
     _boardsChanged();
   }
 
@@ -145,7 +145,7 @@ class Glance {
   /// from last time) and refreshes the tray countdown.
   static void _boardsChanged() {
     final favourites = [
-      for (final board in AppState.I.boards.take(10)) {'code': board['id'], 'name': board['name']},
+      for (final board in AppState.instance.boards.take(10)) {'code': board['id'], 'name': board['name']},
     ];
     final key = favourites.toString();
     if (key != _lastFavourites) {
@@ -175,7 +175,7 @@ class Glance {
     if (following == null) {
       return null;
     }
-    for (final board in AppState.I.boards) {
+    for (final board in AppState.instance.boards) {
       if (board['id'] == following['code']) {
         return board;
       }
@@ -230,7 +230,7 @@ class Glance {
 
   /// Due today and overdue, said once per card and due date.
   static Future<void> checkDue() async {
-    final app = AppState.I;
+    final app = AppState.instance;
     if (!app.shown) {
       return;
     }

@@ -30,7 +30,7 @@ void main() {
       'uwuboard.tour.pages': jsonEncode(['kanban', 'timeline', 'newboard', 'card']),
     });
     EdgeTray.open.value = true;
-    AppState.I.setGuest();
+    AppState.instance.setGuest();
   });
 
   /// Shows the home screen on a window of the given [size] and waits for it to settle.

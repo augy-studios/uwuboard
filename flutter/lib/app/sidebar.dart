@@ -43,7 +43,7 @@ class Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = UwuColors.of(context);
-    final app = AppState.I;
+    final app = AppState.instance;
 
     /// Opens a board, and closes the drawer when the sidebar is in one.
     void pick(String id) {
@@ -60,7 +60,7 @@ class Sidebar extends StatelessWidget {
       }
       final BuildContext? windowContext;
       if (inDrawer) {
-        windowContext = AppNav.context;
+        windowContext = AppNavigation.context;
       } else {
         windowContext = context;
       }
@@ -81,20 +81,20 @@ class Sidebar extends StatelessWidget {
           pick('${board['id']}');
         }, icon: 'arrow-right'),
         MenuAction('Rename', () async {
-          final name = await AppNav.prompt('Board name:', initial: '${board['name']}');
+          final name = await AppNavigation.prompt('Board name:', initial: '${board['name']}');
           if (name != null) {
             app.renameBoard(board, name);
           }
         }, icon: 'pencil'),
         MenuAction('Copy link', () async {
           await copyText(linkFor(boardId: '${board['id']}')!);
-          AppNav.toast('Link copied');
+          AppNavigation.toast('Link copied');
         }, icon: 'link'),
         ...extraActions,
         MenuAction(
           'Delete board',
           () async {
-            if (await AppNav.confirm('Delete board "${board['name']}"?')) {
+            if (await AppNavigation.confirm('Delete board "${board['name']}"?')) {
               await app.deleteBoard(board);
             }
           },
@@ -278,11 +278,11 @@ class Sidebar extends StatelessWidget {
                 ),
               ),
             ),
-            if (Env.android)
+            if (Environment.android)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
                 child: ListenableBuilder(
-                  listenable: AndroidUpdates.I,
+                  listenable: AndroidUpdates.instance,
                   builder: (context, child) {
                     return _updatesButton(context, colors);
                   },
@@ -377,7 +377,7 @@ class Sidebar extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 2),
       child: ContextMenuRegion(
         actions: actions,
-        longPress: !Env.desktop,
+        longPress: !Environment.desktop,
         child: Semantics(
           selected: selected,
           button: true,
@@ -416,7 +416,7 @@ class Sidebar extends StatelessWidget {
 
   /// Android's Updates button: highlighted, with the version, when a newer release is out.
   Widget _updatesButton(BuildContext context, UwuColors colors) {
-    final newerRelease = AndroidUpdates.I.newer;
+    final newerRelease = AndroidUpdates.instance.newer;
     final Color updateColor;
     final String updateLabel;
     if (newerRelease != null) {
@@ -424,7 +424,7 @@ class Sidebar extends StatelessWidget {
       updateLabel = 'Update to ${newerRelease['version']}';
     } else {
       updateColor = colors.muted;
-      updateLabel = 'Updates · ${AndroidUpdates.I.mine}';
+      updateLabel = 'Updates · ${AndroidUpdates.instance.mine}';
     }
     return TextButton.icon(
       key: const ValueKey('updates'),
@@ -452,7 +452,7 @@ class Sidebar extends StatelessWidget {
   /// sidebar widens. With animations turned off, it snaps, as the site does.
   Widget _frame(BuildContext context, UwuColors colors, {required Widget child}) {
     final double fullWidth;
-    if (Env.desktop && MediaQuery.sizeOf(context).width > Env.splitWidth) {
+    if (Environment.desktop && MediaQuery.sizeOf(context).width > Environment.splitWidth) {
       fullWidth = 300.0;
     } else {
       fullWidth = 260.0;
@@ -461,7 +461,7 @@ class Sidebar extends StatelessWidget {
       return Container(
         width: fullWidth,
         decoration: BoxDecoration(
-          color: Color.alphaBlend(colors.surfaceStrong, colors.bg),
+          color: Color.alphaBlend(colors.surfaceStrong, colors.background),
           border: Border(right: BorderSide(color: colors.edge)),
         ),
         child: child,

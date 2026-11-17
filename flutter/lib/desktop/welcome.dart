@@ -49,7 +49,7 @@ class _WelcomeAppState extends State<WelcomeApp> with WindowListener {
   void initState() {
     super.initState();
     // What's set already, filled in.
-    final theme = ThemeController.I;
+    final theme = ThemeController.instance;
     choices.mode = theme.modePreference;
     choices.colour = theme.colorThemeId;
     final useSystemAccent = DeskSettings.get<bool>('useSystemAccent');
@@ -468,7 +468,7 @@ Future<void> applyWelcome(WelcomeChoices? choices) async {
   if (choices == null) {
     return;
   }
-  final theme = ThemeController.I;
+  final theme = ThemeController.instance;
   if (choices.followSystem) {
     final brightness = SchedulerBinding.instance.platformDispatcher.platformBrightness;
     if (brightness == Brightness.dark) {

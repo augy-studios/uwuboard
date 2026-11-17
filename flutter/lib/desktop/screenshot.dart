@@ -70,7 +70,7 @@ class Screenshots {
     } catch (error) {
       // Not copied; it's still saved.
     }
-    AppNav.toast('Screenshot copied and saved');
+    AppNavigation.toast('Screenshot copied and saved');
     DeskNotify.show(
       title: notificationTitle,
       body: name,
@@ -88,15 +88,15 @@ class Screenshots {
     busy.value = true;
     try {
       final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-      final background = UwuColors.of(context).bg;
-      final shot = await _capture(AppNav.repaintKey, pixelRatio);
+      final background = UwuColors.of(context).background;
+      final shot = await _capture(AppNavigation.repaintKey, pixelRatio);
       if (shot == null) {
         throw StateError('nothing to capture');
       }
       final image = await flattenOnto(shot, background);
       await _save(image, '${Desktop.name} ${_timestamp()}.png', 'Screenshot saved');
     } catch (error) {
-      AppNav.toast('Couldn’t take a screenshot', error: true);
+      AppNavigation.toast('Couldn’t take a screenshot', error: true);
     } finally {
       busy.value = false;
     }
@@ -104,7 +104,7 @@ class Screenshots {
 
   /// The open board drawn whole (lib/features/board/whole_board.dart), then saved.
   static Future<void> takeLong(BuildContext context) async {
-    final board = AppState.I.activeBoard;
+    final board = AppState.instance.activeBoard;
     if (board == null) {
       return take(context);
     }
@@ -119,7 +119,7 @@ class Screenshots {
       }
       await _save(image, '${Desktop.name} ${_timestamp()} (long).png', 'Long screenshot saved');
     } catch (error) {
-      AppNav.toast('Couldn’t take a screenshot', error: true);
+      AppNavigation.toast('Couldn’t take a screenshot', error: true);
     } finally {
       busy.value = false;
     }

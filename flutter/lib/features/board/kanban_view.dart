@@ -47,7 +47,7 @@ class _KanbanViewState extends State<KanbanView> {
   @override
   Widget build(BuildContext context) {
     final columns = columnsOf(widget.board);
-    final narrow = MediaQuery.sizeOf(context).width <= Env.phoneWidth;
+    final narrow = MediaQuery.sizeOf(context).width <= Environment.phoneWidth;
     // On a phone a column is most of the screen's width; otherwise a fixed width.
     double columnWidth;
     if (narrow) {
@@ -81,7 +81,7 @@ class _KanbanViewState extends State<KanbanView> {
     }
     return Scrollbar(
       controller: _scroll,
-      thumbVisibility: Env.desktop,
+      thumbVisibility: Environment.desktop,
       child: SingleChildScrollView(
         key: const ValueKey('columns'),
         controller: _scroll,
@@ -106,9 +106,9 @@ class _KanbanViewState extends State<KanbanView> {
                 label: 'Add Column',
                 size: 46,
                 onPressed: () async {
-                  final name = await AppNav.prompt('Column name:');
+                  final name = await AppNavigation.prompt('Column name:');
                   if (name != null) {
-                    AppState.I.addColumn(widget.board, name);
+                    AppState.instance.addColumn(widget.board, name);
                   }
                 },
               ),
@@ -156,7 +156,7 @@ class _ColumnState extends State<_Column> {
     if (title.isEmpty) {
       return;
     }
-    AppState.I.addCard(widget.board, '${widget.column['id']}', title);
+    AppState.instance.addCard(widget.board, '${widget.column['id']}', title);
     _newCardTitle.clear();
     setState(() {
       _adding = false;
@@ -181,7 +181,7 @@ class _ColumnState extends State<_Column> {
     setState(() {
       _dropBefore = null;
     });
-    AppState.I.moveCard(widget.board, draggedCard.cardId, '${widget.column['id']}', beforeId: before);
+    AppState.instance.moveCard(widget.board, draggedCard.cardId, '${widget.column['id']}', beforeId: before);
   }
 
   /// The column: its name, card count and menu button; its cards (each a drop target, with a
@@ -473,7 +473,7 @@ class _DraggableCard extends StatelessWidget {
     );
     final data = DragCard('${card['id']}', columnId);
     final ghost = Opacity(opacity: 0.35, child: tile);
-    if (Env.desktop) {
+    if (Environment.desktop) {
       return Draggable<DragCard>(data: data, feedback: feedback, childWhenDragging: ghost, child: tile);
     }
     return LongPressDraggable<DragCard>(data: data, feedback: feedback, childWhenDragging: ghost, child: tile);
@@ -504,7 +504,7 @@ class CardTile extends StatelessWidget {
     final colors = UwuColors.of(context);
     final labels = labelsOf(card);
     final checklist = checklistOf(card);
-    final thumb = thumbOf(card);
+    final thumb = thumbnailOf(card);
     final due = _textOrEmpty(card['due']);
     final start = _textOrEmpty(card['start']);
     final priority = _textOrEmpty(card['priority']);
@@ -519,7 +519,7 @@ class CardTile extends StatelessWidget {
     if (dueState == 'overdue') {
       dueColor = colors.error;
     } else if (dueState == 'soon') {
-      dueColor = colors.warn;
+      dueColor = colors.warning;
     } else {
       dueColor = colors.muted;
     }
@@ -688,13 +688,13 @@ List<MenuAction> cardMenu(BuildContext context, Json board, Json card, String co
     for (final column in columns)
       if (column['id'] != columnId)
         MenuAction('Move to ${column['name']}', () {
-          AppState.I.moveCard(board, '${card['id']}', '${column['id']}');
+          AppState.instance.moveCard(board, '${card['id']}', '${column['id']}');
         }, icon: 'arrow-right'),
     MenuAction(
       'Delete card',
       () async {
-        if (await AppNav.confirm('Delete this card?')) {
-          AppState.I.deleteCard(board, '${card['id']}');
+        if (await AppNavigation.confirm('Delete this card?')) {
+          AppState.instance.deleteCard(board, '${card['id']}');
         }
       },
       icon: 'trash',
@@ -715,7 +715,7 @@ class _Priority extends StatelessWidget {
     Color color;
     switch (priority) {
       case 'medium':
-        color = colors.warn;
+        color = colors.warning;
       case 'high' || 'urgent':
         color = colors.error;
       default:

@@ -18,7 +18,7 @@ class Store {
   Store._(this._preferences, this._files);
 
   static Store? _instance;
-  static Store get I {
+  static Store get instance {
     return _instance!;
   }
 

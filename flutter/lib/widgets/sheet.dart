@@ -47,10 +47,10 @@ class AppSheet {
     open.value = [...open.value, id];
     _navigators[id] = navigator;
     try {
-      final wide = Env.desktop || MediaQuery.sizeOf(context).width > Env.phoneWidth;
+      final wide = Environment.desktop || MediaQuery.sizeOf(context).width > Environment.phoneWidth;
       if (wide) {
         final SheetKind shownKind;
-        if (Env.desktop) {
+        if (Environment.desktop) {
           shownKind = kind;
         } else {
           shownKind = SheetKind.dialog;

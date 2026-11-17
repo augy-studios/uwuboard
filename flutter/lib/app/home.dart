@@ -50,14 +50,14 @@ class _HomeScreenState extends State<HomeScreen> {
     Tour.currentPage = _page;
     Tour.openPage = _openPage;
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-      Tour.init(skipFirst: AppState.I.pendingSyncCode != null);
+      Tour.init(skipFirst: AppState.instance.pendingSyncCode != null);
       Links.appShown();
     });
   }
 
   /// What's on screen, for the tours.
   String? _page() {
-    final app = AppState.I;
+    final app = AppState.instance;
     if (!app.shown) {
       return null;
     }
@@ -80,18 +80,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Brings up a page a tour asks for: the New Board window, a card, or one of the two views.
   Future<void> _openPage(String page) async {
-    final app = AppState.I;
-    final currentContext = AppNav.context;
+    final app = AppState.instance;
+    final currentContext = AppNavigation.context;
     if (currentContext == null) {
       return;
     }
     if (page == 'newboard') {
-      AppNav.closeSheets();
+      AppNavigation.closeSheets();
       unawaited(openNewBoard(currentContext));
       return;
     }
     if (AppSheet.isOpen('newboard') || AppSheet.isOpen('card')) {
-      AppNav.closeSheets();
+      AppNavigation.closeSheets();
     }
     if (page == 'card') {
       final board = app.activeBoard;
@@ -140,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     _lastBackPressAt = now;
-    AppNav.toast('Press back again to exit');
+    AppNavigation.toast('Press back again to exit');
   }
 
   /// [milliseconds], or 0 when the device asks for no animations.
@@ -157,14 +157,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: AppState.I,
+      listenable: AppState.instance,
       builder: (context, listenableChild) {
         final colors = UwuColors.of(context);
-        final app = AppState.I;
+        final app = AppState.instance;
         final width = MediaQuery.sizeOf(context).width;
-        final phone = width <= Env.phoneWidth;
+        final phone = width <= Environment.phoneWidth;
         // On a computer between 720 and 1024 wide, the boards fold to a rail by themselves.
-        final collapsed = _collapsed || (Env.desktop && width <= Env.splitWidth);
+        final collapsed = _collapsed || (Environment.desktop && width <= Environment.splitWidth);
         final board = app.activeBoard;
         final double topSpace;
         if (phone) {
@@ -317,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return Container(
       width: double.infinity,
-      color: colors.warn.withValues(alpha: 0.18),
+      color: colors.warning.withValues(alpha: 0.18),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: SafeArea(
         bottom: false,
@@ -378,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return Row(
       children: [
-        if (phone || collapsed && !Env.desktop)
+        if (phone || collapsed && !Environment.desktop)
           Padding(
             padding: const EdgeInsets.only(right: 10),
             child: KeyedSubtree(
@@ -424,9 +424,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: 'pencil',
                     label: 'Rename board',
                     onPressed: () async {
-                      final name = await AppNav.prompt('Board name:', initial: '${board['name']}');
+                      final name = await AppNavigation.prompt('Board name:', initial: '${board['name']}');
                       if (name != null) {
-                        AppState.I.renameBoard(board, name);
+                        AppState.instance.renameBoard(board, name);
                       }
                     },
                   )

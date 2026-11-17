@@ -50,7 +50,7 @@ class TourTargets {
       return null;
     }
     // The overlay's own render box, whose top left the tour measures from.
-    final navigatorState = AppNav.navigatorKey.currentState;
+    final navigatorState = AppNavigation.navigatorKey.currentState;
     OverlayState? overlay;
     if (navigatorState != null) {
       overlay = navigatorState.overlay;
@@ -94,18 +94,18 @@ class TourDefinition {
 
 /// Whether the app is phone-sized (no context yet counts as not).
 bool _narrow() {
-  final context = AppNav.context;
-  return context != null && MediaQuery.sizeOf(context).width <= Env.phoneWidth;
+  final context = AppNavigation.context;
+  return context != null && MediaQuery.sizeOf(context).width <= Environment.phoneWidth;
 }
 
 /// Whether a board is open.
 bool _hasBoard() {
-  return AppState.I.activeBoard != null;
+  return AppState.instance.activeBoard != null;
 }
 
 /// The open board's first card, or null if there's no board or no card.
 Json? _firstCard() {
-  final board = AppState.I.activeBoard;
+  final board = AppState.instance.activeBoard;
   if (board == null) {
     return null;
   }
@@ -218,7 +218,7 @@ class Tour {
 
   /// The ids of the page tours seen, as saved (a JSON list); '[]' when nothing is saved.
   static String _storedPages() {
-    final stored = Store.I.get(_pagesKey);
+    final stored = Store.instance.get(_pagesKey);
     if (stored == null) {
       return '[]';
     }
@@ -229,7 +229,7 @@ class Tour {
   static bool seen(String id) {
     try {
       if (id == 'welcome') {
-        return Store.I.get(_welcomeKey) == 'done';
+        return Store.instance.get(_welcomeKey) == 'done';
       }
       return (jsonDecode(_storedPages()) as List).contains(id);
     } catch (error) {
@@ -242,12 +242,12 @@ class Tour {
   static void markSeen(String id) {
     try {
       if (id == 'welcome') {
-        Store.I.put(_welcomeKey, 'done');
+        Store.instance.put(_welcomeKey, 'done');
         return;
       }
       final list = (jsonDecode(_storedPages()) as List).cast<Object?>();
       if (!list.contains(id)) {
-        Store.I.put(_pagesKey, jsonEncode([...list, id]));
+        Store.instance.put(_pagesKey, jsonEncode([...list, id]));
       }
     } catch (error) {
       // Shown again next time.
@@ -260,7 +260,7 @@ class Tour {
   static void init({bool skipFirst = false}) {
     final existingSubscription = _pageChangesSubscription;
     if (existingSubscription == null) {
-      _pageChangesSubscription = AppState.I.pageChanges.listen((event) {
+      _pageChangesSubscription = AppState.instance.pageChanges.listen((event) {
         forPage();
       });
     }
@@ -271,7 +271,7 @@ class Tour {
 
   /// Whether the page [id] is ready for its tour: a board view only once the boards have loaded.
   static bool _ready(String id) {
-    return !(id == 'kanban' || id == 'timeline' || id == 'empty') || AppState.I.boardsReady;
+    return !(id == 'kanban' || id == 'timeline' || id == 'empty') || AppState.instance.boardsReady;
   }
 
   /// The tour for what's on screen, the first time, once it's drawn.
@@ -392,7 +392,7 @@ class Tour {
     _steps = steps;
     _currentStepIndex.value = 0;
     _startPage = from;
-    final navigatorState = AppNav.navigatorKey.currentState;
+    final navigatorState = AppNavigation.navigatorKey.currentState;
     OverlayState? overlay;
     if (navigatorState != null) {
       overlay = navigatorState.overlay;
@@ -600,7 +600,7 @@ class _TourLayerState extends State<_TourLayer> {
                       child: Container(
                         padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
                         decoration: BoxDecoration(
-                          color: Color.alphaBlend(colors.surfaceStrong, colors.bg),
+                          color: Color.alphaBlend(colors.surfaceStrong, colors.background),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: colors.border),
                         ),

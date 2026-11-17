@@ -14,7 +14,7 @@ typedef Json = Map<String, dynamic>;
 final _random = math.Random();
 
 /// The site's uid(): random base 36, then the time in base 36.
-String uid() {
+String uniqueId() {
   const digits = '0123456789abcdefghijklmnopqrstuvwxyz';
   final randomPart = [for (var index = 0; index < 8; index = index + 1) digits[_random.nextInt(36)]].join();
   return randomPart + DateTime.now().millisecondsSinceEpoch.toRadixString(36);
@@ -37,7 +37,7 @@ const priorities = ['', 'low', 'medium', 'high', 'urgent'];
 
 Json newCard(String title) {
   return touch<Json>({
-    'id': uid(),
+    'id': uniqueId(),
     'title': title,
     'description': '',
     'labels': <dynamic>[],
@@ -50,7 +50,7 @@ Json newCard(String title) {
 }
 
 Json newColumn(String name) {
-  return touch<Json>({'id': uid(), 'name': name, 'cards': <dynamic>[]});
+  return touch<Json>({'id': uniqueId(), 'name': name, 'cards': <dynamic>[]});
 }
 
 Json newBoard(String name, String type, List<String> columns) {
@@ -61,7 +61,7 @@ Json newBoard(String name, String type, List<String> columns) {
     view = 'kanban';
   }
   return touch<Json>({
-    'id': uid(),
+    'id': uniqueId(),
     'name': name,
     'view': view,
     'columns': <dynamic>[for (final columnName in columns) newColumn(columnName)],
@@ -91,7 +91,7 @@ List<Json> checklistOf(Json card) {
 }
 
 /// The ids of the cards this card waits for (a timeline's `dependsOn`).
-List<String> depsOf(Json card) {
+List<String> dependenciesOf(Json card) {
   return [
     for (final dependency in _listOrEmpty(card['dependsOn']))
       if (dependency is String) dependency,
@@ -189,7 +189,7 @@ bool isTimelineBoard(Json board) {
 }
 
 /// The image a card shows: the one starred, or its first.
-Json? thumbOf(Json card) {
+Json? thumbnailOf(Json card) {
   final images = imagesOf(card);
   if (images.isEmpty) {
     return null;
@@ -221,8 +221,8 @@ String dueClass(String due, DateTime now) {
 }
 
 /// Whether a label's colour wants white words on it (the site's isDark()).
-bool isDarkHex(String hex) {
-  final colour = parseHex(hex);
+bool isDarkHexColour(String hex) {
+  final colour = parseHexColour(hex);
   if (colour == null) {
     return false;
   }
@@ -233,7 +233,7 @@ bool isDarkHex(String hex) {
 }
 
 /// #rrggbb as 0xRRGGBB, or null.
-int? parseHex(String? hex) {
+int? parseHexColour(String? hex) {
   if (hex == null || !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(hex)) {
     return null;
   }
@@ -256,7 +256,7 @@ bool _truthy(Object? value) {
 }
 
 /// How many columns, cards and images, as the Sync window says under a board's name.
-String boardSub(Json board) {
+String boardSummary(Json board) {
   final columns = columnsOf(board);
   final cards = columns.fold<int>(0, (total, column) {
     return total + cardsOf(column).length;

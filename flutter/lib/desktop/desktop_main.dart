@@ -63,12 +63,12 @@ Future<void> desktopBeforeApp(List<String> arguments) async {
   }
   Native.host = DesktopHost();
   await Desktop.setUp();
-  ThemeController.I.init();
+  ThemeController.instance.init();
   bool? useSystemAccent = DeskSettings.get<bool>('useSystemAccent');
   if (useSystemAccent == null) {
     useSystemAccent = false;
   }
-  ThemeController.I.systemAccent = useSystemAccent;
+  ThemeController.instance.systemAccent = useSystemAccent;
 
   // The update window, every launch of an installed copy.
   if (!Desktop.fromSource || Platform.environment['UWUBOARD_SPLASH_DEMO'] == '1') {
@@ -119,11 +119,11 @@ Future<void> desktopAfterApp(List<String> arguments) async {
   };
   desktopAccent = _systemAccent;
   desktopAccentGet = () {
-    return ThemeController.I.systemAccent;
+    return ThemeController.instance.systemAccent;
   };
   desktopAccentSet = (useSystemAccent) {
     DeskSettings.write({'useSystemAccent': useSystemAccent});
-    ThemeController.I.setSystemAccent(useSystemAccent);
+    ThemeController.instance.setSystemAccent(useSystemAccent);
   };
   desktopBoardActions = (board) {
     return [

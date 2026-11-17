@@ -9,12 +9,12 @@ const zoomKey = 'uwuboard.timeline.zoom';
 /// One of the timeline's zoom levels: how wide a day is, and how much room to leave around
 /// the tasks.
 class Zoom {
-  const Zoom(this.id, this.label, this.ppd, this.margin, this.newLength);
+  const Zoom(this.id, this.label, this.pixelsPerDay, this.margin, this.newLength);
   final String id;
   final String label;
 
   /// Pixels per day.
-  final double ppd;
+  final double pixelsPerDay;
   final int margin;
 
   /// How long a task given dates by a press starts out.
@@ -23,7 +23,7 @@ class Zoom {
 
 const zooms = {'weeks': Zoom('weeks', 'Weeks', 40, 7, 3), 'months': Zoom('months', 'Months', 14, 21, 7), 'quarters': Zoom('quarters', 'Quarters', 4, 45, 14)};
 
-const rowPhase = 38.0, rowTask = 40.0, rowAdd = 34.0, headHeight = 52.0;
+const phaseRowHeight = 38.0, taskRowHeight = 40.0, addRowHeight = 34.0, headerHeight = 52.0;
 
 /// The colour of a task with no label of its own, by phase.
 const phaseColours = ['#4c9aff', '#ffb31f', '#36b37e', '#ff7452', '#998dd9', '#00b8d9'];
@@ -34,7 +34,7 @@ const _millisecondsPerDay = 86400000;
 final _isoDatePattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
 
 /// Whether the value is a date written YYYY-MM-DD.
-bool isIso(Object? value) {
+bool isIsoDate(Object? value) {
   return value is String && _isoDatePattern.hasMatch(value);
 }
 
@@ -49,13 +49,13 @@ DateTime dateOf(int dayNumber) {
 }
 
 /// A day number as YYYY-MM-DD.
-String isoOf(int dayNumber) {
+String isoDateOf(int dayNumber) {
   final date = dateOf(dayNumber);
   return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }
 
 /// Today's date where the person is.
-String todayIso([DateTime? now]) {
+String todayIsoDate([DateTime? now]) {
   final DateTime today;
   if (now == null) {
     today = DateTime.now();
@@ -81,13 +81,13 @@ class Span {
 /// milestone is always one day, on its due date.
 Span? spanOf(Json card) {
   final int? startDay;
-  if (isIso(card['start'])) {
+  if (isIsoDate(card['start'])) {
     startDay = dayOf(card['start'] as String);
   } else {
     startDay = null;
   }
   final int? dueDay;
-  if (isIso(card['due'])) {
+  if (isIsoDate(card['due'])) {
     dueDay = dayOf(card['due'] as String);
   } else {
     dueDay = null;
@@ -157,7 +157,7 @@ Set<String> waitingOn(Json board, String id) {
     final current = stack.removeLast();
     for (final card in allCards(board)) {
       final cardId = '${card['id']}';
-      if (depsOf(card).contains(current) && !waiting.contains(cardId)) {
+      if (dependenciesOf(card).contains(current) && !waiting.contains(cardId)) {
         waiting.add(cardId);
         stack.add(cardId);
       }
@@ -167,7 +167,7 @@ Set<String> waitingOn(Json board, String id) {
 }
 
 /// A card that's gone is waited for by nobody.
-void pruneDeps(Json board) {
+void pruneDependencies(Json board) {
   final ids = {for (final card in allCards(board)) card['id']};
   for (final card in allCards(board)) {
     final dependsOn = card['dependsOn'];
@@ -179,39 +179,39 @@ void pruneDeps(Json board) {
 
 /// Gives a task these first and last days (a milestone only its first, as both).
 void setSpan(Json card, int start, int end) {
-  card['start'] = isoOf(start);
+  card['start'] = isoDateOf(start);
   final int dueDay;
   if (card['milestone'] == true) {
     dueDay = start;
   } else {
     dueDay = end;
   }
-  card['due'] = isoOf(dueDay);
+  card['due'] = isoDateOf(dueDay);
 }
 
 /* ---- layout ---- */
 
 /// One row of the timeline: where it starts (`y`), how tall it is (`h`), and what it shows.
-class TlRow {
-  TlRow(this.kind, this.y, this.h, {this.col, this.card, this.colour});
+class TimelineRow {
+  TimelineRow(this.kind, this.y, this.height, {this.column, this.card, this.colour});
   final String kind; // phase | task | add | addPhase
   final double y;
-  final double h;
-  final Json? col;
+  final double height;
+  final Json? column;
   final Json? card;
   final String? colour;
 }
 
 /// The rows top to bottom: each phase, its tasks, and a row to add one; then one to add a phase.
-({List<TlRow> rows, double height}) rowsOf(Json board) {
-  final rows = <TlRow>[];
+({List<TimelineRow> rows, double height}) rowsOf(Json board) {
+  final rows = <TimelineRow>[];
   var y = 0.0;
   final columns = columnsOf(board);
   for (var columnIndex = 0; columnIndex < columns.length; columnIndex = columnIndex + 1) {
     final column = columns[columnIndex];
     final colour = phaseColours[columnIndex % phaseColours.length];
-    rows.add(TlRow('phase', y, rowPhase, col: column, colour: colour));
-    y = y + rowPhase;
+    rows.add(TimelineRow('phase', y, phaseRowHeight, column: column, colour: colour));
+    y = y + phaseRowHeight;
     for (final card in cardsOf(column)) {
       final labels = labelsOf(card);
       final Object? ownColour;
@@ -226,32 +226,32 @@ class TlRow {
       } else {
         taskColour = colour;
       }
-      rows.add(TlRow('task', y, rowTask, col: column, card: card, colour: taskColour));
-      y = y + rowTask;
+      rows.add(TimelineRow('task', y, taskRowHeight, column: column, card: card, colour: taskColour));
+      y = y + taskRowHeight;
     }
-    rows.add(TlRow('add', y, rowAdd, col: column));
-    y = y + rowAdd;
+    rows.add(TimelineRow('add', y, addRowHeight, column: column));
+    y = y + addRowHeight;
   }
-  rows.add(TlRow('addPhase', y, rowAdd));
-  y = y + rowAdd;
+  rows.add(TimelineRow('addPhase', y, addRowHeight));
+  y = y + addRowHeight;
   return (rows: rows, height: y);
 }
 
 /// The days on show: the first one (`lo`), how many, and today, all as day numbers.
-class TlRange {
-  const TlRange(this.lo, this.days, this.today);
-  final int lo;
+class TimelineRange {
+  const TimelineRange(this.firstDay, this.days, this.today);
+  final int firstDay;
   final int days;
   final int today;
 }
 
 /// The days on show: every task and today, with a margin, from the start of a week (Monday) or
 /// month, and wide enough to fill the space there is.
-TlRange rangeOf(Json board, String zoom, double minWidth, {String? today}) {
+TimelineRange rangeOf(Json board, String zoom, double minWidth, {String? today}) {
   final zoomLevel = zooms[zoom]!;
   final String todayDate;
   if (today == null) {
-    todayDate = todayIso();
+    todayDate = todayIsoDate();
   } else {
     todayDate = today;
   }
@@ -278,42 +278,42 @@ TlRange rangeOf(Json board, String zoom, double minWidth, {String? today}) {
   } else {
     firstDay = (DateTime.utc(firstDate.year, firstDate.month, 1).millisecondsSinceEpoch / _millisecondsPerDay).round();
   }
-  final daysNeeded = (minWidth / zoomLevel.ppd).ceil();
+  final daysNeeded = (minWidth / zoomLevel.pixelsPerDay).ceil();
   final int days;
   if (lastDay - firstDay + 1 > daysNeeded) {
     days = lastDay - firstDay + 1;
   } else {
     days = daysNeeded;
   }
-  return TlRange(firstDay, days, todayNumber);
+  return TimelineRange(firstDay, days, todayNumber);
 }
 
 /// One label in the header: where it starts (`x`), its words, and its width (`w`).
-class TlTick {
-  const TlTick(this.x, this.text, {this.w = 0, this.weekend = false});
+class TimelineTick {
+  const TimelineTick(this.x, this.text, {this.width = 0, this.weekend = false});
   final double x;
   final String text;
-  final double w;
+  final double width;
   final bool weekend;
 }
 
 /// One gridline down the chart; a strong one starts a week, month or quarter.
-class TlLine {
-  const TlLine(this.x, this.strong);
+class TimelineLine {
+  const TimelineLine(this.x, this.strong);
   final double x;
   final bool strong;
 }
 
 /// The two rows of the header and the gridlines under them.
-({List<TlTick> top, List<TlTick> bottom, List<TlLine> lines}) scaleOf(TlRange range, String zoom) {
-  final pixelsPerDay = zooms[zoom]!.ppd;
-  final top = <TlTick>[];
-  final bottom = <TlTick>[];
-  final lines = <TlLine>[];
+({List<TimelineTick> top, List<TimelineTick> bottom, List<TimelineLine> lines}) scaleOf(TimelineRange range, String zoom) {
+  final pixelsPerDay = zooms[zoom]!.pixelsPerDay;
+  final top = <TimelineTick>[];
+  final bottom = <TimelineTick>[];
+  final lines = <TimelineLine>[];
   String? lastTop;
-  for (var dayNumber = range.lo; dayNumber < range.lo + range.days; dayNumber = dayNumber + 1) {
+  for (var dayNumber = range.firstDay; dayNumber < range.firstDay + range.days; dayNumber = dayNumber + 1) {
     final date = dateOf(dayNumber);
-    final x = (dayNumber - range.lo) * pixelsPerDay;
+    final x = (dayNumber - range.firstDay) * pixelsPerDay;
     final monthIndex = date.month - 1;
     final year = date.year;
     final day = date.day;
@@ -332,26 +332,26 @@ class TlLine {
       } else {
         topText = '${months[monthIndex]} $year';
       }
-      top.add(TlTick(x, topText));
+      top.add(TimelineTick(x, topText));
       lastTop = topKey;
     }
     // The bottom row and the gridlines: every day, every Monday, or every 1st of the month.
     if (zoom == 'weeks') {
-      bottom.add(TlTick(x, '${_daysOfWeek[weekday]} $day', w: pixelsPerDay, weekend: weekday % 6 == 0));
-      lines.add(TlLine(x, weekday == 1));
+      bottom.add(TimelineTick(x, '${_daysOfWeek[weekday]} $day', width: pixelsPerDay, weekend: weekday % 6 == 0));
+      lines.add(TimelineLine(x, weekday == 1));
     } else if (zoom == 'months' && weekday == 1) {
-      bottom.add(TlTick(x, '$day', w: 7 * pixelsPerDay));
-      lines.add(TlLine(x, day <= 7));
+      bottom.add(TimelineTick(x, '$day', width: 7 * pixelsPerDay));
+      lines.add(TimelineLine(x, day <= 7));
     } else if (zoom == 'quarters' && day == 1) {
-      bottom.add(TlTick(x, months[monthIndex], w: 30 * pixelsPerDay));
-      lines.add(TlLine(x, monthIndex % 3 == 0));
+      bottom.add(TimelineTick(x, months[monthIndex], width: 30 * pixelsPerDay));
+      lines.add(TimelineLine(x, monthIndex % 3 == 0));
     }
   }
   return (top: top, bottom: bottom, lines: lines);
 }
 
 /// "3 Nov".
-String fmtDay(int dayNumber) {
+String formatDay(int dayNumber) {
   final date = dateOf(dayNumber);
   return '${date.day} ${months[date.month - 1]}';
 }
@@ -363,9 +363,9 @@ String whenOf(Json card) {
     return 'No dates';
   }
   if (span.start == span.end) {
-    return fmtDay(span.start);
+    return formatDay(span.start);
   } else {
-    return '${fmtDay(span.start)} – ${fmtDay(span.end)}';
+    return '${formatDay(span.start)} – ${formatDay(span.end)}';
   }
 }
 
@@ -374,13 +374,13 @@ bool isLate(Json card, {String? today}) {
   if (card['milestone'] == true) {
     return false;
   }
-  if (!isIso(card['due'])) {
+  if (!isIsoDate(card['due'])) {
     return false;
   }
   final due = card['due'] as String;
   final String todayDate;
   if (today == null) {
-    todayDate = todayIso();
+    todayDate = todayIsoDate();
   } else {
     todayDate = today;
   }

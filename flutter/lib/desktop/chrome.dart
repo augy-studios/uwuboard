@@ -51,8 +51,8 @@ class ViewHistory {
   /// Starts noting each board opened. Opening a board after going back drops the boards that
   /// were ahead, as a browser does.
   static void start() {
-    AppState.I.addListener(() {
-      final id = AppState.I.activeBoardId;
+    AppState.instance.addListener(() {
+      final id = AppState.instance.activeBoardId;
       if (_moving || id == null) {
         return;
       }
@@ -82,7 +82,7 @@ class ViewHistory {
     }
     _position = target;
     _moving = true;
-    AppState.I.selectBoard(_stack[_position]);
+    AppState.instance.selectBoard(_stack[_position]);
     _moving = false;
     changed.value = changed.value + 1;
   }
@@ -177,7 +177,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
 
   /// The app's context under the navigator, for opening sheets.
   BuildContext? get _appContext {
-    return AppNav.context;
+    return AppNavigation.context;
   }
 
   void _focusSearch() {
@@ -193,10 +193,10 @@ class _DesktopChromeState extends State<DesktopChrome> {
     setState(() {
       _reloading = true;
     });
-    if (AppState.I.signedIn) {
-      await AppState.I.loadUserBoards();
+    if (AppState.instance.signedIn) {
+      await AppState.instance.loadUserBoards();
     }
-    AppState.I.pageChanged();
+    AppState.instance.pageChanged();
     if (mounted) {
       setState(() {
         _reloading = false;
@@ -205,7 +205,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
   }
 
   Future<void> _copyLink() async {
-    final link = linkFor(boardId: AppState.I.activeBoardId);
+    final link = linkFor(boardId: AppState.instance.activeBoardId);
     if (link == null) {
       return;
     }
@@ -219,7 +219,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
     if (AppSheet.anyOpen) {
       somethingToClose = true;
     } else {
-      final navigator = AppNav.navigatorKey.currentState;
+      final navigator = AppNavigation.navigatorKey.currentState;
       if (navigator != null) {
         somethingToClose = navigator.canPop();
       } else {
@@ -227,7 +227,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
       }
     }
     if (somethingToClose) {
-      final navigator = AppNav.navigatorKey.currentState;
+      final navigator = AppNavigation.navigatorKey.currentState;
       if (navigator != null) {
         navigator.maybePop();
       }
@@ -246,7 +246,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
       Desktop.setFullScreen(false);
       return;
     }
-    final navigator = AppNav.navigatorKey.currentState;
+    final navigator = AppNavigation.navigatorKey.currentState;
     if (navigator != null) {
       navigator.maybePop();
     }
@@ -270,7 +270,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
   /// boards and (when something's typed) cards whose words match. At most 12.
   List<_SearchHit> _hits(String typed) {
     final appContext = _appContext;
-    final app = AppState.I;
+    final app = AppState.instance;
     final query = typed.trim().toLowerCase();
     final hits = <_SearchHit>[];
     final text = typed.trim();
@@ -409,7 +409,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
       return;
     }
     // The chrome sits above the navigator, so its overlay is the navigator's.
-    final navigator = AppNav.navigatorKey.currentState;
+    final navigator = AppNavigation.navigatorKey.currentState;
     OverlayState? overlay;
     if (navigator != null) {
       overlay = navigator.overlay;
@@ -465,7 +465,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
             offset: const Offset(0, 6),
             child: Material(
               elevation: 12,
-              color: Color.alphaBlend(colors.surfaceStrong, colors.bg),
+              color: Color.alphaBlend(colors.surfaceStrong, colors.background),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(colors.round(12)),
                 side: BorderSide(color: colors.edge),
@@ -495,7 +495,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
   /// The keyboard shortcuts: Ctrl on Windows and Linux, ⌘ on macOS, plus each system's own keys
   /// for Back, Forward and full screen.
   Map<ShortcutActivator, VoidCallback> get _shortcuts {
-    final mac = Env.macOS;
+    final mac = Environment.macOS;
 
     /// A key with the system's command modifier (Ctrl, or ⌘ on macOS).
     SingleActivator withModifier(LogicalKeyboardKey key, {bool shift = false}) {
@@ -565,7 +565,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
       // fills the title bar.
       child: Focus(autofocus: true, child: Overlay.wrap(child: body)),
     );
-    if (Env.macOS) {
+    if (Environment.macOS) {
       app = _MacMenus(chrome: this, child: app);
     }
     return app;
@@ -579,11 +579,11 @@ class _DesktopChromeState extends State<DesktopChrome> {
     final native = colors.native != null;
     Color brand;
     if (colors.glass) {
-      brand = ThemeController.I.colorTheme.color;
+      brand = ThemeController.instance.colorTheme.color;
     } else {
       brand = colors.brandFill;
     }
-    final dark = colors.glass && ThemeController.I.brightness == Brightness.dark;
+    final dark = colors.glass && ThemeController.instance.brightness == Brightness.dark;
     // The bar's colour: clear on native glass, a deep shade of the brand in dark glass, or else
     // the brand colour itself.
     Color background;
@@ -603,7 +603,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
     } else {
       ink = const Color(0xFF121815);
     }
-    final mac = Env.macOS;
+    final mac = Environment.macOS;
 
     /// One of the bar's icon buttons; faded when `onTap` is null (not available now).
     Widget tool(String icon, String label, VoidCallback? onTap, {Color? colour}) {
@@ -747,7 +747,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
   /// The command bar: at rest it shows the open board's name (or a message), centred in the
   /// bar's writing colour; focused, it's a search field in the theme's own colours.
   Widget _commandBar(UwuColors colors, Color ink, bool native) {
-    final board = AppState.I.activeBoard;
+    final board = AppState.instance.activeBoard;
     String rest;
     if (_message.isNotEmpty) {
       rest = _message;
@@ -763,7 +763,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
         child: SizedBox(
           height: 28,
           child: ListenableBuilder(
-            listenable: Listenable.merge([_searchFocus, AppState.I]),
+            listenable: Listenable.merge([_searchFocus, AppState.instance]),
             builder: (context, child) {
               final focused = _searchFocus.hasFocus;
               TextAlign textAlign;
@@ -776,7 +776,7 @@ class _DesktopChromeState extends State<DesktopChrome> {
                 textAlign = TextAlign.start;
                 textColor = colors.ink;
                 if (native) {
-                  fillColor = Color.alphaBlend(colors.surfaceStrong, colors.bg);
+                  fillColor = Color.alphaBlend(colors.surfaceStrong, colors.background);
                 } else {
                   fillColor = colors.surfaceStrong;
                 }
@@ -971,7 +971,7 @@ class _MacMenus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appContext = AppNav.context;
+    final appContext = AppNavigation.context;
 
     /// One menu item, with its keyboard shortcut if it has one.
     PlatformMenuItem item(String label, VoidCallback onTap, [MenuSerializableShortcut? shortcut]) {

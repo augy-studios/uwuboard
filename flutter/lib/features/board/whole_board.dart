@@ -20,7 +20,7 @@ import 'kanban_view.dart';
 /// to fit; null if it couldn't be drawn.
 Future<ui.Image?> drawWholeBoard(BuildContext context, Json board, {double maxHeight = 16384, double maxSide = 16384}) async {
   // Called from above the navigator: the navigator's overlay.
-  final navigatorState = AppNav.navigatorKey.currentState;
+  final navigatorState = AppNavigation.navigatorKey.currentState;
   OverlayState? overlay;
   if (navigatorState != null) {
     overlay = navigatorState.overlay;
@@ -32,7 +32,7 @@ Future<ui.Image?> drawWholeBoard(BuildContext context, Json board, {double maxHe
   OverlayEntry? entry;
   try {
     final size = MediaQuery.sizeOf(context);
-    final timeline = AppState.I.isTimeline(board);
+    final timeline = AppState.instance.isTimeline(board);
     final theme = Theme.of(context);
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final mediaQueryData = MediaQuery.of(context).copyWith(size: Size(size.width, maxHeight));
@@ -67,7 +67,7 @@ Future<ui.Image?> drawWholeBoard(BuildContext context, Json board, {double maxHe
                 data: theme,
                 child: Material(
                   // The page's colour: native glass's page is see-through.
-                  color: theme.extension<UwuColors>()!.bg,
+                  color: theme.extension<UwuColors>()!.background,
                   child: MediaQuery(
                     data: mediaQueryData,
                     child: boardView,

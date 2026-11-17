@@ -14,7 +14,7 @@ import 'package:uwuboard/theme/theme.dart';
 void main() {
   setUpAll(() {
     Store.memory();
-    Env.desktopOverride = true;
+    Environment.desktopOverride = true;
   });
 
   testWidgets('a title bar button shows its tooltip on hover', (tester) async {
@@ -23,7 +23,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        navigatorKey: AppNav.navigatorKey,
+        navigatorKey: AppNavigation.navigatorKey,
         theme: buildTheme(look: lookUwuApps, brightness: Brightness.light, brand: colorThemes.first.color, desktop: true),
         builder: (context, child) {
           return DesktopChrome(child: child!);
@@ -58,7 +58,7 @@ void main() {
     await tester.pumpWidget(const UwuBoardApp());
     await tester.pump();
 
-    final page = tester.getRect(find.byKey(AppNav.repaintKey));
+    final page = tester.getRect(find.byKey(AppNavigation.repaintKey));
     expect(page.width, 1400);
     expect(page.bottom, 900);
     expect(page.height, greaterThan(800));

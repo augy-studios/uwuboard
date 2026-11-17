@@ -21,7 +21,7 @@ class DesktopHost implements NativeHost {
       case 'info':
         return {
           'platform': 'desktop',
-          'version': Env.version,
+          'version': Environment.version,
           // For a bug report (lib/features/bug/bug_report.dart): the system and its version.
           'os': '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
           // What the desktop does; never a phone-only feature.

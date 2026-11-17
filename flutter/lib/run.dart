@@ -24,20 +24,20 @@ import 'theme/theme.dart';
 Future<void> runUwuBoard(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   // A desktop widget's own window runs only its small screen.
-  if (Env.desktop && await runDesktopSubWindow(arguments)) {
+  if (Environment.desktop && await runDesktopSubWindow(arguments)) {
     return;
   }
 
   await Store.open();
   try {
-    Env.version = (await PackageInfo.fromPlatform()).version;
+    Environment.version = (await PackageInfo.fromPlatform()).version;
   } catch (error) {
-    Env.version = '';
+    Environment.version = '';
   }
 
-  final desktop = Env.desktop && !kIsWeb;
+  final desktop = Environment.desktop && !kIsWeb;
   ThemeController.isDesktop = () {
-    return Env.desktop;
+    return Environment.desktop;
   };
   if (desktop) {
     await desktopBeforeApp(arguments);
@@ -45,13 +45,13 @@ Future<void> runUwuBoard(List<String> arguments) async {
   await Native.start();
 
   ThemeController.isAndroid = () {
-    return Env.android;
+    return Environment.android;
   };
-  ThemeController.I.init();
+  ThemeController.instance.init();
   Api.watchOffline();
-  AppState.I.onBoardsChanged = SyncController.I.boardsChanged;
-  AppState.I.onLogout.add(SyncController.I.stop);
-  await AppState.I.restore();
+  AppState.instance.onBoardsChanged = SyncController.instance.boardsChanged;
+  AppState.instance.onLogout.add(SyncController.instance.stop);
+  await AppState.instance.restore();
 
   // Links from the platform: the one that opened the app, and any that come after.
   Native.on('App', 'link', (data) {
@@ -76,8 +76,8 @@ Future<void> runUwuBoard(List<String> arguments) async {
 
   runApp(const UwuBoardApp());
 
-  if (Env.android) {
-    AndroidUpdates.I.start();
+  if (Environment.android) {
+    AndroidUpdates.instance.start();
   }
   if (desktop) {
     await desktopAfterApp(arguments);

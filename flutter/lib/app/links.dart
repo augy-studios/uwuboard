@@ -136,8 +136,8 @@ class Links {
     if (target == null) {
       return false;
     }
-    final currentContext = AppNav.context;
-    final app = AppState.I;
+    final currentContext = AppNavigation.context;
+    final app = AppState.instance;
     switch (target) {
       case LinkHome():
         return true;
@@ -150,21 +150,21 @@ class Links {
           app.pendingSyncCode = code;
           return true;
         }
-        AppNav.closeSheets();
+        AppNavigation.closeSheets();
         await openSync(currentContext, code: code);
         return true;
       case LinkBoard(:final id):
         if (!app.shown) {
           return false;
         }
-        AppNav.closeSheets();
+        AppNavigation.closeSheets();
         final boardExists = app.boards.any((board) {
           return board['id'] == id;
         });
         if (boardExists) {
           app.selectBoard(id);
         } else {
-          AppNav.toast('Not found', error: true);
+          AppNavigation.toast('Not found', error: true);
         }
         return true;
       case LinkUpdates():
@@ -174,7 +174,7 @@ class Links {
         if (!app.shown || currentContext == null) {
           return false;
         }
-        AppNav.closeSheets();
+        AppNavigation.closeSheets();
         await openNewBoard(currentContext);
         return true;
     }
@@ -182,12 +182,12 @@ class Links {
 
   /// Once the app is on screen: a sync link that opened it, now usable.
   static void appShown() {
-    final code = AppState.I.pendingSyncCode;
-    final currentContext = AppNav.context;
+    final code = AppState.instance.pendingSyncCode;
+    final currentContext = AppNavigation.context;
     if (code == null || currentContext == null) {
       return;
     }
-    AppState.I.pendingSyncCode = null;
+    AppState.instance.pendingSyncCode = null;
     openSync(currentContext, code: code);
   }
 }

@@ -44,7 +44,7 @@ class _TimelineViewState extends State<TimelineView> {
   @override
   void initState() {
     super.initState();
-    final storedZoom = Store.I.get(zoomKey);
+    final storedZoom = Store.instance.get(zoomKey);
     if (zooms.containsKey(storedZoom)) {
       _zoom = storedZoom!;
     }
@@ -76,7 +76,7 @@ class _TimelineViewState extends State<TimelineView> {
   }
 
   void _setZoom(String newZoom) {
-    Store.I.put(zoomKey, newZoom);
+    Store.instance.put(zoomKey, newZoom);
     setState(() {
       _zoom = newZoom;
       _scrolledToToday = false;
@@ -84,11 +84,11 @@ class _TimelineViewState extends State<TimelineView> {
   }
 
   /// Scrolls the chart sideways so today sits a third of the way across.
-  void _toToday(TlRange range, double pixelsPerDay, double viewWidth, {bool animate = true}) {
+  void _toToday(TimelineRange range, double pixelsPerDay, double viewWidth, {bool animate = true}) {
     if (!_horizontalScroll.hasClients) {
       return;
     }
-    final x = (range.today - range.lo) * pixelsPerDay;
+    final x = (range.today - range.firstDay) * pixelsPerDay;
     final target = math.max(0.0, x - viewWidth / 3).clamp(0.0, _horizontalScroll.position.maxScrollExtent);
     if (animate) {
       _horizontalScroll.animateTo(target, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
@@ -99,7 +99,7 @@ class _TimelineViewState extends State<TimelineView> {
 
   void _save(Json card) {
     touch(card);
-    AppState.I.persistBoard(widget.board);
+    AppState.instance.persistBoard(widget.board);
   }
 
   /// The zoom picker and Today button above the timeline: the task list on the left, and the
@@ -107,7 +107,7 @@ class _TimelineViewState extends State<TimelineView> {
   @override
   Widget build(BuildContext context) {
     final colors = UwuColors.of(context);
-    final narrow = MediaQuery.sizeOf(context).width <= Env.phoneWidth;
+    final narrow = MediaQuery.sizeOf(context).width <= Environment.phoneWidth;
     double listWidth;
     double sidePadding;
     if (narrow) {
@@ -122,18 +122,18 @@ class _TimelineViewState extends State<TimelineView> {
       builder: (context, constraints) {
         final viewWidth = math.max(constraints.maxWidth - listWidth - sidePadding * 2, 320.0);
         final range = rangeOf(widget.board, _zoom, viewWidth);
-        final chartWidth = range.days * zoomSettings.ppd;
+        final chartWidth = range.days * zoomSettings.pixelsPerDay;
         final layout = rowsOf(widget.board);
         final scale = scaleOf(range, _zoom);
         double xOfDay(int day) {
-          return (day - range.lo) * zoomSettings.ppd;
+          return (day - range.firstDay) * zoomSettings.pixelsPerDay;
         }
 
-        final todayX = xOfDay(range.today) + zoomSettings.ppd / 2;
+        final todayX = xOfDay(range.today) + zoomSettings.pixelsPerDay / 2;
         // In full height, the timeline is as tall as its rows; otherwise it fills the space left.
         Widget fillHeight(Widget child) {
           if (widget.fullHeight) {
-            return SizedBox(height: layout.height + 40 + headHeight + 2, child: child);
+            return SizedBox(height: layout.height + 40 + headerHeight + 2, child: child);
           } else {
             return Expanded(child: child);
           }
@@ -142,7 +142,7 @@ class _TimelineViewState extends State<TimelineView> {
         if (!_scrolledToToday) {
           _scrolledToToday = true;
           WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-            _toToday(range, zoomSettings.ppd, viewWidth, animate: false);
+            _toToday(range, zoomSettings.pixelsPerDay, viewWidth, animate: false);
           });
         }
 
@@ -171,7 +171,7 @@ class _TimelineViewState extends State<TimelineView> {
                     OutlinedButton(
                       key: const ValueKey('tl-today'),
                       onPressed: () {
-                        _toToday(range, zoomSettings.ppd, viewWidth);
+                        _toToday(range, zoomSettings.pixelsPerDay, viewWidth);
                       },
                       child: const Text('Today'),
                     ),
@@ -196,7 +196,7 @@ class _TimelineViewState extends State<TimelineView> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Container(
-                              height: headHeight,
+                              height: headerHeight,
                               padding: const EdgeInsets.symmetric(horizontal: 12),
                               alignment: Alignment.centerLeft,
                               decoration: BoxDecoration(
@@ -230,7 +230,7 @@ class _TimelineViewState extends State<TimelineView> {
                       Expanded(
                         child: Scrollbar(
                           controller: _horizontalScroll,
-                          thumbVisibility: Env.desktop,
+                          thumbVisibility: Environment.desktop,
                           child: SingleChildScrollView(
                             controller: _horizontalScroll,
                             scrollDirection: Axis.horizontal,
@@ -243,7 +243,7 @@ class _TimelineViewState extends State<TimelineView> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   SizedBox(
-                                    height: headHeight,
+                                    height: headerHeight,
                                     child: _Header(scale: scale, todayX: todayX, zoom: _zoom),
                                   ),
                                   Expanded(
@@ -255,7 +255,7 @@ class _TimelineViewState extends State<TimelineView> {
                                           board: widget.board,
                                           layout: layout,
                                           range: range,
-                                          pixelsPerDay: zoomSettings.ppd,
+                                          pixelsPerDay: zoomSettings.pixelsPerDay,
                                           zoom: _zoom,
                                           scale: scale,
                                           todayX: todayX,
@@ -283,26 +283,26 @@ class _TimelineViewState extends State<TimelineView> {
 
   /// One row of the task list on the left: a phase (tap to rename), a task (tap to open), or
   /// the "+ Add task" / "+ Add phase" buttons.
-  Widget _listRow(UwuColors colors, TlRow row) {
+  Widget _listRow(UwuColors colors, TimelineRow row) {
     Widget positioned(Widget child) {
-      return Positioned(top: row.y, left: 0, right: 0, height: row.h, child: child);
+      return Positioned(top: row.y, left: 0, right: 0, height: row.height, child: child);
     }
 
     switch (row.kind) {
       case 'phase':
-        final firstPhase = identical(row.col, columnsOf(widget.board).firstOrNull);
+        final firstPhase = identical(row.column, columnsOf(widget.board).firstOrNull);
         Key phaseKey;
         if (firstPhase) {
           phaseKey = TourTargets.key('tl-phase');
         } else {
-          phaseKey = ValueKey('tl-phase-${row.col!['id']}');
+          phaseKey = ValueKey('tl-phase-${row.column!['id']}');
         }
         return positioned(
           InkWell(
             mouseCursor: WidgetStateMouseCursor.clickable,
             key: phaseKey,
             onTap: () {
-              openRenameColumn(context, widget.board, row.col!);
+              openRenameColumn(context, widget.board, row.column!);
             },
             child: Tooltip(excludeFromSemantics: true,
               message: 'Rename or delete this phase',
@@ -319,12 +319,12 @@ class _TimelineViewState extends State<TimelineView> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${row.col!['name']}',
+                        '${row.column!['name']}',
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: colors.ink, fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                     ),
-                    Text('${cardsOf(row.col!).length}', style: TextStyle(color: colors.muted, fontSize: 12)),
+                    Text('${cardsOf(row.column!).length}', style: TextStyle(color: colors.muted, fontSize: 12)),
                   ],
                 ),
               ),
@@ -383,9 +383,9 @@ class _TimelineViewState extends State<TimelineView> {
           TextButton(
             style: TextButton.styleFrom(alignment: Alignment.centerLeft, foregroundColor: colors.muted, padding: const EdgeInsets.symmetric(horizontal: 12)),
             onPressed: () async {
-              final taskName = await AppNav.prompt('Task name:');
+              final taskName = await AppNavigation.prompt('Task name:');
               if (taskName != null) {
-                AppState.I.addCard(widget.board, '${row.col!['id']}', taskName);
+                AppState.instance.addCard(widget.board, '${row.column!['id']}', taskName);
               }
             },
             child: const Text('+ Add task', style: TextStyle(fontSize: 12.5)),
@@ -396,9 +396,9 @@ class _TimelineViewState extends State<TimelineView> {
           TextButton(
             style: TextButton.styleFrom(alignment: Alignment.centerLeft, padding: const EdgeInsets.symmetric(horizontal: 12)),
             onPressed: () async {
-              final name = await AppNav.prompt('Phase name:');
+              final name = await AppNavigation.prompt('Phase name:');
               if (name != null) {
-                AppState.I.addColumn(widget.board, name);
+                AppState.instance.addColumn(widget.board, name);
               }
             },
             child: const Text('+ Add phase', style: TextStyle(fontSize: 12.5)),
@@ -410,7 +410,7 @@ class _TimelineViewState extends State<TimelineView> {
 
 /// A colour from its hex text, or the default blue when the text isn't a colour.
 Color _colourFromHex(String hex) {
-  final parsed = parseHex(hex);
+  final parsed = parseHexColour(hex);
   int rgb;
   if (parsed == null) {
     rgb = 0x4c9aff;
@@ -479,7 +479,7 @@ class _ZoomPicker extends StatelessWidget {
 /// months), and a "Today" tag over today's line.
 class _Header extends StatelessWidget {
   const _Header({required this.scale, required this.todayX, required this.zoom});
-  final ({List<TlTick> top, List<TlTick> bottom, List<TlLine> lines}) scale;
+  final ({List<TimelineTick> top, List<TimelineTick> bottom, List<TimelineLine> lines}) scale;
   final double todayX;
   final String zoom;
 
@@ -515,7 +515,7 @@ class _Header extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(color: colors.error, borderRadius: BorderRadius.circular(6)),
-              child: Text('Today', style: TextStyle(fontSize: 10, color: colors.bg)),
+              child: Text('Today', style: TextStyle(fontSize: 10, color: colors.background)),
             ),
           ),
         ],
@@ -524,7 +524,7 @@ class _Header extends StatelessWidget {
   }
 
   /// One label on the bottom row, fainter on a weekend.
-  Widget _bottomLabel(UwuColors colors, TlTick tick, TextAlign textAlign) {
+  Widget _bottomLabel(UwuColors colors, TimelineTick tick, TextAlign textAlign) {
     Color labelColour;
     if (tick.weekend) {
       labelColour = colors.muted.withValues(alpha: 0.6);
@@ -534,7 +534,7 @@ class _Header extends StatelessWidget {
     return Positioned(
       left: tick.x,
       top: 28,
-      width: tick.w,
+      width: tick.width,
       child: Text(
         tick.text,
         textAlign: textAlign,
@@ -562,17 +562,17 @@ class _Chart extends StatelessWidget {
   });
 
   final Json board;
-  final ({List<TlRow> rows, double height}) layout;
-  final TlRange range;
+  final ({List<TimelineRow> rows, double height}) layout;
+  final TimelineRange range;
   final double pixelsPerDay;
   final String zoom;
-  final ({List<TlTick> top, List<TlTick> bottom, List<TlLine> lines}) scale;
+  final ({List<TimelineTick> top, List<TimelineTick> bottom, List<TimelineLine> lines}) scale;
   final double todayX;
   final void Function(Json card) onChanged;
 
   /// Where a day starts across the chart.
   double xOfDay(int day) {
-    return (day - range.lo) * pixelsPerDay;
+    return (day - range.firstDay) * pixelsPerDay;
   }
 
   @override
@@ -590,11 +590,11 @@ class _Chart extends StatelessWidget {
             top: row.y,
             left: 0,
             right: 0,
-            height: row.h,
+            height: row.height,
             child: Container(color: colors.surfaceStrong.withValues(alpha: 0.6)),
           ),
         );
-        final spans = cardsOf(row.col!).map(spanOf).whereType<Span>().toList();
+        final spans = cardsOf(row.column!).map(spanOf).whereType<Span>().toList();
         if (spans.isNotEmpty) {
           final firstDay = spans.map((span) {
             return span.start;
@@ -604,12 +604,12 @@ class _Chart extends StatelessWidget {
           }).reduce(math.max);
           children.add(
             Positioned(
-              top: row.y + row.h / 2 - 3,
+              top: row.y + row.height / 2 - 3,
               left: xOfDay(firstDay),
               width: (lastDay - firstDay + 1) * pixelsPerDay,
               height: 6,
               child: Tooltip(
-                message: '${row.col!['name']}: ${fmtDay(firstDay)} – ${fmtDay(lastDay)}',
+                message: '${row.column!['name']}: ${formatDay(firstDay)} – ${formatDay(lastDay)}',
                 child: Container(
                   decoration: BoxDecoration(color: _colourFromHex(row.colour!).withValues(alpha: 0.7), borderRadius: BorderRadius.circular(3)),
                 ),
@@ -639,22 +639,22 @@ class _Chart extends StatelessWidget {
             top: row.y,
             left: 0,
             right: 0,
-            height: row.h,
+            height: row.height,
             child: Tooltip(
               message: 'Press a day to give “${card['title']}” dates',
               child: GestureDetector(
                 key: undatedKey,
                 behavior: HitTestBehavior.opaque,
                 onTapUp: (details) {
-                  final day = range.lo + (details.localPosition.dx / pixelsPerDay).floor();
-                  card['start'] = isoOf(day);
+                  final day = range.firstDay + (details.localPosition.dx / pixelsPerDay).floor();
+                  card['start'] = isoDateOf(day);
                   int extraDays;
                   if (card['milestone'] == true) {
                     extraDays = 0;
                   } else {
                     extraDays = zooms[zoom]!.newLength - 1;
                   }
-                  card['due'] = isoOf(day + extraDays);
+                  card['due'] = isoDateOf(day + extraDays);
                   onChanged(card);
                 },
                 child: MouseRegion(
@@ -670,7 +670,7 @@ class _Chart extends StatelessWidget {
       // A dated task: its bar, remembered so the arrows can find it.
       final barStartX = xOfDay(span.start);
       final barEndX = xOfDay(span.end) + pixelsPerDay;
-      final centreY = row.y + row.h / 2;
+      final centreY = row.y + row.height / 2;
       bars['${card['id']}'] = Rect.fromLTRB(barStartX, centreY, barEndX, centreY);
       final markBar = !barMarked;
       barMarked = true;
@@ -691,7 +691,7 @@ class _Chart extends StatelessWidget {
           left: barStartX,
           width: barEndX - barStartX,
           top: row.y,
-          height: row.h,
+          height: row.height,
           pixelsPerDay: pixelsPerDay,
           onChanged: onChanged,
         ),
@@ -704,7 +704,7 @@ class _Chart extends StatelessWidget {
       if (row.kind != 'task' || !bars.containsKey('${row.card!['id']}')) {
         continue;
       }
-      for (final dependencyId in depsOf(row.card!)) {
+      for (final dependencyId in dependenciesOf(row.card!)) {
         final from = bars[dependencyId];
         if (from == null) {
           continue;
@@ -902,9 +902,9 @@ class _BarState extends State<_Bar> {
     // What a screen reader says for the bar.
     String datesText;
     if (milestone) {
-      datesText = 'milestone, ${fmtDay(widget.span.start)}';
+      datesText = 'milestone, ${formatDay(widget.span.start)}';
     } else {
-      datesText = '${fmtDay(widget.span.start)} to ${fmtDay(widget.span.end)}';
+      datesText = '${formatDay(widget.span.start)} to ${formatDay(widget.span.end)}';
     }
     String progressText;
     if (checklistOf(card).isNotEmpty) {
@@ -1054,7 +1054,7 @@ class _BarState extends State<_Bar> {
 /// The chart's background: shaded weekends (in Weeks only) and the vertical grid lines.
 class _GridPainter extends CustomPainter {
   _GridPainter({required this.scale, required this.zoom, required this.line, required this.strong, required this.weekend});
-  final ({List<TlTick> top, List<TlTick> bottom, List<TlLine> lines}) scale;
+  final ({List<TimelineTick> top, List<TimelineTick> bottom, List<TimelineLine> lines}) scale;
   final String zoom;
   final Color line;
   final Color strong;
@@ -1069,7 +1069,7 @@ class _GridPainter extends CustomPainter {
         return tick.weekend;
       });
       for (final tick in weekendTicks) {
-        canvas.drawRect(Rect.fromLTWH(tick.x, 0, tick.w, size.height), weekendPaint);
+        canvas.drawRect(Rect.fromLTWH(tick.x, 0, tick.width, size.height), weekendPaint);
       }
     }
     final thin = Paint();
@@ -1118,9 +1118,9 @@ class _ArrowPainter extends CustomPainter {
       final to = arrow.to;
       double midY;
       if (to.top > from.top) {
-        midY = to.top - rowTask / 2;
+        midY = to.top - taskRowHeight / 2;
       } else {
-        midY = to.top + rowTask / 2;
+        midY = to.top + taskRowHeight / 2;
       }
       final path = Path();
       path.moveTo(from.right - 6, from.top + 12);

@@ -24,14 +24,14 @@ class GlassBackdrop extends StatelessWidget {
       return child;
     }
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final material = ThemeController.I.windowMaterial;
+    final material = ThemeController.instance.windowMaterial;
     // The system's own material shows through a see-through window colour; without one, a glow
     // of the app's own.
     final Widget backdrop;
     if (material) {
-      backdrop = ColoredBox(color: colors.bg.withValues(alpha: glassWindowAlpha(style)));
+      backdrop = ColoredBox(color: colors.background.withValues(alpha: glassWindowAlpha(style)));
     } else {
-      backdrop = CustomPaint(painter: _GlowPainter(background: colors.bg, accent: colors.brand, dark: dark, style: style));
+      backdrop = CustomPaint(painter: _GlowPainter(background: colors.background, accent: colors.brand, dark: dark, style: style));
     }
     return Stack(
       fit: StackFit.expand,

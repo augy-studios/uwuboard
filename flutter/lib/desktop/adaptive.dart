@@ -51,7 +51,7 @@ Future<T?> showDesktopSheet<T>(
       if (style == null) {
         panelColor = Theme.of(context).dialogTheme.backgroundColor;
       } else {
-        panelColor = Color.alphaBlend(colors.surfaceStrong, colors.bg).withValues(alpha: 0.8);
+        panelColor = Color.alphaBlend(colors.surfaceStrong, colors.background).withValues(alpha: 0.8);
       }
       ShapeBorder panelShape;
       if (kind == SheetKind.drawer) {
@@ -144,7 +144,7 @@ Future<void> showContextMenu(BuildContext context, Offset position, List<MenuAct
   // The menu opens in the navigator's overlay, which starts below the desktop's title bar, so the
   // pointer's place in the window is turned into a place in that overlay.
   OverlayState? overlayState;
-  final navigatorState = AppNav.navigatorKey.currentState;
+  final navigatorState = AppNavigation.navigatorKey.currentState;
   if (navigatorState != null) {
     overlayState = navigatorState.overlay;
   }
@@ -167,7 +167,7 @@ Future<void> showContextMenu(BuildContext context, Offset position, List<MenuAct
     context: context,
     useRootNavigator: true,
     position: RelativeRect.fromRect(pointInOverlay & const Size(1, 1), Offset.zero & overlay.size),
-    color: Color.alphaBlend(colors.surfaceStrong, colors.bg),
+    color: Color.alphaBlend(colors.surfaceStrong, colors.background),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(colors.round(10)),
       side: BorderSide(color: colors.edge),
@@ -299,7 +299,7 @@ class AppScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) {
-    if (Env.desktop) {
+    if (Environment.desktop) {
       return child;
     } else {
       return super.buildOverscrollIndicator(context, child, details);
@@ -308,7 +308,7 @@ class AppScrollBehavior extends MaterialScrollBehavior {
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
-    if (Env.desktop) {
+    if (Environment.desktop) {
       return const ClampingScrollPhysics();
     } else {
       return super.getScrollPhysics(context);

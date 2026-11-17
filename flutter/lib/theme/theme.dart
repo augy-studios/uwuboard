@@ -147,7 +147,7 @@ Duration untilNextBoundary([DateTime? at]) {
 /// device. Widgets listen to it and rebuild when any of them change.
 class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
   ThemeController._();
-  static final ThemeController I = ThemeController._();
+  static final ThemeController instance = ThemeController._();
 
   Timer? _timer;
   bool _watching = false;
@@ -159,12 +159,12 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
   /// The desktop's "Use system accent colour", kept in its settings file.
   bool systemAccent = false;
 
-  /// Whether this is the Android app (Env.android, given here to keep the theme free of the app).
+  /// Whether this is the Android app (Environment.android, given here to keep the theme free of the app).
   static bool Function() isAndroid = () {
     return !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   };
 
-  /// Whether this is a desktop app (Env.desktop), whose second look is native glass, not
+  /// Whether this is a desktop app (Environment.desktop), whose second look is native glass, not
   /// Material You.
   static bool Function() isDesktop = () {
     return !kIsWeb &&
@@ -191,12 +191,12 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
   /// Moves a colour saved under the site's old key to the new one, starts the time-based mode's
   /// timer, and starts listening for the app coming back to the front.
   void init() {
-    final legacyTheme = Store.I.get(_keyLegacy);
+    final legacyTheme = Store.instance.get(_keyLegacy);
     if (legacyTheme != null) {
-      if (!Store.I.has(_keyColor) && _legacyColors[legacyTheme] != null) {
-        Store.I.put(_keyColor, _legacyColors[legacyTheme]);
+      if (!Store.instance.has(_keyColor) && _legacyColors[legacyTheme] != null) {
+        Store.instance.put(_keyColor, _legacyColors[legacyTheme]);
       }
-      Store.I.remove(_keyLegacy);
+      Store.instance.remove(_keyLegacy);
     }
     _schedule();
     if (!_watching) {
@@ -206,7 +206,7 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   String get colorThemeId {
-    final stored = Store.I.get(_keyColor);
+    final stored = Store.instance.get(_keyColor);
     final known = colorThemes.any((theme) {
       return theme.id == stored;
     });
@@ -225,7 +225,7 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// What the person chose, which can be "time".
   String get modePreference {
-    final stored = Store.I.get(_keyMode);
+    final stored = Store.instance.get(_keyMode);
     if (modePreferences.contains(stored)) {
       return stored!;
     } else {
@@ -248,7 +248,7 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// The look in use: what was chosen, or what suits the platform when nothing was.
   String get look {
-    final stored = Store.I.get(keyLook);
+    final stored = Store.instance.get(keyLook);
     if (isDesktop()) {
       // The desktop's second look is native glass. Material You, kept by an older version,
       // means it now.
@@ -286,7 +286,7 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
     if (!known) {
       return;
     }
-    Store.I.put(_keyColor, id);
+    Store.instance.put(_keyColor, id);
     notifyListeners();
   }
 
@@ -297,7 +297,7 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
     } else {
       savedPreference = 'light';
     }
-    Store.I.put(_keyMode, savedPreference);
+    Store.instance.put(_keyMode, savedPreference);
     _schedule();
     notifyListeners();
   }
@@ -309,7 +309,7 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
     } else {
       savedLook = lookUwuApps;
     }
-    Store.I.put(keyLook, savedLook);
+    Store.instance.put(keyLook, savedLook);
     notifyListeners();
   }
 
@@ -370,7 +370,7 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
 @immutable
 class UwuColors extends ThemeExtension<UwuColors> {
   const UwuColors({
-    required this.bg,
+    required this.background,
     required this.surface,
     required this.surfaceStrong,
     required this.border,
@@ -381,8 +381,8 @@ class UwuColors extends ThemeExtension<UwuColors> {
     required this.brandFill,
     required this.brandFillStrong,
     required this.onBrand,
-    required this.ok,
-    required this.warn,
+    required this.success,
+    required this.warning,
     required this.busy,
     required this.error,
     required this.errorFill,
@@ -390,9 +390,11 @@ class UwuColors extends ThemeExtension<UwuColors> {
     required this.glass,
     Color? edge,
     this.native,
+    // Spelled out on purpose: the plain parameter `edge` fills the private field `_edge`.
+    // ignore: prefer_initializing_formals
   }) : _edge = edge;
 
-  final Color bg;
+  final Color background;
   final Color surface;
   final Color surfaceStrong;
   final Color border;
@@ -403,8 +405,8 @@ class UwuColors extends ThemeExtension<UwuColors> {
   final Color brandFill;
   final Color brandFillStrong;
   final Color onBrand;
-  final Color ok;
-  final Color warn;
+  final Color success;
+  final Color warning;
   final Color busy;
   final Color error;
   final Color errorFill;
@@ -551,8 +553,8 @@ UwuColors uwuAppsColors(Color brand, Brightness brightness, {Color? accent}) {
   final Color border;
   final Color ink;
   final Color muted;
-  final Color ok;
-  final Color warn;
+  final Color success;
+  final Color warning;
   final Color busy;
   final double scrimAlpha;
   if (dark) {
@@ -560,8 +562,8 @@ UwuColors uwuAppsColors(Color brand, Brightness brightness, {Color? accent}) {
     border = const Color(0xFF84938A);
     ink = const Color(0xFFEEF2EF);
     muted = const Color(0xFFB4BEB8);
-    ok = const Color(0xFF4ADE80);
-    warn = const Color(0xFFFBBF24);
+    success = const Color(0xFF4ADE80);
+    warning = const Color(0xFFFBBF24);
     busy = const Color(0xFF94A3B8);
     scrimAlpha = 0.6;
   } else {
@@ -569,13 +571,13 @@ UwuColors uwuAppsColors(Color brand, Brightness brightness, {Color? accent}) {
     border = const Color(0xFF6F7E75);
     ink = _ink;
     muted = const Color(0xFF4A554E);
-    ok = const Color(0xFF0F7234);
-    warn = const Color(0xFFA24B08);
+    success = const Color(0xFF0F7234);
+    warning = const Color(0xFFA24B08);
     busy = const Color(0xFF627288);
     scrimAlpha = 0.35;
   }
   return UwuColors(
-    bg: background,
+    background: background,
     surface: surface,
     surfaceStrong: surfaceStrong,
     // Component edges at 3:1 or more against every surface, for all seven brand colours (WCAG
@@ -588,8 +590,8 @@ UwuColors uwuAppsColors(Color brand, Brightness brightness, {Color? accent}) {
     brandFill: _mix(tint, 0.55, surfaceStrong),
     brandFillStrong: _mix(tint, 0.75, surfaceStrong),
     onBrand: _ink,
-    ok: ok,
-    warn: warn,
+    success: success,
+    warning: warning,
     busy: busy,
     error: error,
     errorFill: _mix(error, 0.14, background),
@@ -601,20 +603,20 @@ UwuColors uwuAppsColors(Color brand, Brightness brightness, {Color? accent}) {
 /// The same tokens from a Material colour scheme.
 UwuColors materialColors(ColorScheme scheme) {
   final dark = scheme.brightness == Brightness.dark;
-  final Color ok;
-  final Color warn;
+  final Color success;
+  final Color warning;
   final double scrimAlpha;
   if (dark) {
-    ok = const Color(0xFF7DDC9A);
-    warn = const Color(0xFFFBBF24);
+    success = const Color(0xFF7DDC9A);
+    warning = const Color(0xFFFBBF24);
     scrimAlpha = 0.6;
   } else {
-    ok = const Color(0xFF0F7234);
-    warn = const Color(0xFFA24B08);
+    success = const Color(0xFF0F7234);
+    warning = const Color(0xFFA24B08);
     scrimAlpha = 0.4;
   }
   return UwuColors(
-    bg: scheme.surface,
+    background: scheme.surface,
     surface: scheme.surfaceContainerLow,
     surfaceStrong: scheme.surfaceContainerHigh,
     // outline, not outlineVariant: Material's outline is the one made for 3:1 edges (WCAG 1.4.11).
@@ -626,8 +628,8 @@ UwuColors materialColors(ColorScheme scheme) {
     brandFill: scheme.primaryContainer,
     brandFillStrong: _mix(scheme.primary, 0.18, scheme.primaryContainer),
     onBrand: scheme.onPrimaryContainer,
-    ok: ok,
-    warn: warn,
+    success: success,
+    warning: warning,
     busy: scheme.onSurfaceVariant,
     error: scheme.error,
     errorFill: scheme.errorContainer,
@@ -810,26 +812,26 @@ UwuColors glassColors(GlassStyle style, Brightness brightness, {Color? accent}) 
   final Color error;
   final double brandFillAmount;
   final double brandFillStrongAmount;
-  final Color ok;
-  final Color warn;
+  final Color success;
+  final Color warning;
   final double scrimAlpha;
   if (dark) {
     error = const Color(0xFFFF99A4);
     brandFillAmount = 0.32;
     brandFillStrongAmount = 0.48;
-    ok = const Color(0xFF6CCB5F);
-    warn = const Color(0xFFFBBF24);
+    success = const Color(0xFF6CCB5F);
+    warning = const Color(0xFFFBBF24);
     scrimAlpha = 0.5;
   } else {
     error = const Color(0xFFC42B1C);
     brandFillAmount = 0.20;
     brandFillStrongAmount = 0.32;
-    ok = const Color(0xFF0F7B0F);
-    warn = const Color(0xFFA24B08);
+    success = const Color(0xFF0F7B0F);
+    warning = const Color(0xFFA24B08);
     scrimAlpha = 0.28;
   }
   return UwuColors(
-    bg: background,
+    background: background,
     surface: surface,
     surfaceStrong: surfaceStrong,
     border: Color(borderValue),
@@ -841,8 +843,8 @@ UwuColors glassColors(GlassStyle style, Brightness brightness, {Color? accent}) 
     brandFill: _accentFill(tint, brandFillAmount, strong, inkColor),
     brandFillStrong: _accentFill(tint, brandFillStrongAmount, strong, inkColor),
     onBrand: inkColor,
-    ok: ok,
-    warn: warn,
+    success: success,
+    warning: warning,
     busy: Color(mutedValue),
     error: error,
     errorFill: _mix(error, 0.14, background),
@@ -912,7 +914,7 @@ ThemeData buildTheme({
     if (native) {
       onPrimary = onColor(colors.brandInk);
     } else {
-      onPrimary = colors.bg;
+      onPrimary = colors.background;
     }
     scheme = ColorScheme.fromSeed(seedColor: colors.brandInk, brightness: brightness).copyWith(
       primary: colors.brandInk,
@@ -921,10 +923,10 @@ ThemeData buildTheme({
       onPrimaryContainer: colors.onBrand,
       secondaryContainer: colors.brandFill,
       onSecondaryContainer: colors.onBrand,
-      surface: colors.bg,
+      surface: colors.background,
       onSurface: colors.ink,
       onSurfaceVariant: colors.muted,
-      surfaceContainerLowest: colors.bg,
+      surfaceContainerLowest: colors.background,
       surfaceContainerLow: colors.surface,
       surfaceContainer: colors.surface,
       surfaceContainerHigh: colors.surfaceStrong,
@@ -932,7 +934,7 @@ ThemeData buildTheme({
       outline: colors.muted,
       outlineVariant: colors.border,
       error: colors.error,
-      onError: colors.bg,
+      onError: colors.background,
       errorContainer: colors.errorFill,
       onErrorContainer: colors.error,
     );
@@ -988,15 +990,15 @@ ThemeData buildTheme({
   // dialogs and panels blur what's behind them as well (lib/desktop/adaptive.dart).
   final Color overlay;
   if (native) {
-    overlay = Color.alphaBlend(colors.surfaceStrong, colors.bg).withValues(alpha: 0.94);
+    overlay = Color.alphaBlend(colors.surfaceStrong, colors.background).withValues(alpha: 0.94);
   } else {
-    overlay = Color.alphaBlend(colors.surfaceStrong.withValues(alpha: 0.9), colors.bg);
+    overlay = Color.alphaBlend(colors.surfaceStrong.withValues(alpha: 0.9), colors.background);
   }
   final Color scaffoldBackground;
   if (native) {
     scaffoldBackground = Colors.transparent;
   } else {
-    scaffoldBackground = colors.bg;
+    scaffoldBackground = colors.background;
   }
   final VisualDensity density;
   if (desktop) {
@@ -1077,7 +1079,7 @@ ThemeData buildTheme({
       }),
       thumbColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return colors.bg;
+          return colors.background;
         } else {
           return colors.muted;
         }
@@ -1101,7 +1103,7 @@ ThemeData buildTheme({
     tooltipTheme: TooltipThemeData(
       waitDuration: const Duration(milliseconds: 400),
       decoration: BoxDecoration(color: colors.ink, borderRadius: BorderRadius.circular(tooltipRadius)),
-      textStyle: TextStyle(color: colors.bg, fontSize: 12, fontFamily: font),
+      textStyle: TextStyle(color: colors.background, fontSize: 12, fontFamily: font),
     ),
     inputDecorationTheme: InputDecorationTheme(
       isDense: true,
@@ -1167,7 +1169,7 @@ ThemeData buildTheme({
           return null;
         }
       }),
-      checkColor: WidgetStatePropertyAll(colors.bg),
+      checkColor: WidgetStatePropertyAll(colors.background),
       side: BorderSide(color: colors.muted, width: 1.5),
       mouseCursor: WidgetStateMouseCursor.clickable,
     ),
@@ -1175,7 +1177,7 @@ ThemeData buildTheme({
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: colors.ink,
-      contentTextStyle: TextStyle(color: colors.bg, fontFamily: font, fontSize: 14),
+      contentTextStyle: TextStyle(color: colors.background, fontFamily: font, fontSize: 14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(colors.round(12))),
     ),
     dialogTheme: DialogThemeData(

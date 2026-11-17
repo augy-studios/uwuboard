@@ -246,7 +246,7 @@ class Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = UwuColors.of(context);
-    final app = AppState.I;
+    final app = AppState.instance;
     final initial = Center(
       child: Text(
         app.initial,
@@ -360,7 +360,7 @@ class LabelChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final parsedHex = parseHex(color);
+    final parsedHex = parseHexColour(color);
     final int hex;
     if (parsedHex != null) {
       hex = parsedHex;
@@ -369,7 +369,7 @@ class LabelChip extends StatelessWidget {
     }
     final background = Color(0xFF000000 | hex);
     final Color ink;
-    if (isDarkHex(color)) {
+    if (isDarkHexColour(color)) {
       ink = Colors.white;
     } else {
       ink = const Color(0xFF121815);

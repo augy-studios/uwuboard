@@ -76,7 +76,7 @@ Future<void> main() async {
   SemanticsBinding.instance.ensureSemantics();
   final queryParameters = Uri.base.queryParameters;
   if (queryParameters['android'] == '1') {
-    Env.androidOverride = true;
+    Environment.androidOverride = true;
     Native.host = _FakeAndroid(play: queryParameters['play'] == '1');
   }
   if (queryParameters['wallpaper'] == '1') {
@@ -84,14 +84,14 @@ Future<void> main() async {
     testDarkDynamic = ColorScheme.fromSeed(seedColor: const Color(0xFF7B3FF2), brightness: Brightness.dark);
   }
   if (queryParameters['welcome'] == '1') {
-    Env.desktopOverride = true;
+    Environment.desktopOverride = true;
     await Store.open();
-    ThemeController.I.init();
+    ThemeController.instance.init();
     runApp(WelcomeApp(done: (choices) {}));
     return;
   }
   if (queryParameters['desktop'] == '1') {
-    Env.desktopOverride = true;
+    Environment.desktopOverride = true;
     desktopChrome = (context, child) {
       return DesktopChrome(child: child);
     };

@@ -7,8 +7,8 @@ import 'package:flutter/services.dart';
 import '../theme/theme.dart';
 import '../widgets/sheet.dart';
 
-class AppNav {
-  AppNav._();
+class AppNavigation {
+  AppNavigation._();
 
   static final navigatorKey = GlobalKey<NavigatorState>();
   static final messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -37,7 +37,7 @@ class AppNav {
     Color? textColor;
     Color? backgroundColor;
     if (error) {
-      textColor = colors.bg;
+      textColor = colors.background;
       backgroundColor = colors.error;
     } else {
       textColor = null;

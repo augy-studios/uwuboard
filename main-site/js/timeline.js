@@ -33,20 +33,20 @@
   /* ---- dates as day numbers ---- */
 
   const MILLISECONDS_PER_DAY = 86400000;
-  const isIso = (text) => {
+  const isIsoDate = (text) => {
     return typeof text === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(text);
   };
   const dayOf = (iso) => {
     const [year, month, day] = iso.split('-').map(Number);
     return Math.round(Date.UTC(year, month - 1, day) / MILLISECONDS_PER_DAY);
   };
-  const isoOf = (dayNumber) => {
+  const isoDateOf = (dayNumber) => {
     return new Date(dayNumber * MILLISECONDS_PER_DAY).toISOString().slice(0, 10);
   };
   const dateOf = (dayNumber) => {
     return new Date(dayNumber * MILLISECONDS_PER_DAY);
   };
-  function todayIso() {
+  function todayIsoDate() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   }
@@ -55,11 +55,11 @@
   // a milestone is always one day, on its due date.
   function span(card) {
     let startDay = null;
-    if (isIso(card.start)) {
+    if (isIsoDate(card.start)) {
       startDay = dayOf(card.start);
     }
     let dueDay = null;
-    if (isIso(card.due)) {
+    if (isIsoDate(card.due)) {
       dueDay = dayOf(card.due);
     }
     if (startDay === null && dueDay === null) {
@@ -159,7 +159,7 @@
   // or month, and wide enough to fill the space there is.
   function rangeOf(board, zoom, minWidth) {
     const zoomSettings = ZOOMS[zoom];
-    const today = dayOf(todayIso());
+    const today = dayOf(todayIsoDate());
     let firstDay = today;
     let lastDay = today;
     for (const column of board.columns) {
@@ -369,7 +369,7 @@
       const endX = xOfDay(taskSpan.end) + pixelsPerDay;
       const centreY = row.y + row.height / 2;
       bars.set(row.card.id, { startX, endX, y: centreY });
-      const late = !row.card.milestone && isIso(row.card.due) && row.card.due < todayIso() && progress(row.card) < 1;
+      const late = !row.card.milestone && isIsoDate(row.card.due) && row.card.due < todayIsoDate() && progress(row.card) < 1;
       if (row.card.milestone) {
         return `<div class="tl-row tl-row-task" style="top:${row.y}px;height:${row.height}px">` +
           `<div class="tl-milestone" style="left:${startX + pixelsPerDay / 2 - 11}px" data-card="${id}" data-col="${escapeHtml(row.column.id)}" tabindex="0" role="button" aria-label="${escapeHtml(row.card.title)}, milestone, ${formatDay(taskSpan.start)}">` +
@@ -656,14 +656,14 @@
       if (!card) {
         return;
       }
-      card.start = isoOf(day);
+      card.start = isoDateOf(day);
       let extraDays;
       if (card.milestone) {
         extraDays = 0;
       } else {
         extraDays = ZOOMS[layout.zoom].newLength - 1;
       }
-      card.due = isoOf(day + extraDays);
+      card.due = isoDateOf(day + extraDays);
       touch(card);
       save(board);
     });
@@ -705,11 +705,11 @@
   }
 
   function setSpan(card, start, end) {
-    card.start = isoOf(start);
+    card.start = isoDateOf(start);
     if (card.milestone) {
-      card.due = isoOf(start);
+      card.due = isoDateOf(start);
     } else {
-      card.due = isoOf(end);
+      card.due = isoDateOf(end);
     }
   }
 
@@ -789,5 +789,5 @@
     element.addEventListener('pointercancel', onUp);
   }
 
-  window.Timeline = { render, span, waitingOn, pruneDependencies, clashes, isIso };
+  window.Timeline = { render, span, waitingOn, pruneDependencies, clashes, isIsoDate };
 })();

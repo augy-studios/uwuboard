@@ -38,7 +38,7 @@ class _AuthScreenState extends State<AuthScreen> {
       _busy = true;
       _loginError = null;
     });
-    final error = await AppState.I.login(_loginUsername.text.trim(), _loginPassword.text);
+    final error = await AppState.instance.login(_loginUsername.text.trim(), _loginPassword.text);
     if (!mounted) {
       return;
     }
@@ -54,7 +54,7 @@ class _AuthScreenState extends State<AuthScreen> {
       _busy = true;
       _registerError = null;
     });
-    final error = await AppState.I.register(_registerUsername.text.trim(), _registerEmail.text.trim(), _registerPassword.text);
+    final error = await AppState.instance.register(_registerUsername.text.trim(), _registerEmail.text.trim(), _registerPassword.text);
     if (!mounted) {
       return;
     }
@@ -81,8 +81,8 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (error) {
       json = null;
     }
-    AppState.I.setGuest();
-    await AppState.I.importBoard(json, asNew: true);
+    AppState.instance.setGuest();
+    await AppState.instance.importBoard(json, asNew: true);
   }
 
   /// The screen: the logo and name, the three tabs, and the form of the chosen tab, in a glass
@@ -294,7 +294,7 @@ class _AuthScreenState extends State<AuthScreen> {
         style: TextStyle(color: colors.muted, fontSize: 14, height: 1.4),
       ),
       const SizedBox(height: 16),
-      FilledButton(onPressed: AppState.I.setGuest, child: const Text('Continue as Guest')),
+      FilledButton(onPressed: AppState.instance.setGuest, child: const Text('Continue as Guest')),
       const SizedBox(height: 14),
       OutlinedButton.icon(
         onPressed: _importFile,

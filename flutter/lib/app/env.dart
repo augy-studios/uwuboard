@@ -1,8 +1,8 @@
 // Where the app is running, asked in one place.
 import 'package:flutter/foundation.dart';
 
-class Env {
-  Env._();
+class Environment {
+  Environment._();
 
   /// For tests and screenshots: draw as the desktop apps do (or don't), whatever the machine.
   static bool? desktopOverride;

@@ -63,9 +63,9 @@ final _settings = <String, _Setting>{
       return label;
     },
     () {
-      return ThemeController.I.modePreference;
+      return ThemeController.instance.modePreference;
     },
-    ThemeController.I.setMode,
+    ThemeController.instance.setMode,
   ),
   'colour': _Setting(
     'Brand colour',
@@ -88,9 +88,9 @@ final _settings = <String, _Setting>{
       return label;
     },
     () {
-      return ThemeController.I.colorThemeId;
+      return ThemeController.instance.colorThemeId;
     },
-    ThemeController.I.setColorTheme,
+    ThemeController.instance.setColorTheme,
   ),
 };
 
@@ -142,9 +142,9 @@ class SyncItem {
     }
   }
 
-  String get sub {
+  String get subtitle {
     if (kind == 'board') {
-      return boardSub(item);
+      return boardSummary(item);
     } else {
       return _settings[item['field']]!.text('${item['value']}');
     }
@@ -155,7 +155,7 @@ class SyncItem {
 /// everything the Sync window shows.
 class SyncController extends ChangeNotifier {
   SyncController._();
-  static final SyncController I = SyncController._();
+  static final SyncController instance = SyncController._();
 
   String? role; // host | guest while a session runs
   dynamic connection; // Host or Guest
@@ -258,14 +258,14 @@ class SyncController extends ChangeNotifier {
     if (role != null) {
       return;
     }
-    final stored = Store.I.get(_hostKey);
+    final stored = Store.instance.get(_hostKey);
     String code;
     if (isValidCode(stored)) {
       code = stored!;
     } else {
       code = generateCode();
     }
-    Store.I.put(_hostKey, code);
+    Store.instance.put(_hostKey, code);
     _begin('host');
     hostCode = code;
     final host = Host();
@@ -282,7 +282,7 @@ class SyncController extends ChangeNotifier {
       }
       if (newStatus == 'error') {
         if (taken) {
-          Store.I.remove(_hostKey);
+          Store.instance.remove(_hostKey);
         }
         String errorText;
         if (message == null) {
@@ -321,7 +321,7 @@ class SyncController extends ChangeNotifier {
   /// Throws the current code away and starts hosting again with a new one.
   Future<void> newHostCode([String noteText = '']) async {
     _end();
-    Store.I.remove(_hostKey);
+    Store.instance.remove(_hostKey);
     await startHosting();
     if (noteText.isNotEmpty) {
       showNote(noteText);
@@ -339,7 +339,7 @@ class SyncController extends ChangeNotifier {
       _end();
     }
     _begin('guest');
-    Store.I.put(_lastKey, code);
+    Store.instance.put(_lastKey, code);
     codeInput = code;
     final guest = Guest();
     connection = guest;
@@ -433,7 +433,7 @@ class SyncController extends ChangeNotifier {
   }
 
   List<Json> _ownBoards() {
-    return [for (final board in AppState.I.boards) listBoard(board)];
+    return [for (final board in AppState.instance.boards) listBoard(board)];
   }
 
   void _sendBoards() {
@@ -494,7 +494,7 @@ class SyncController extends ChangeNotifier {
           if (!identical(connection, startConnection)) {
             return charactersSent;
           }
-          if (data.length > maxImageChars) {
+          if (data.length > maxImageCharacters) {
             continue;
           }
           final total = (data.length / chunkSize).ceil();
@@ -534,7 +534,7 @@ class SyncController extends ChangeNotifier {
     if (!isId(id) || part is! String || part.length > chunkSize) {
       return;
     }
-    if (!(total >= 1 && total <= (maxImageChars / chunkSize).ceil()) || !(chunkIndex >= 0 && chunkIndex < total)) {
+    if (!(total >= 1 && total <= (maxImageCharacters / chunkSize).ceil()) || !(chunkIndex >= 0 && chunkIndex < total)) {
       return;
     }
     if (_received.containsKey(id)) {
@@ -559,7 +559,7 @@ class SyncController extends ChangeNotifier {
     }
     _incoming.remove(id);
     final data = entry.parts.join();
-    if (dataUrlRe.hasMatch(data)) {
+    if (dataUrlPattern.hasMatch(data)) {
       _received[id] = data;
     }
   }
@@ -569,7 +569,7 @@ class SyncController extends ChangeNotifier {
   /// Every image on this device's boards, by its id.
   Map<Object?, Json> _ownImages() {
     return {
-      for (final board in AppState.I.boards)
+      for (final board in AppState.instance.boards)
         for (final card in allCards(board))
           for (final image in imagesOf(card)) image['id']: image,
     };
@@ -598,7 +598,7 @@ class SyncController extends ChangeNotifier {
         if (data == null) {
           continue;
         }
-        if (AppState.I.isGuest) {
+        if (AppState.instance.isGuest) {
           kept.add({'id': image['id'], 'name': image['name'], 'data': data});
           continue;
         }
@@ -642,7 +642,7 @@ class SyncController extends ChangeNotifier {
         count = count + 1;
       }
     }
-    final app = AppState.I;
+    final app = AppState.instance;
     final local = _ownImages();
     final changed = <Json>[];
     for (final incomingBoard in boards) {
@@ -674,7 +674,7 @@ class SyncController extends ChangeNotifier {
         await Future.wait([
           for (final changedBoard in changed)
             Api.call('PUT', '/boards/update', {'board': changedBoard}).catchError((Object error) {
-              AppNav.toast('Sync error', error: true);
+              AppNavigation.toast('Sync error', error: true);
               return <String, dynamic>{};
             }),
         ]);
@@ -798,7 +798,7 @@ class SyncController extends ChangeNotifier {
         if (isId(boardId)) boardId,
     };
     final chosen = [
-      for (final board in AppState.I.boards)
+      for (final board in AppState.instance.boards)
         if (ids.contains(board['id'])) clone(board),
     ];
     final startConnection = connection;
@@ -981,7 +981,7 @@ class SyncController extends ChangeNotifier {
         showNote('Sending $chosenCount things…');
       }
       final fullBoards = [
-        for (final board in AppState.I.boards)
+        for (final board in AppState.instance.boards)
           if (boards.any((chosenBoard) {
             return chosenBoard['id'] == board['id'];
           }))
@@ -1018,7 +1018,7 @@ class SyncController extends ChangeNotifier {
   /// The window opening: the last code this device joined with, ready to use again.
   void opened() {
     if (role == null && codeInput.isEmpty) {
-      final lastCode = Store.I.get(_lastKey);
+      final lastCode = Store.instance.get(_lastKey);
       if (lastCode == null) {
         codeInput = '';
       } else {

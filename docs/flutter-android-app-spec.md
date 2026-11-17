@@ -118,8 +118,8 @@ Native.has('feature')                        ← info().features, listed by the 
 ## 5. The shell
 
 - **Pages** in an `IndexedStack`, each built once and kept, so switching back keeps its place.
-- **Navigation**: a global navigator key and messenger key; `AppNav.open(route, args)` and
-  `AppNav.showPage(id)` from anywhere; a snack bar helper.
+- **Navigation**: a global navigator key and messenger key; `AppNavigation.open(route, args)` and
+  `AppNavigation.showPage(id)` from anywhere; a snack bar helper.
 - **Links**: the site's own https links (verified with `assetlinks.json` so Android opens them in
   the app), a custom scheme, launcher shortcuts and share intents all go through one
   `Links.open(url)` that maps the site's addresses to pages, so any site link opens the right

@@ -14,7 +14,7 @@ import 'nav.dart';
 /// Returns where it went, or null if it didn't.
 Future<String?> saveFile(String name, Uint8List bytes, {String mime = 'application/octet-stream'}) async {
   try {
-    if (Env.android) {
+    if (Environment.android) {
       final result = await Native.call('App', 'saveFile', {'name': name, 'mime': mime, 'data': base64Encode(bytes)});
       String? savedPath;
       if (result != null) {
@@ -36,7 +36,7 @@ Future<String?> saveFile(String name, Uint8List bytes, {String mime = 'applicati
     await XFile.fromData(bytes, name: name, mimeType: mime).saveTo(where.path);
     return where.path;
   } catch (error) {
-    AppNav.toast('Couldn’t save $name', error: true);
+    AppNavigation.toast('Couldn’t save $name', error: true);
     return null;
   }
 }

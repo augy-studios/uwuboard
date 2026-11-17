@@ -127,7 +127,7 @@ class DeskTray with TrayListener {
             label: 'Sync with another device',
             onClick: (menuItem) async {
               await Desktop.show();
-              final appContext = AppNav.context;
+              final appContext = AppNavigation.context;
               if (appContext != null && appContext.mounted) {
                 unawaited(openSync(appContext));
               }

@@ -64,7 +64,7 @@ class DeskWidgets {
 
   /// A new widget, in its setup state, or already showing `board`.
   static Future<void> add([Json? board]) async {
-    final id = uid();
+    final id = uniqueId();
     Object? code;
     Object? name;
     if (board != null) {
@@ -100,7 +100,7 @@ class DeskWidgets {
 /// A widget's own engine: its window set up, then its screen.
 Future<void> runWidgetWindow(String id) async {
   await Store.open();
-  ThemeController.I.init();
+  ThemeController.instance.init();
   await windowManager.ensureInitialized();
   final widgetEntry = DeskWidgets._all().where((entry) {
     return entry['id'] == id;
@@ -238,9 +238,9 @@ class _WidgetAppState extends State<_WidgetApp> with WindowListener {
 
   /// The boards: the account's, signed in, or this computer's guest boards.
   Future<void> _load() async {
-    await Store.I.reload();
+    await Store.instance.reload();
     try {
-      final saved = Store.I.get(keySession);
+      final saved = Store.instance.get(keySession);
       // The session's token, if a session is saved.
       Object? token;
       if (saved != null) {
@@ -256,7 +256,7 @@ class _WidgetAppState extends State<_WidgetApp> with WindowListener {
         }
         _boards = boardsFromJson((jsonDecode(response.body) as Map)['boards']);
       } else {
-        String? guestBoards = Store.I.get(keyGuestBoards);
+        String? guestBoards = Store.instance.get(keyGuestBoards);
         if (guestBoards == null) {
           guestBoards = '[]';
         }
@@ -279,7 +279,7 @@ class _WidgetAppState extends State<_WidgetApp> with WindowListener {
   /// The widget: a rounded card with its top bar, then either the board picker or the cards.
   @override
   Widget build(BuildContext context) {
-    final themeController = ThemeController.I;
+    final themeController = ThemeController.instance;
     final theme = buildTheme(look: lookUwuApps, brightness: themeController.brightness, brand: themeController.colorTheme.color, desktop: true);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -291,7 +291,7 @@ class _WidgetAppState extends State<_WidgetApp> with WindowListener {
             backgroundColor: Colors.transparent,
             body: Container(
               decoration: BoxDecoration(
-                color: colors.bg,
+                color: colors.background,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: colors.border),
               ),
@@ -514,7 +514,7 @@ class _WidgetAppState extends State<_WidgetApp> with WindowListener {
         if (dueCard.days < 0) {
           colour = colors.error;
         } else if (dueCard.days == 0) {
-          colour = colors.warn;
+          colour = colors.warning;
         } else {
           colour = colors.muted;
         }

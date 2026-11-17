@@ -41,7 +41,7 @@ class WindowBackdrop {
       return;
     }
     _started = true;
-    ThemeController.I.addListener(_apply);
+    ThemeController.instance.addListener(_apply);
     // Showing the window and leaving full screen set its frame again, which takes Mica away.
     Desktop.onShown.add(() {
       _apply(force: true);
@@ -57,7 +57,7 @@ class WindowBackdrop {
   /// Asks the runner for the material the current look wants, unless it was already asked
   /// (or `force` is set), then tells the theme whether the system draws it.
   static Future<void> _apply({bool force = false}) async {
-    final theme = ThemeController.I;
+    final theme = ThemeController.instance;
     String kind;
     if (theme.isNative) {
       kind = _kindFor(theme.glassStyle);
