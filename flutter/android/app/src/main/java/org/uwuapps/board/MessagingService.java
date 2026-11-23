@@ -23,23 +23,47 @@ public class MessagingService extends FirebaseMessagingService {
     @Override
     public void onMessageReceived(@NonNull RemoteMessage message) {
         Map<String, String> data = message.getData();
-        if (!"release".equals(data.get("type"))) return;
+        if (!"release".equals(data.get("type"))) {
+            return;
+        }
         MainActivity.Notifications.channels(this);
         String title = data.get("title");
         String body = data.get("body");
-        Intent open = new Intent(MainActivity.OPEN_UPDATES)
+        // Tapping the notification opens the Updates page.
+        Intent openUpdatesIntent = new Intent(MainActivity.OPEN_UPDATES)
                 .setPackage(getPackageName())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
-        PendingIntent tap = PendingIntent.getActivity(this, 1, open, flags);
-        NotificationCompat.Builder n = new NotificationCompat.Builder(this, "releases")
+        int immutableFlag;
+        if (Build.VERSION.SDK_INT >= 23) {
+            immutableFlag = PendingIntent.FLAG_IMMUTABLE;
+        } else {
+            immutableFlag = 0;
+        }
+        int pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT | immutableFlag;
+        PendingIntent tapIntent = PendingIntent.getActivity(this, 1, openUpdatesIntent, pendingIntentFlags);
+        // The message's own title and text, or a plain title and no text when it has none.
+        String contentTitle;
+        if (title == null) {
+            contentTitle = "A new version of uwuBoard is out";
+        } else {
+            contentTitle = title;
+        }
+        String contentText;
+        if (body == null) {
+            contentText = "";
+        } else {
+            contentText = body;
+        }
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, "releases")
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(title == null ? "A new version of uwuBoard is out" : title)
-                .setContentText(body == null ? "" : body)
+                .setContentTitle(contentTitle)
+                .setContentText(contentText)
                 .setAutoCancel(true)
-                .setContentIntent(tap);
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        if (nm != null) nm.notify("release", 1, n.build());
+                .setContentIntent(tapIntent);
+        NotificationManager notificationManager = getSystemService(NotificationManager.class);
+        if (notificationManager != null) {
+            notificationManager.notify("release", 1, notificationBuilder.build());
+        }
     }
 
     @Override

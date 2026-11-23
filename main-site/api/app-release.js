@@ -14,18 +14,28 @@
 
 const { allReleases } = require('./lib/releases');
 
-module.exports = async (req, res) => {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+module.exports = async (request, response) => {
+  if (request.method !== 'GET') {
+    return response.status(405).json({ error: 'Method not allowed' });
+  }
   let releases;
   try {
     releases = await allReleases();
-  } catch (err) {
-    console.error('app-release:', err.message);
-    return res.status(502).json({ error: "Couldn't reach GitHub" });
+  } catch (error) {
+    console.error('app-release:', error.message);
+    return response.status(502).json({ error: "Couldn't reach GitHub" });
   }
-  const history = releases.map(({ version, date, notes, page }) => ({ version, date, notes, page }));
-  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+  const history = releases.map(({ version, date, notes, page }) => {
+    return { version, date, notes, page };
+  });
+  response.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
   // The app's browser build (its Playwright suite) asks from another origin.
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  return res.status(200).json(releases[0] ? { ...releases[0], history } : { version: null, history });
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  let answer;
+  if (releases[0]) {
+    answer = { ...releases[0], history };
+  } else {
+    answer = { version: null, history };
+  }
+  return response.status(200).json(answer);
 };

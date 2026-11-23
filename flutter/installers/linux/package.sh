@@ -6,16 +6,18 @@
 #   installers/linux/package.sh <version> <amd64|arm64> <bundle dir> <out dir>
 set -euo pipefail
 
-version="$1"; arch="$2"; bundle="$3"; out="$4"
-here="$(cd "$(dirname "$0")" && pwd)"
-icon="$here/../../assets/images/icon-512.png"
-mkdir -p "$out"
-case "$arch" in
-  amd64) rpm_arch=x86_64; appimage_arch=x86_64 ;;
-  arm64) rpm_arch=aarch64; appimage_arch=aarch64 ;;
-  *) echo "unknown arch $arch" >&2; exit 1 ;;
+version="$1"; architecture="$2"; bundle_dir="$3"; output_dir="$4"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+icon="$script_dir/../../assets/images/icon-512.png"
+mkdir -p "$output_dir"
+# The names the .rpm and the AppImage use for this processor.
+case "$architecture" in
+  amd64) rpm_architecture=x86_64; appimage_architecture=x86_64 ;;
+  arm64) rpm_architecture=aarch64; appimage_architecture=aarch64 ;;
+  *) echo "unknown arch $architecture" >&2; exit 1 ;;
 esac
 
+# Prints the .desktop file (the menu entry, and the uwu:// link handler). $1 is the command it runs.
 desktop_entry() {
   cat <<EOF
 [Desktop Entry]
@@ -34,46 +36,47 @@ EOF
 }
 
 # ---- the tree, shared by the .deb and the .rpm ----
-root="$(mktemp -d)"
-mkdir -p "$root/opt/uwuBoard" "$root/usr/bin" "$root/usr/share/applications" "$root/usr/share/icons/hicolor/512x512/apps" "$root/usr/share/icons/hicolor/256x256/apps"
-cp -a "$bundle/." "$root/opt/uwuBoard/"
-ln -s /opt/uwuBoard/uwuboard "$root/usr/bin/uwuboard"
-desktop_entry /opt/uwuBoard/uwuboard > "$root/usr/share/applications/uwuboard.desktop"
-cp "$icon" "$root/usr/share/icons/hicolor/512x512/apps/uwuboard.png"
-convert "$icon" -resize 256x256 "$root/usr/share/icons/hicolor/256x256/apps/uwuboard.png" 2>/dev/null || cp "$icon" "$root/usr/share/icons/hicolor/256x256/apps/uwuboard.png"
-size_kb="$(du -sk "$root" | cut -f1)"
+package_root="$(mktemp -d)"
+mkdir -p "$package_root/opt/uwuBoard" "$package_root/usr/bin" "$package_root/usr/share/applications" "$package_root/usr/share/icons/hicolor/512x512/apps" "$package_root/usr/share/icons/hicolor/256x256/apps"
+cp -a "$bundle_dir/." "$package_root/opt/uwuBoard/"
+ln -s /opt/uwuBoard/uwuboard "$package_root/usr/bin/uwuboard"
+desktop_entry /opt/uwuBoard/uwuboard > "$package_root/usr/share/applications/uwuboard.desktop"
+cp "$icon" "$package_root/usr/share/icons/hicolor/512x512/apps/uwuboard.png"
+convert "$icon" -resize 256x256 "$package_root/usr/share/icons/hicolor/256x256/apps/uwuboard.png" 2>/dev/null || cp "$icon" "$package_root/usr/share/icons/hicolor/256x256/apps/uwuboard.png"
+size_in_kilobytes="$(du -sk "$package_root" | cut -f1)"
 
 # ---- .deb ----
-deb="$(mktemp -d)"
-cp -a "$root/." "$deb/"
-mkdir -p "$deb/DEBIAN"
-cat > "$deb/DEBIAN/control" <<EOF
+deb_root="$(mktemp -d)"
+cp -a "$package_root/." "$deb_root/"
+mkdir -p "$deb_root/DEBIAN"
+cat > "$deb_root/DEBIAN/control" <<EOF
 Package: uwuboard
 Version: $version
 Section: utils
 Priority: optional
-Architecture: $arch
+Architecture: $architecture
 Maintainer: Augy Studios <noreply@uwuapps.org>
-Installed-Size: $size_kb
+Installed-Size: $size_in_kilobytes
 Depends: libgtk-3-0, libayatana-appindicator3-1 | libappindicator3-1
 Homepage: https://board.uwuapps.org
 Description: uwuBoard, the Kanban way
  Turn your to-do list into a clear board where you drag tasks from To Do to Done,
  or lay them out as a Timeline. Guest mode or an account, and sync between devices.
 EOF
-cat > "$deb/DEBIAN/postinst" <<'EOF'
+cat > "$deb_root/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 update-desktop-database -q /usr/share/applications 2>/dev/null || true
 gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || true
 EOF
-chmod 755 "$deb/DEBIAN/postinst"
-dpkg-deb --build --root-owner-group "$deb" "$out/uwuboard-$version-$arch.deb"
+chmod 755 "$deb_root/DEBIAN/postinst"
+dpkg-deb --build --root-owner-group "$deb_root" "$output_dir/uwuboard-$version-$architecture.deb"
 
 # ---- .rpm ----
+# Only where rpmbuild is installed.
 if command -v rpmbuild >/dev/null; then
-  top="$(mktemp -d)"
-  mkdir -p "$top"/{BUILD,RPMS,SOURCES,SPECS,SRPMS,BUILDROOT}
-  cat > "$top/SPECS/uwuboard.spec" <<EOF
+  rpm_top_dir="$(mktemp -d)"
+  mkdir -p "$rpm_top_dir"/{BUILD,RPMS,SOURCES,SPECS,SRPMS,BUILDROOT}
+  cat > "$rpm_top_dir/SPECS/uwuboard.spec" <<EOF
 Name: uwuboard
 Version: $version
 Release: 1
@@ -90,7 +93,7 @@ Turn your to-do list into a clear board where you drag tasks from To Do to Done,
 or lay them out as a Timeline.
 
 %install
-cp -a $root/. %{buildroot}/
+cp -a $package_root/. %{buildroot}/
 
 %files
 /opt/uwuBoard
@@ -99,27 +102,29 @@ cp -a $root/. %{buildroot}/
 /usr/share/icons/hicolor/512x512/apps/uwuboard.png
 /usr/share/icons/hicolor/256x256/apps/uwuboard.png
 EOF
-  rpmbuild --define "_topdir $top" --target "$rpm_arch" -bb "$top/SPECS/uwuboard.spec"
-  cp "$top"/RPMS/*/*.rpm "$out/uwuboard-$version-$rpm_arch.rpm"
+  rpmbuild --define "_topdir $rpm_top_dir" --target "$rpm_architecture" -bb "$rpm_top_dir/SPECS/uwuboard.spec"
+  cp "$rpm_top_dir"/RPMS/*/*.rpm "$output_dir/uwuboard-$version-$rpm_architecture.rpm"
 fi
 
 # ---- AppImage ----
-appdir="$(mktemp -d)/uwuBoard.AppDir"
-mkdir -p "$appdir/usr/lib/uwuboard"
-cp -a "$bundle/." "$appdir/usr/lib/uwuboard/"
-cat > "$appdir/AppRun" <<'EOF'
+# The bundle in an AppDir with a start script, the .desktop file and the icon, packed by
+# appimagetool (downloaded once into /tmp).
+app_dir="$(mktemp -d)/uwuBoard.AppDir"
+mkdir -p "$app_dir/usr/lib/uwuboard"
+cp -a "$bundle_dir/." "$app_dir/usr/lib/uwuboard/"
+cat > "$app_dir/AppRun" <<'EOF'
 #!/bin/sh
 here="$(dirname "$(readlink -f "$0")")"
 exec "$here/usr/lib/uwuboard/uwuboard" "$@"
 EOF
-chmod 755 "$appdir/AppRun"
-desktop_entry uwuboard > "$appdir/uwuboard.desktop"
-cp "$icon" "$appdir/uwuboard.png"
-tool="appimagetool-$appimage_arch.AppImage"
-if [ ! -x "/tmp/$tool" ]; then
-  curl -fsSL -o "/tmp/$tool" "https://github.com/AppImage/appimagetool/releases/download/continuous/$tool"
-  chmod 755 "/tmp/$tool"
+chmod 755 "$app_dir/AppRun"
+desktop_entry uwuboard > "$app_dir/uwuboard.desktop"
+cp "$icon" "$app_dir/uwuboard.png"
+appimagetool_file="appimagetool-$appimage_architecture.AppImage"
+if [ ! -x "/tmp/$appimagetool_file" ]; then
+  curl -fsSL -o "/tmp/$appimagetool_file" "https://github.com/AppImage/appimagetool/releases/download/continuous/$appimagetool_file"
+  chmod 755 "/tmp/$appimagetool_file"
 fi
-ARCH="$appimage_arch" "/tmp/$tool" --appimage-extract-and-run "$appdir" "$out/uwuboard-$version-$appimage_arch.AppImage"
+ARCH="$appimage_architecture" "/tmp/$appimagetool_file" --appimage-extract-and-run "$app_dir" "$output_dir/uwuboard-$version-$appimage_architecture.AppImage"
 
-ls -lh "$out"
+ls -lh "$output_dir"

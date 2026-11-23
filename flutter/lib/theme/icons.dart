@@ -63,12 +63,22 @@ const _paths = <String, String>{
   'image': '<rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L6 21"/>',
 };
 
-bool hasIcon(String name) => _paths.containsKey(name);
+bool hasIcon(String name) {
+  return _paths.containsKey(name);
+}
 
 /// The SVG of one icon, in a colour: for places that need the picture itself (the tray icon).
-String iconSvg(String name, {String colour = '#000000', double stroke = 1.8}) =>
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="$colour" stroke-width="$stroke" '
-    'stroke-linecap="round" stroke-linejoin="round">${(_paths[name] ?? '').replaceAll('currentColor', colour)}</svg>';
+String iconSvg(String name, {String colour = '#000000', double stroke = 1.8}) {
+  String paths;
+  final knownPaths = _paths[name];
+  if (knownPaths != null) {
+    paths = knownPaths;
+  } else {
+    paths = '';
+  }
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="$colour" stroke-width="$stroke" '
+      'stroke-linecap="round" stroke-linejoin="round">${paths.replaceAll('currentColor', colour)}</svg>';
+}
 
 class AppIcon extends StatelessWidget {
   const AppIcon(this.name, {super.key, this.size = 20, this.color, this.stroke = 1.8});
@@ -78,12 +88,31 @@ class AppIcon extends StatelessWidget {
   final Color? color;
   final double stroke;
 
+  /// Draws the icon in its given colour, or else the colour of the icons or words around it
+  /// (black when there's neither). The colour's see-through part becomes the icon's opacity.
   @override
   Widget build(BuildContext context) {
-    final c = color ?? IconTheme.of(context).color ?? DefaultTextStyle.of(context).style.color ?? Colors.black;
-    final hex = '#${(c.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0')}';
+    // Each fallback is only looked up when the one before it is missing.
+    final Color iconColor;
+    final givenColor = color;
+    if (givenColor != null) {
+      iconColor = givenColor;
+    } else {
+      final themeColor = IconTheme.of(context).color;
+      if (themeColor != null) {
+        iconColor = themeColor;
+      } else {
+        final textColor = DefaultTextStyle.of(context).style.color;
+        if (textColor != null) {
+          iconColor = textColor;
+        } else {
+          iconColor = Colors.black;
+        }
+      }
+    }
+    final hex = '#${(iconColor.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0')}';
     return Opacity(
-      opacity: c.a,
+      opacity: iconColor.a,
       child: SvgPicture.string(
         iconSvg(name, colour: hex, stroke: stroke),
         width: size,

@@ -6,21 +6,26 @@ const {
     cleanColumns
 } = require('../lib/images');
 
-module.exports = async (req, res) => {
-    if (req.method !== 'GET') return res.status(405).json({
-        error: 'Method not allowed'
-    });
+// GET /api/boards/get?boardId=<id>: one of the signed-in user's boards, with its columns.
+module.exports = async (request, response) => {
+    if (request.method !== 'GET') {
+        return response.status(405).json({
+            error: 'Method not allowed'
+        });
+    }
 
     try {
         const {
             userId
-        } = await requireAuth(req);
+        } = await requireAuth(request);
         const {
             boardId
-        } = req.query;
-        if (!boardId) return res.status(400).json({
-            error: 'boardId query parameter is required'
-        });
+        } = request.query;
+        if (!boardId) {
+            return response.status(400).json({
+                error: 'boardId query parameter is required'
+            });
+        }
 
         const {
             data,
@@ -32,26 +37,36 @@ module.exports = async (req, res) => {
             .eq('user_id', userId) // ensures users can only fetch their own boards
             .single();
 
-        if (error || !data) return res.status(404).json({
-            error: 'Board not found'
-        });
+        if (error || !data) {
+            return response.status(404).json({
+                error: 'Board not found'
+            });
+        }
 
         // No storage addresses: each image goes by its name (api/lib/images.js).
+        let storedColumns;
+        if (data.data !== null && data.data !== undefined) {
+            storedColumns = data.data.columns;
+        }
         const board = {
             id: data.id,
             name: data.name,
             createdAt: data.created_at,
             updatedAt: data.updated_at,
             ...data.data,
-            columns: cleanColumns(data.data?.columns, userId),
+            columns: cleanColumns(storedColumns, userId),
         };
 
-        return res.status(200).json({
+        return response.status(200).json({
             board
         });
-    } catch (e) {
-        return res.status(e.status || 500).json({
-            error: e.message
+    } catch (error) {
+        let status = error.status;
+        if (!status) {
+            status = 500;
+        }
+        return response.status(status).json({
+            error: error.message
         });
     }
 };

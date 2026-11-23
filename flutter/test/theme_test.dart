@@ -10,8 +10,12 @@ import 'package:uwuboard/widgets/glass.dart';
 void main() {
   setUp(() {
     Store.memory();
-    ThemeController.isDesktop = () => true;
-    ThemeController.isAndroid = () => false;
+    ThemeController.isDesktop = () {
+      return true;
+    };
+    ThemeController.isAndroid = () {
+      return false;
+    };
   });
 
   test('each desktop has its own glass', () {
@@ -24,45 +28,55 @@ void main() {
   });
 
   test('on the desktop, the second look is native glass, and Material You kept from before means it', () {
-    final t = ThemeController.I;
-    expect(t.look, lookUwuApps);
-    t.setLook(lookNative);
-    expect(t.look, lookNative);
-    expect(t.isNative, isTrue);
-    Store.I.put(keyLook, lookMaterial);
-    expect(t.look, lookNative);
-    t.setLook(lookUwuApps);
-    expect(t.look, lookUwuApps);
+    final themeController = ThemeController.instance;
+    expect(themeController.look, lookUwuApps);
+    themeController.setLook(lookNative);
+    expect(themeController.look, lookNative);
+    expect(themeController.isNative, isTrue);
+    Store.instance.put(keyLook, lookMaterial);
+    expect(themeController.look, lookNative);
+    themeController.setLook(lookUwuApps);
+    expect(themeController.look, lookUwuApps);
   });
 
   test('on a phone, native glass kept from a desktop means Material You', () {
-    ThemeController.isDesktop = () => false;
-    Store.I.put(keyLook, lookNative);
-    expect(ThemeController.I.look, lookMaterial);
+    ThemeController.isDesktop = () {
+      return false;
+    };
+    Store.instance.put(keyLook, lookNative);
+    expect(ThemeController.instance.look, lookMaterial);
   });
 
+  // One test for every combination of glass style, light/dark mode and accent colour (null is the
+  // default accent): each text and border colour must stand out enough from what it's drawn on.
   group('readable in every glass, mode and accent', () {
     const accents = <Color?>[null, Color(0xFF0078D4), Color(0xFFFFCC00), Color(0xFF34C759), Color(0xFFFF2D55), Color(0xFF8E8E93), Color(0xFF63D0DF)];
     for (final style in GlassStyle.values) {
-      for (final b in Brightness.values) {
+      for (final brightness in Brightness.values) {
         for (final accent in accents) {
-          test('${style.name}, ${b.name}, ${accent ?? 'default accent'}', () {
-            final c = glassColors(style, b, accent: accent);
-            expect(c.native, style);
-            final strong = Color.alphaBlend(c.surfaceStrong, c.bg);
-            final soft = Color.alphaBlend(c.surface, c.bg);
-            for (final on in [c.bg, strong, soft]) {
-              expect(contrastRatio(c.ink, on), greaterThanOrEqualTo(4.5), reason: 'ink');
-              expect(contrastRatio(c.muted, on), greaterThanOrEqualTo(4.5), reason: 'muted');
-              expect(contrastRatio(c.border, on), greaterThanOrEqualTo(3), reason: 'border');
-              expect(contrastRatio(c.error, on), greaterThanOrEqualTo(4.5), reason: 'error');
+          String accentLabel;
+          if (accent == null) {
+            accentLabel = 'default accent';
+          } else {
+            accentLabel = '$accent';
+          }
+          test('${style.name}, ${brightness.name}, $accentLabel', () {
+            final colors = glassColors(style, brightness, accent: accent);
+            expect(colors.native, style);
+            final strong = Color.alphaBlend(colors.surfaceStrong, colors.background);
+            final soft = Color.alphaBlend(colors.surface, colors.background);
+            for (final background in [colors.background, strong, soft]) {
+              expect(contrastRatio(colors.ink, background), greaterThanOrEqualTo(4.5), reason: 'ink');
+              expect(contrastRatio(colors.muted, background), greaterThanOrEqualTo(4.5), reason: 'muted');
+              expect(contrastRatio(colors.border, background), greaterThanOrEqualTo(3), reason: 'border');
+              expect(contrastRatio(colors.error, background), greaterThanOrEqualTo(4.5), reason: 'error');
             }
-            for (final on in [c.bg, strong]) {
-              expect(contrastRatio(c.brandInk, on), greaterThanOrEqualTo(4.5), reason: 'accent words');
+            for (final background in [colors.background, strong]) {
+              expect(contrastRatio(colors.brandInk, background), greaterThanOrEqualTo(4.5), reason: 'accent words');
             }
-            expect(contrastRatio(c.onBrand, c.brandFill), greaterThanOrEqualTo(4.5), reason: 'on accent fill');
-            expect(contrastRatio(c.onBrand, c.brandFillStrong), greaterThanOrEqualTo(4.5), reason: 'on strong accent fill');
-            expect(contrastRatio(onColor(c.brandInk), c.brandInk), greaterThanOrEqualTo(4.5), reason: 'accent button');
+            expect(contrastRatio(colors.onBrand, colors.brandFill), greaterThanOrEqualTo(4.5), reason: 'on accent fill');
+            expect(contrastRatio(colors.onBrand, colors.brandFillStrong), greaterThanOrEqualTo(4.5), reason: 'on strong accent fill');
+            expect(contrastRatio(onColor(colors.brandInk), colors.brandInk), greaterThanOrEqualTo(4.5), reason: 'accent button');
           });
         }
       }
@@ -79,7 +93,14 @@ void main() {
       accent: const Color(0xFF0078D4),
     );
     expect(theme.scaffoldBackgroundColor, Colors.transparent);
-    expect(theme.textTheme.bodyMedium?.fontFamily, 'Segoe UI Variable Text');
+    final bodyMedium = theme.textTheme.bodyMedium;
+    String? bodyFontFamily;
+    if (bodyMedium == null) {
+      bodyFontFamily = null;
+    } else {
+      bodyFontFamily = bodyMedium.fontFamily;
+    }
+    expect(bodyFontFamily, 'Segoe UI Variable Text');
     expect(theme.colorScheme.primary, theme.extension<UwuColors>()!.brandInk);
     await tester.pumpWidget(
       MaterialApp(

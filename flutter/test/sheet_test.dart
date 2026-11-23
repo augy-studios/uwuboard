@@ -11,9 +11,9 @@ void main() {
   const navBar = 48.0, keyboard = 300.0;
 
   Future<void> openSheet(WidgetTester tester) async {
-    Env.desktopOverride = false;
+    Environment.desktopOverride = false;
     addTearDown(() {
-      Env.desktopOverride = null;
+      Environment.desktopOverride = null;
       AppSheet.open.value = const [];
     });
     tester.view.physicalSize = const Size(354, 792);

@@ -14,20 +14,29 @@ import 'nav.dart';
 /// Returns where it went, or null if it didn't.
 Future<String?> saveFile(String name, Uint8List bytes, {String mime = 'application/octet-stream'}) async {
   try {
-    if (Env.android) {
-      final r = await Native.call('App', 'saveFile', {'name': name, 'mime': mime, 'data': base64Encode(bytes)});
-      return r?['path'] as String? ?? 'Downloads';
+    if (Environment.android) {
+      final result = await Native.call('App', 'saveFile', {'name': name, 'mime': mime, 'data': base64Encode(bytes)});
+      String? savedPath;
+      if (result != null) {
+        savedPath = result['path'] as String?;
+      }
+      if (savedPath == null) {
+        return 'Downloads';
+      }
+      return savedPath;
     }
     if (kIsWeb) {
       downloadInBrowser(name, bytes, mime);
       return name;
     }
     final where = await getSaveLocation(suggestedName: name);
-    if (where == null) return null;
+    if (where == null) {
+      return null;
+    }
     await XFile.fromData(bytes, name: name, mimeType: mime).saveTo(where.path);
     return where.path;
-  } catch (e) {
-    AppNav.toast('Couldn’t save $name', error: true);
+  } catch (error) {
+    AppNavigation.toast('Couldn’t save $name', error: true);
     return null;
   }
 }
@@ -40,20 +49,28 @@ const imageTypes = XTypeGroup(
 );
 const jsonTypes = XTypeGroup(label: 'Board file', extensions: ['json'], mimeTypes: ['application/json'], uniformTypeIdentifiers: ['public.json']);
 
+/// Lets the person choose one or more pictures; an empty list when they cancel or it fails.
 Future<List<XFile>> pickImages({bool multiple = true}) async {
   try {
-    if (multiple) return await openFiles(acceptedTypeGroups: const [imageTypes]);
-    final f = await openFile(acceptedTypeGroups: const [imageTypes]);
-    return f == null ? const [] : [f];
-  } catch (_) {
+    if (multiple) {
+      return await openFiles(acceptedTypeGroups: const [imageTypes]);
+    }
+    final pickedFile = await openFile(acceptedTypeGroups: const [imageTypes]);
+    if (pickedFile == null) {
+      return const [];
+    } else {
+      return [pickedFile];
+    }
+  } catch (error) {
     return const [];
   }
 }
 
+/// Lets the person choose a board file; null when they cancel or it fails.
 Future<XFile?> pickJson() async {
   try {
     return await openFile(acceptedTypeGroups: const [jsonTypes]);
-  } catch (_) {
+  } catch (error) {
     return null;
   }
 }

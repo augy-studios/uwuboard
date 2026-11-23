@@ -30,6 +30,9 @@ import 'package:uwuboard/theme/theme.dart';
 import 'package:uwuboard/native/bridge.dart';
 import 'package:uwuboard/run.dart';
 
+/// Stands in for the Android side of the app in the browser. It records every call the app makes
+/// in window.e2eCalls, answers a few of them as a phone would, and lets the test page send events
+/// into the app through window.e2eEmit.
 class _FakeAndroid implements NativeHost {
   _FakeAndroid({required this.play}) {
     globalContext.setProperty('e2eCalls'.toJS, <JSAny>[].toJS);
@@ -43,6 +46,7 @@ class _FakeAndroid implements NativeHost {
 
   final bool play;
 
+  /// Records the call in window.e2eCalls, then gives the answer Android would give for it.
   @override
   Future<Map<String, dynamic>?> call(String plugin, String method, Map<String, dynamic> options) async {
     (globalContext.getProperty('e2eCalls'.toJS) as JSObject)
@@ -66,35 +70,45 @@ class _FakeAndroid implements NativeHost {
   }
 }
 
+/// Starts the app the way the query parameters (listed at the top of this file) ask for.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SemanticsBinding.instance.ensureSemantics();
-  final q = Uri.base.queryParameters;
-  if (q['android'] == '1') {
-    Env.androidOverride = true;
-    Native.host = _FakeAndroid(play: q['play'] == '1');
+  final queryParameters = Uri.base.queryParameters;
+  if (queryParameters['android'] == '1') {
+    Environment.androidOverride = true;
+    Native.host = _FakeAndroid(play: queryParameters['play'] == '1');
   }
-  if (q['wallpaper'] == '1') {
+  if (queryParameters['wallpaper'] == '1') {
     testLightDynamic = ColorScheme.fromSeed(seedColor: const Color(0xFF7B3FF2));
     testDarkDynamic = ColorScheme.fromSeed(seedColor: const Color(0xFF7B3FF2), brightness: Brightness.dark);
   }
-  if (q['welcome'] == '1') {
-    Env.desktopOverride = true;
+  if (queryParameters['welcome'] == '1') {
+    Environment.desktopOverride = true;
     await Store.open();
-    ThemeController.I.init();
-    runApp(WelcomeApp(done: (_) {}));
+    ThemeController.instance.init();
+    runApp(WelcomeApp(done: (choices) {}));
     return;
   }
-  if (q['desktop'] == '1') {
-    Env.desktopOverride = true;
-    desktopChrome = (context, child) => DesktopChrome(child: child);
-    desktopBoardActions = (board) => [
-          MenuAction('Pin to Desktop Widget', () {}, icon: 'widget'),
-          MenuAction('Set as Tray Countdown', () {}, icon: 'pin'),
-        ];
+  if (queryParameters['desktop'] == '1') {
+    Environment.desktopOverride = true;
+    desktopChrome = (context, child) {
+      return DesktopChrome(child: child);
+    };
+    desktopBoardActions = (board) {
+      return [
+        MenuAction('Pin to Desktop Widget', () {}, icon: 'widget'),
+        MenuAction('Set as Tray Countdown', () {}, icon: 'pin'),
+      ];
+    };
     ViewHistory.start();
-    for (final g in GlassStyle.values) {
-      if (g.name == q['glass']) ThemeController.glassStyleOf = () => g;
+    // Use the glass style named by ?glass=, if it names one.
+    for (final glassStyle in GlassStyle.values) {
+      if (glassStyle.name == queryParameters['glass']) {
+        ThemeController.glassStyleOf = () {
+          return glassStyle;
+        };
+      }
     }
   }
   await runUwuBoard(const []);

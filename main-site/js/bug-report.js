@@ -25,7 +25,9 @@
 //
 // window.BugReport = { open() }. Plain script: exports go on window.
 (function () {
-  const $ = (sel) => document.querySelector(sel);
+  const findElement = (selector) => {
+    return document.querySelector(selector);
+  };
   const ID = 'bugModal';
   const EMAIL = 'augy@augystudios.com';
   const MIN_TEXT = 5;
@@ -48,29 +50,54 @@
   const PAGE_SUM = 10000;
   const PAGE_RATIO = 20;
   const PAGE_DRAW = 16000;
-  const CAPTURE_LIB = '/vendor/html-to-image-1.11.13/html-to-image.js';
+  const CAPTURE_LIBRARY_URL = '/vendor/html-to-image-1.11.13/html-to-image.js';
 
   // The site's version, from the service worker serving it ("v15"), or null without one.
   function askVersion() {
-    const sw = navigator.serviceWorker?.controller;
-    if (!sw) return Promise.resolve(null);
+    let controller;
+    if (navigator.serviceWorker !== null && navigator.serviceWorker !== undefined) {
+      controller = navigator.serviceWorker.controller;
+    }
+    if (!controller) {
+      return Promise.resolve(null);
+    }
     return new Promise((resolve) => {
       const channel = new MessageChannel();
-      const timer = setTimeout(() => resolve(null), VERSION_MS);
-      channel.port1.onmessage = ({ data }) => { clearTimeout(timer); resolve(typeof data === 'string' ? data : null); };
-      sw.postMessage({ type: 'version' }, [channel.port2]);
+      const timer = setTimeout(() => {
+        resolve(null);
+      }, VERSION_MS);
+      channel.port1.onmessage = ({ data }) => {
+        clearTimeout(timer);
+        if (typeof data === 'string') {
+          resolve(data);
+        } else {
+          resolve(null);
+        }
+      };
+      controller.postMessage({ type: 'version' }, [channel.port2]);
     });
   }
 
   // Which app this is: the site installed, or the site in a browser. (The Android and desktop
   // apps send their own reports.)
   function platform() {
-    if (window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone) return 'pwa';
+    if (window.matchMedia !== null && window.matchMedia !== undefined && window.matchMedia('(display-mode: standalone)').matches) {
+      return 'pwa';
+    }
+    if (navigator.standalone) {
+      return 'pwa';
+    }
     return 'web';
   }
   const PLATFORM_NAMES = { web: 'Web', pwa: 'Web, installed' };
 
-  const version = () => (siteVersion ? `site ${siteVersion}` : '');
+  const version = () => {
+    if (siteVersion) {
+      return `site ${siteVersion}`;
+    } else {
+      return '';
+    }
+  };
 
   // The system and browser, and the window's size: "Android 14 · Chrome 130 · 412×915".
   // Each [pattern, name], the first that matches; a number caught is the version.
@@ -78,16 +105,27 @@
     [/CrOS/, 'ChromeOS'], [/Mac OS X/, 'macOS'], [/Linux/, 'Linux']];
   const BROWSERS = [[/SamsungBrowser\/(\d+)/, 'Samsung Internet'], [/Edg\/(\d+)/, 'Edge'], [/Firefox\/(\d+)/, 'Firefox'],
     [/(?:Chrome|CriOS)\/(\d+)/, 'Chrome'], [/Version\/(\d+).*Safari/, 'Safari']];
-  function first(list, ua, none) {
-    for (const [re, name] of list) {
-      const m = re.exec(ua);
-      if (m) return m[1] ? `${name} ${m[1]}` : name;
+  // The name (and version, when the pattern catches one) of the first pattern in `patterns`
+  // that matches the user agent, or `fallback` when none does.
+  function firstMatch(patterns, userAgent, fallback) {
+    for (const [pattern, name] of patterns) {
+      const match = pattern.exec(userAgent);
+      if (match) {
+        if (match[1]) {
+          return `${name} ${match[1]}`;
+        } else {
+          return name;
+        }
+      }
     }
-    return none;
+    return fallback;
   }
   function device() {
-    const ua = navigator.userAgent || '';
-    return `${first(SYSTEMS, ua, 'Unknown system')} · ${first(BROWSERS, ua, 'Unknown browser')} · ${window.innerWidth}×${window.innerHeight}`;
+    let userAgent = navigator.userAgent;
+    if (!userAgent) {
+      userAgent = '';
+    }
+    return `${firstMatch(SYSTEMS, userAgent, 'Unknown system')} · ${firstMatch(BROWSERS, userAgent, 'Unknown browser')} · ${window.innerWidth}×${window.innerHeight}`;
   }
 
   // The windows that can be open over the page, by what they're called.
@@ -103,57 +141,92 @@
     syncModal: 'Sync',
     tourModal: 'Show me around',
   };
-  const shown = (el) => el && !el.classList.contains('hidden') && !el.hidden;
+  // Whether an element is on show; a missing element (null) is passed straight back, which
+  // counts as not shown.
+  const shown = (element) => {
+    if (!element) {
+      return element;
+    }
+    return !element.classList.contains('hidden') && !element.hidden;
+  };
 
   // The page on show, and the window open over it: never a board's or a card's name.
   function page() {
-    if (shown(document.getElementById('auth-overlay'))) return 'Sign in';
+    if (shown(document.getElementById('auth-overlay'))) {
+      return 'Sign in';
+    }
     const parts = [];
-    if (shown(document.getElementById('timeline-container'))) parts.push('Timeline');
-    else if (shown(document.getElementById('columns-container'))) parts.push('Kanban board');
-    else parts.push('No board open');
-    if (document.getElementById('sidebar')?.classList.contains('open')) parts.push('boards list');
-    for (const [id, name] of Object.entries(WINDOWS)) if (shown(document.getElementById(id))) parts.push(name);
+    if (shown(document.getElementById('timeline-container'))) {
+      parts.push('Timeline');
+    } else if (shown(document.getElementById('columns-container'))) {
+      parts.push('Kanban board');
+    } else {
+      parts.push('No board open');
+    }
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar !== null && sidebar !== undefined && sidebar.classList.contains('open')) {
+      parts.push('boards list');
+    }
+    for (const [id, name] of Object.entries(WINDOWS)) {
+      if (shown(document.getElementById(id))) {
+        parts.push(name);
+      }
+    }
     return parts.join(', ');
   }
 
   function collect() {
-    const p = platform();
-    return { version: version(), platform: p, device: device(), page: page(), platformName: PLATFORM_NAMES[p] };
+    const platformId = platform();
+    return { version: version(), platform: platformId, device: device(), page: page(), platformName: PLATFORM_NAMES[platformId] };
   }
 
+  // Shows `text` under the form (or hides the line when it's empty). With `email`, adds a link
+  // that opens an email to Augy with the report filled in, for when the site can't send it.
   function say(text, { email = false } = {}) {
-    const el = $('#bugStatus');
-    el.hidden = !text;
-    el.textContent = text || '';
+    const statusElement = findElement('#bugStatus');
+    statusElement.hidden = !text;
+    if (text) {
+      statusElement.textContent = text;
+    } else {
+      statusElement.textContent = '';
+    }
     if (email) {
-      const body = `${$('#bugText').value.trim()}\n\n${detailsText()}`;
-      const a = document.createElement('a');
-      a.href = `mailto:${EMAIL}?subject=${encodeURIComponent('uwuBoard bug report')}&body=${encodeURIComponent(body)}`;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = 'Email it instead.';
-      el.append(' ', a);
+      const body = `${findElement('#bugText').value.trim()}\n\n${detailsText()}`;
+      const link = document.createElement('a');
+      link.href = `mailto:${EMAIL}?subject=${encodeURIComponent('uwuBoard bug report')}&body=${encodeURIComponent(body)}`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Email it instead.';
+      statusElement.append(' ', link);
     }
   }
 
-  const detailsText = () => [details.platformName, details.version, details.device, details.page].filter(Boolean).join(' · ');
+  const detailsText = () => {
+    return [details.platformName, details.version, details.device, details.page].filter(Boolean).join(' · ');
+  };
 
   function renderDetails() {
-    $('#bugDetails').textContent = `${detailsText()}.`;
+    findElement('#bugDetails').textContent = `${detailsText()}.`;
   }
 
   // `keepStatus`: back from a screenshot, whose outcome is on show.
   async function open({ keepStatus = false } = {}) {
     details = collect();
     renderDetails();
-    if (!keepStatus) say('');
+    if (!keepStatus) {
+      say('');
+    }
     window.openModal(ID);
-    setTimeout(() => $('#bugText').focus(), 50);
+    setTimeout(() => {
+      return findElement('#bugText').focus();
+    }, 50);
     // The site's version arrives a moment later, the first time.
     if (!siteVersion) {
       siteVersion = await askVersion();
-      if (siteVersion && details) { details.version = version(); renderDetails(); }
+      if (siteVersion && details) {
+        details.version = version();
+        renderDetails();
+      }
     }
   }
 
@@ -161,76 +234,111 @@
 
   function loadImage(url) {
     return new Promise((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = () => reject(new Error('not an image'));
-      i.src = url;
+      const image = new Image();
+      image.onload = () => {
+        resolve(image);
+      };
+      image.onerror = () => {
+        reject(new Error('not an image'));
+      };
+      image.src = url;
     });
   }
 
   // An image (a File, or a data URL) as a JPEG data URL, at most SHOT_SIDE a side and about
   // SHOT_BYTES, smaller and rougher till it is.
-  async function shrink(src) {
-    const url = typeof src === 'string' ? src : URL.createObjectURL(src);
+  async function shrink(source) {
+    let url;
+    if (typeof source === 'string') {
+      url = source;
+    } else {
+      url = URL.createObjectURL(source);
+    }
     try {
-      const img = await loadImage(url);
+      const image = await loadImage(url);
       let side = SHOT_SIDE;
-      for (let tries = 0; tries < 6; tries++) {
-        const k = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight));
+      for (let tries = 0; tries < 6; tries = tries + 1) {
+        const scaleFactor = Math.min(1, side / Math.max(image.naturalWidth, image.naturalHeight));
         const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(img.naturalWidth * k));
-        canvas.height = Math.max(1, Math.round(img.naturalHeight * k));
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const out = canvas.toDataURL('image/jpeg', tries < 2 ? 0.82 : 0.7);
-        if (out.length * 0.75 <= SHOT_BYTES || tries === 5) return out;
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scaleFactor));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scaleFactor));
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        let quality;
+        if (tries < 2) {
+          quality = 0.82;
+        } else {
+          quality = 0.7;
+        }
+        const jpeg = canvas.toDataURL('image/jpeg', quality);
+        if (jpeg.length * 0.75 <= SHOT_BYTES || tries === 5) {
+          return jpeg;
+        }
         side = Math.round(side * 0.8);
       }
     } finally {
-      if (typeof src !== 'string') URL.revokeObjectURL(url);
+      if (typeof source !== 'string') {
+        URL.revokeObjectURL(url);
+      }
     }
     return null;
   }
 
   // A whole-page screenshot (a data URL) as a JPEG data URL, as big as the page, within
   // PAGE_SIDE, PAGE_SUM and PAGE_RATIO and about SHOT_BYTES, smaller and rougher till it is.
-  async function shrinkPage(src) {
-    const img = await loadImage(src);
-    const short = Math.min(img.naturalWidth, img.naturalHeight);
-    const w = Math.min(img.naturalWidth, short * PAGE_RATIO);
-    const h = Math.min(img.naturalHeight, short * PAGE_RATIO);
-    let k = Math.min(1, PAGE_SIDE / short, (PAGE_SUM - 2) / (w + h));
-    for (let tries = 0; tries < 8; tries++) {
+  async function shrinkPage(source) {
+    const image = await loadImage(source);
+    const shortSide = Math.min(image.naturalWidth, image.naturalHeight);
+    const width = Math.min(image.naturalWidth, shortSide * PAGE_RATIO);
+    const height = Math.min(image.naturalHeight, shortSide * PAGE_RATIO);
+    let scaleFactor = Math.min(1, PAGE_SIDE / shortSide, (PAGE_SUM - 2) / (width + height));
+    for (let tries = 0; tries < 8; tries = tries + 1) {
       const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.floor(w * k));
-      canvas.height = Math.max(1, Math.floor(h * k));
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, w, h, 0, 0, canvas.width, canvas.height);
-      const out = canvas.toDataURL('image/jpeg', tries < 2 ? 0.8 : 0.68);
-      if (out.length * 0.75 <= SHOT_BYTES || tries === 7) return out;
-      if (tries >= 1) k *= 0.82;
+      canvas.width = Math.max(1, Math.floor(width * scaleFactor));
+      canvas.height = Math.max(1, Math.floor(height * scaleFactor));
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, width, height, 0, 0, canvas.width, canvas.height);
+      let quality;
+      if (tries < 2) {
+        quality = 0.8;
+      } else {
+        quality = 0.68;
+      }
+      const jpeg = canvas.toDataURL('image/jpeg', quality);
+      if (jpeg.length * 0.75 <= SHOT_BYTES || tries === 7) {
+        return jpeg;
+      }
+      if (tries >= 1) {
+        scaleFactor = scaleFactor * 0.82;
+      }
     }
     return null;
   }
 
   function renderShots() {
-    const box = $('#bugShots');
-    box.innerHTML = shots.map((s, i) => `<span class="bugShot"><img src="${s}" alt="Picture ${i + 1}"><button type="button" class="bugShotX" data-bug-shot="${i}" aria-label="Remove picture ${i + 1}">×</button></span>`).join('');
+    const box = findElement('#bugShots');
+    box.innerHTML = shots.map((shot, index) => {
+      return `<span class="bugShot"><img src="${shot}" alt="Picture ${index + 1}"><button type="button" class="bugShotX" data-bug-shot="${index}" aria-label="Remove picture ${index + 1}">×</button></span>`;
+    }).join('');
     box.hidden = !shots.length;
     const full = shots.length >= MAX_SHOTS;
-    $('#bugAddPic').disabled = full;
-    $('#bugScreenshot').disabled = full;
+    findElement('#bugAddPic').disabled = full;
+    findElement('#bugScreenshot').disabled = full;
   }
 
-  async function addShot(src) {
-    if (shots.length >= MAX_SHOTS) return;
+  async function addShot(source) {
+    if (shots.length >= MAX_SHOTS) {
+      return;
+    }
     try {
-      const jpeg = await shrink(src);
-      if (jpeg) shots.push(jpeg);
+      const jpeg = await shrink(source);
+      if (jpeg) {
+        shots.push(jpeg);
+      }
     } catch {
       say("Couldn't add that picture.");
     }
@@ -238,17 +346,30 @@
   }
 
   // The script that draws the page, the first time it's wanted.
-  let lib = null;
-  function captureLib() {
-    if (window.htmlToImage) return Promise.resolve(window.htmlToImage);
-    lib ??= new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = CAPTURE_LIB;
-      s.onload = () => (window.htmlToImage ? resolve(window.htmlToImage) : reject(new Error('no htmlToImage')));
-      s.onerror = () => { lib = null; reject(new Error('could not load')); };
-      document.head.appendChild(s);
-    });
-    return lib;
+  let captureLibraryPromise = null;
+  function loadCaptureLibrary() {
+    if (window.htmlToImage) {
+      return Promise.resolve(window.htmlToImage);
+    }
+    if (captureLibraryPromise === null || captureLibraryPromise === undefined) {
+      captureLibraryPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = CAPTURE_LIBRARY_URL;
+        script.onload = () => {
+          if (window.htmlToImage) {
+            resolve(window.htmlToImage);
+          } else {
+            reject(new Error('no htmlToImage'));
+          }
+        };
+        script.onerror = () => {
+          captureLibraryPromise = null;
+          reject(new Error('could not load'));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    return captureLibraryPromise;
   }
 
   // ---------- Screenshot a page ----------
@@ -256,71 +377,135 @@
   // Off to the page to find what to take: the form put away (what's typed stays in it), and the
   // bar floating over the page.
   function screenshotAPage() {
-    if (shots.length >= MAX_SHOTS) return;
-    captureLib().catch(() => {}); // fetched while they find the page
+    if (shots.length >= MAX_SHOTS) {
+      return;
+    }
+    loadCaptureLibrary().catch(() => {}); // fetched while they find the page
     window.closeModal(ID);
-    const bar = $('#bugShotBar');
+    const bar = findElement('#bugShotBar');
     bar.hidden = false;
-    $('#bugShotTake').disabled = false;
-    $('#bugShotTakeLabel').textContent = 'Screenshot this page';
-    setTimeout(() => $('#bugShotTake').focus(), 50);
+    findElement('#bugShotTake').disabled = false;
+    findElement('#bugShotTakeLabel').textContent = 'Screenshot this page';
+    setTimeout(() => {
+      return findElement('#bugShotTake').focus();
+    }, 50);
   }
 
   function backToForm(status) {
-    $('#bugShotBar').hidden = true;
-    say(status || '');
+    findElement('#bugShotBar').hidden = true;
+    if (status) {
+      say(status);
+    } else {
+      say('');
+    }
     open({ keepStatus: true });
   }
 
   // Once nothing on the page is moving (a window fading in or out), or after a second at most.
   async function settled() {
-    const moving = () => document.getAnimations?.().filter((x) => x.playState === 'running' && x.effect?.getComputedTiming().iterations !== Infinity) || [];
+    // The animations running now, leaving out ones that repeat forever (they never stop).
+    const moving = () => {
+      let running;
+      if (document.getAnimations !== null && document.getAnimations !== undefined) {
+        running = document.getAnimations().filter((animation) => {
+          if (animation.playState !== 'running') {
+            return false;
+          }
+          let iterations;
+          if (animation.effect !== null && animation.effect !== undefined) {
+            iterations = animation.effect.getComputedTiming().iterations;
+          }
+          return iterations !== Infinity;
+        });
+      }
+      if (!running) {
+        running = [];
+      }
+      return running;
+    };
     const until = Date.now() + 1000;
-    while (moving().length && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
+    while (moving().length && Date.now() < until) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 50);
+      });
+    }
+  }
+
+  // A number from the page that may be missing (or 0): 0 in that case.
+  function numberOrZero(value) {
+    if (!value) {
+      return 0;
+    }
+    return value;
   }
 
   // The page as it is now, drawn: the whole of it, from the top, however far down (or across) it
   // goes. The bar, the form and toasts are left out.
   async function takeScreenshot() {
-    if (shots.length >= MAX_SHOTS) return backToForm();
-    const btn = $('#bugShotTake');
-    btn.disabled = true;
-    $('#bugShotTakeLabel').textContent = 'Taking a screenshot…';
+    if (shots.length >= MAX_SHOTS) {
+      backToForm();
+      return;
+    }
+    const button = findElement('#bugShotTake');
+    button.disabled = true;
+    findElement('#bugShotTakeLabel').textContent = 'Taking a screenshot…';
     let status = '';
     try {
-      const h2i = await captureLib();
+      const captureLibrary = await loadCaptureLibrary();
       // A window that has only just opened is still fading in: drawn now, it'd be see-through.
       await settled();
-      const bg = getComputedStyle(document.body).backgroundColor;
-      const root = document.scrollingElement || document.documentElement;
-      const width = Math.max(window.innerWidth, root.scrollWidth || 0, document.body.scrollWidth || 0);
-      const height = Math.max(window.innerHeight, root.scrollHeight || 0, document.body.scrollHeight || 0);
+      const pageBackground = getComputedStyle(document.body).backgroundColor;
+      let scrollRoot = document.scrollingElement;
+      if (!scrollRoot) {
+        scrollRoot = document.documentElement;
+      }
+      const width = Math.max(window.innerWidth, numberOrZero(scrollRoot.scrollWidth), numberOrZero(document.body.scrollWidth));
+      const height = Math.max(window.innerHeight, numberOrZero(scrollRoot.scrollHeight), numberOrZero(document.body.scrollHeight));
       const big = height > window.innerHeight + 4 || width > window.innerWidth + 4;
-      const url = await h2i.toJpeg(document.body, {
+      let devicePixelRatio = window.devicePixelRatio;
+      if (!devicePixelRatio) {
+        devicePixelRatio = 1;
+      }
+      let backgroundColor;
+      if (pageBackground && pageBackground !== 'rgba(0, 0, 0, 0)') {
+        backgroundColor = pageBackground;
+      } else {
+        backgroundColor = '#ffffff';
+      }
+      const url = await captureLibrary.toJpeg(document.body, {
         quality: 0.85,
-        pixelRatio: Math.min(2, window.devicePixelRatio || 1, PAGE_DRAW / Math.max(width, height)),
+        pixelRatio: Math.min(2, devicePixelRatio, PAGE_DRAW / Math.max(width, height)),
         width,
         height,
-        backgroundColor: bg && bg !== 'rgba(0, 0, 0, 0)' ? bg : '#ffffff',
+        backgroundColor,
         cacheBust: false,
         imagePlaceholder: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=',
         // What isn't the page: this bar, the form and toasts. And what can't be drawn, which
         // would spoil the whole picture: video, and an image with nothing in it yet.
-        filter: (node) => !(node.id === 'bugShotBar' || node.id === ID || node.id === 'toast-container')
-          && node.tagName !== 'VIDEO'
-          && !(node.tagName === 'IMG' && (!node.currentSrc || !node.complete || !node.naturalWidth)),
+        filter: (node) => {
+          if (node.id === 'bugShotBar' || node.id === ID || node.id === 'toast-container') {
+            return false;
+          }
+          if (node.tagName === 'VIDEO') {
+            return false;
+          }
+          if (node.tagName === 'IMG' && (!node.currentSrc || !node.complete || !node.naturalWidth)) {
+            return false;
+          }
+          return true;
+        },
       });
       if (big) {
-        const pic = await shrinkPage(url);
-        if (pic && shots.length < MAX_SHOTS) {
-          shots.push(pic);
+        const picture = await shrinkPage(url);
+        if (picture && shots.length < MAX_SHOTS) {
+          shots.push(picture);
           fullShots.add(shots.length - 1);
         }
       } else {
         await addShot(url);
       }
-    } catch (err) {
-      console.warn("couldn't take the screenshot:", err);
+    } catch (error) {
+      console.warn("couldn't take the screenshot:", error);
       status = "Couldn't take a screenshot here. Take one with your device and add it instead.";
     } finally {
       renderShots();
@@ -330,13 +515,18 @@
 
   // ---------- sending ----------
 
-  async function send(e) {
-    e.preventDefault();
-    if (sending) return;
-    const text = $('#bugText').value.trim();
+  // Sends the report to api/bug-report.js: what's typed, the details, the contact and the
+  // pictures. On success the form is cleared and the report's ID shown; on failure it says why,
+  // offering email when the site itself can't send it.
+  async function send(event) {
+    event.preventDefault();
+    if (sending) {
+      return;
+    }
+    const text = findElement('#bugText').value.trim();
     if (text.length < MIN_TEXT) {
       say('Please say what went wrong first.');
-      $('#bugText').focus();
+      findElement('#bugText').focus();
       return;
     }
     if (navigator.onLine === false) {
@@ -344,67 +534,137 @@
       return;
     }
     sending = true;
-    $('#bugSend').disabled = true;
+    findElement('#bugSend').disabled = true;
     say('Sending…');
     try {
       const { platformName, ...sent } = details;
-      const r = await fetch('/api/bug-report', {
+      const response = await fetch('/api/bug-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...sent, text, contact: $('#bugContact').value.trim(), website: $('#bugWebsite').value, images: shots, full: [...fullShots] }),
+        body: JSON.stringify({ ...sent, text, contact: findElement('#bugContact').value.trim(), website: findElement('#bugWebsite').value, images: shots, full: [...fullShots] }),
       });
-      if (r.ok) {
-        $('#bugText').value = '';
-        $('#bugContact').value = '';
+      if (response.ok) {
+        findElement('#bugText').value = '';
+        findElement('#bugContact').value = '';
         shots = [];
         fullShots = new Set();
         renderShots();
         // Its ID, to quote.
-        const id = await r.json().then((d) => (typeof d?.id === 'string' ? d.id : null)).catch(() => null);
-        say(id ? `Sent as report ${id}. Thank you! Augy will look into it.` : 'Sent. Thank you! Augy will look into it.');
+        const id = await response.json().then((data) => {
+          if (data !== null && data !== undefined && typeof data.id === 'string') {
+            return data.id;
+          }
+          return null;
+        }).catch(() => {
+          return null;
+        });
+        if (id) {
+          say(`Sent as report ${id}. Thank you! Augy will look into it.`);
+        } else {
+          say('Sent. Thank you! Augy will look into it.');
+        }
         return;
       }
-      const err = await r.json().then((d) => d?.error).catch(() => null);
+      const errorMessage = await response.json().then((data) => {
+        if (data === null || data === undefined) {
+          return undefined;
+        }
+        return data.error;
+      }).catch(() => {
+        return null;
+      });
       // Something about what was typed, or too many at once: said as it is. Otherwise, email.
-      if (r.status === 400 || r.status === 413 || r.status === 429) say(err || "Couldn't send it right now.");
-      else say(r.status === 503 ? "Bug reports can't be sent from the app yet." : "Couldn't send it right now.", { email: true });
+      if (response.status === 400 || response.status === 413 || response.status === 429) {
+        if (errorMessage) {
+          say(errorMessage);
+        } else {
+          say("Couldn't send it right now.");
+        }
+      } else {
+        if (response.status === 503) {
+          say("Bug reports can't be sent from the app yet.", { email: true });
+        } else {
+          say("Couldn't send it right now.", { email: true });
+        }
+      }
     } catch {
       say("Couldn't send it right now.", { email: true });
     } finally {
       sending = false;
-      $('#bugSend').disabled = false;
+      findElement('#bugSend').disabled = false;
     }
   }
 
+  // Hooks up the form's buttons, the picture picker, removing a picture, the tray's button,
+  // and closing the window from its backdrop or with Escape.
   function init() {
-    if (!document.getElementById(ID)) return;
-    $('#bugForm').addEventListener('submit', send);
-    $('#bugAddPic').addEventListener('click', () => $('#bugPicFile').click());
-    $('#bugPicFile').addEventListener('change', async (e) => {
-      const files = [...(e.target.files || [])].slice(0, MAX_SHOTS - shots.length);
-      e.target.value = '';
-      for (const f of files) await addShot(f);
+    if (!document.getElementById(ID)) {
+      return;
+    }
+    findElement('#bugForm').addEventListener('submit', send);
+    findElement('#bugAddPic').addEventListener('click', () => {
+      return findElement('#bugPicFile').click();
     });
-    $('#bugScreenshot').addEventListener('click', screenshotAPage);
-    $('#bugShotTake').addEventListener('click', takeScreenshot);
-    $('#bugShotCancel').addEventListener('click', () => backToForm());
-    $('#bugShots').addEventListener('click', (e) => {
-      const x = e.target.closest('[data-bug-shot]');
-      if (!x) return;
-      const n = Number(x.dataset.bugShot);
-      shots.splice(n, 1);
-      fullShots = new Set([...fullShots].filter((i) => i !== n).map((i) => (i > n ? i - 1 : i)));
+    findElement('#bugPicFile').addEventListener('change', async (event) => {
+      let pickedFiles = event.target.files;
+      if (!pickedFiles) {
+        pickedFiles = [];
+      }
+      const files = [...pickedFiles].slice(0, MAX_SHOTS - shots.length);
+      event.target.value = '';
+      for (const file of files) {
+        await addShot(file);
+      }
+    });
+    findElement('#bugScreenshot').addEventListener('click', screenshotAPage);
+    findElement('#bugShotTake').addEventListener('click', takeScreenshot);
+    findElement('#bugShotCancel').addEventListener('click', () => {
+      return backToForm();
+    });
+    findElement('#bugShots').addEventListener('click', (event) => {
+      const removeButton = event.target.closest('[data-bug-shot]');
+      if (!removeButton) {
+        return;
+      }
+      const removedIndex = Number(removeButton.dataset.bugShot);
+      shots.splice(removedIndex, 1);
+      // The whole-page marks follow their pictures: the ones after the removed one move up.
+      fullShots = new Set([...fullShots].filter((shotIndex) => {
+        return shotIndex !== removedIndex;
+      }).map((shotIndex) => {
+        if (shotIndex > removedIndex) {
+          return shotIndex - 1;
+        } else {
+          return shotIndex;
+        }
+      }));
       renderShots();
     });
-    $('#bugBtn')?.addEventListener('click', () => open());
+    const trayButton = findElement('#bugBtn');
+    if (trayButton !== null && trayButton !== undefined) {
+      trayButton.addEventListener('click', () => {
+        return open();
+      });
+    }
     const backdrop = document.getElementById(ID);
-    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) window.closeModal(ID); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.defaultPrevented) window.closeModal(ID); });
+    backdrop.addEventListener('click', (event) => {
+      if (event.target === backdrop) {
+        window.closeModal(ID);
+      }
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        window.closeModal(ID);
+      }
+    });
     renderShots();
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
-  else init();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
 
   window.BugReport = { open };
 })();

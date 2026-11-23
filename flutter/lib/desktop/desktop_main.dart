@@ -38,29 +38,37 @@ import 'welcome.dart';
 import 'widgets_window.dart';
 
 /// A desktop widget's own engine runs only its small screen. True when this engine was one.
-Future<bool> runDesktopSubWindow(List<String> args) async {
+Future<bool> runDesktopSubWindow(List<String> arguments) async {
   try {
-    final c = await WindowController.fromCurrentEngine();
-    if (c.arguments.isEmpty) return false;
-    final m = jsonDecode(c.arguments);
-    if (m is Map && m['kind'] == 'widget') {
-      await runWidgetWindow('${m['id']}');
+    final controller = await WindowController.fromCurrentEngine();
+    if (controller.arguments.isEmpty) {
+      return false;
+    }
+    final decoded = jsonDecode(controller.arguments);
+    if (decoded is Map && decoded['kind'] == 'widget') {
+      await runWidgetWindow('${decoded['id']}');
       return true;
     }
-  } catch (_) {
+  } catch (error) {
     // The main window.
   }
   return false;
 }
 
 /// Before the app: one copy only, the window, the update window, and Make it yours the first time.
-Future<void> desktopBeforeApp(List<String> args) async {
-  Desktop.launchArgs = args;
-  if (!await Desktop.claimInstance(args)) exit(0);
+Future<void> desktopBeforeApp(List<String> arguments) async {
+  Desktop.launchArguments = arguments;
+  if (!await Desktop.claimInstance(arguments)) {
+    exit(0);
+  }
   Native.host = DesktopHost();
   await Desktop.setUp();
-  ThemeController.I.init();
-  ThemeController.I.systemAccent = DeskSettings.get<bool>('useSystemAccent') ?? false;
+  ThemeController.instance.init();
+  bool? useSystemAccent = DeskSettings.get<bool>('useSystemAccent');
+  if (useSystemAccent == null) {
+    useSystemAccent = false;
+  }
+  ThemeController.instance.systemAccent = useSystemAccent;
 
   // The update window, every launch of an installed copy.
   if (!Desktop.fromSource || Platform.environment['UWUBOARD_SPLASH_DEMO'] == '1') {
@@ -70,16 +78,21 @@ Future<void> desktopBeforeApp(List<String> args) async {
   }
 
   // Make it yours: once, for a new install.
-  if (DeskSettings.get<bool>('setupDone') != true) await _welcome();
+  if (DeskSettings.get<bool>('setupDone') != true) {
+    await _welcome();
+  }
 }
 
+/// Shows Make it yours in this window, waits for the choices, and applies them.
 Future<void> _welcome() async {
   final done = Completer<WelcomeChoices?>();
   await welcomeWindow();
   runApp(
     WelcomeApp(
-      done: (c) {
-        if (!done.isCompleted) done.complete(c);
+      done: (choices) {
+        if (!done.isCompleted) {
+          done.complete(choices);
+        }
       },
     ),
   );
@@ -88,25 +101,66 @@ Future<void> _welcome() async {
 
 /// After the app's started: the chrome round it, the tray, notifications, the glance surfaces,
 /// widgets, links, start at sign-in, and the update checks.
-Future<void> desktopAfterApp(List<String> args) async {
-  desktopChrome = (context, child) => DesktopChrome(child: child);
-  desktopAccentScheme = (b) => ColorScheme.fromSeed(seedColor: _systemAccent() ?? _green, brightness: b);
-  desktopAccent = _systemAccent;
-  desktopAccentGet = () => ThemeController.I.systemAccent;
-  desktopAccentSet = (on) {
-    DeskSettings.write({'useSystemAccent': on});
-    ThemeController.I.setSystemAccent(on);
+Future<void> desktopAfterApp(List<String> arguments) async {
+  // The shared app's hooks for the desktop's extras: the chrome round the app, the system
+  // accent colour, and a board's right-click menu.
+  desktopChrome = (context, child) {
+    return DesktopChrome(child: child);
   };
-  desktopBoardActions = (board) => [
-    MenuAction('Pin to Desktop Widget', () => DeskWidgets.add(board), icon: 'widget'),
-    MenuAction('Set as Tray Countdown', () => Glance.follow(board), icon: 'pin'),
-  ];
+  desktopAccentScheme = (brightness) {
+    Color seedColor;
+    final systemAccent = _systemAccent();
+    if (systemAccent != null) {
+      seedColor = systemAccent;
+    } else {
+      seedColor = _green;
+    }
+    return ColorScheme.fromSeed(seedColor: seedColor, brightness: brightness);
+  };
+  desktopAccent = _systemAccent;
+  desktopAccentGet = () {
+    return ThemeController.instance.systemAccent;
+  };
+  desktopAccentSet = (useSystemAccent) {
+    DeskSettings.write({'useSystemAccent': useSystemAccent});
+    ThemeController.instance.setSystemAccent(useSystemAccent);
+  };
+  desktopBoardActions = (board) {
+    return [
+      MenuAction('Pin to Desktop Widget', () {
+        DeskWidgets.add(board);
+      }, icon: 'widget'),
+      MenuAction('Set as Tray Countdown', () {
+        Glance.follow(board);
+      }, icon: 'pin'),
+    ];
+  };
   ViewHistory.start();
+
+  // What the runner, the desktop widgets and the tray ask of the main window.
   Runner.listen();
-  Runner.onDock = (id) => Desktop.show('uwu://board/b/$id');
-  Runner.onThumb = (id) => Desktop.show(id.startsWith('uwu://') ? id : null);
-  Runner.onOpen = (link) => link == null ? Desktop.show() : Desktop.onSecondCopy([link]);
-  DeskWidgets.listen((link) => Desktop.show(link));
+  Runner.onDock = (id) {
+    Desktop.show('uwu://board/b/$id');
+  };
+  Runner.onThumb = (id) {
+    String? link;
+    if (id.startsWith('uwu://')) {
+      link = id;
+    } else {
+      link = null;
+    }
+    Desktop.show(link);
+  };
+  Runner.onOpen = (link) {
+    if (link == null) {
+      Desktop.show();
+    } else {
+      Desktop.onSecondCopy([link]);
+    }
+  };
+  DeskWidgets.listen((link) {
+    Desktop.show(link);
+  });
   Updater.showSplash = () async {
     await splashWindow();
     runApp(const SplashApp());
@@ -120,8 +174,10 @@ Future<void> desktopAfterApp(List<String> args) async {
     await welcomeWindow();
     runApp(
       WelcomeApp(
-        done: (c) {
-          if (!done.isCompleted) done.complete(c);
+        done: (choices) {
+          if (!done.isCompleted) {
+            done.complete(choices);
+          }
         },
       ),
     );
@@ -134,7 +190,7 @@ Future<void> desktopAfterApp(List<String> args) async {
   await DeskNotify.init();
   WindowBackdrop.start();
   await Desktop.firstShow();
-  unawaited(DeskTray.I.start());
+  unawaited(DeskTray.instance.start());
   Glance.start();
   unawaited(DeskWidgets.reopenAll());
   unawaited(Desktop.registerScheme());
@@ -146,58 +202,88 @@ Future<void> desktopAfterApp(List<String> args) async {
 /// build, and reading it starts a process. Null where the system has none to give.
 Color? _systemAccent() {
   final now = DateTime.now();
-  if (now.difference(_accentAt) < const Duration(seconds: 30)) return _accent;
-  _accentAt = now;
-  return _accent = _readSystemAccent();
+  if (now.difference(_accentReadAt) < const Duration(seconds: 30)) {
+    return _accent;
+  }
+  _accentReadAt = now;
+  _accent = _readSystemAccent();
+  return _accent;
 }
 
+/// The accent colour as last read, and when it was read.
 Color? _accent;
-DateTime _accentAt = DateTime(0);
+DateTime _accentReadAt = DateTime(0);
 
 /// uwuBoard's green, for "Use system accent colour" where the system has none.
 const _green = Color(0xFF22A85A);
 
-Color? _hex(String s) {
-  final m = RegExp(r'#([0-9a-fA-F]{6})').firstMatch(s);
-  return m == null ? null : Color(0xFF000000 | int.parse(m.group(1)!, radix: 16));
+/// The first `#rrggbb` colour in `text`, or null if there's none.
+Color? _colorFromHex(String text) {
+  final match = RegExp(r'#([0-9a-fA-F]{6})').firstMatch(text);
+  if (match == null) {
+    return null;
+  } else {
+    return Color(0xFF000000 | int.parse(match.group(1)!, radix: 16));
+  }
 }
 
 /// COSMIC keeps its accent as RON, `(red: 0.38, green: 0.81, blue: 0.87, …)`, in the theme
 /// builder's file for the mode it's in (the theme's own, if the builder's is the default).
 Color? _cosmicAccent() {
   final home = Platform.environment['HOME'];
-  if (home == null) return null;
-  final config = Platform.environment['XDG_CONFIG_HOME'] ?? '$home/.config';
+  if (home == null) {
+    return null;
+  }
+  String? config = Platform.environment['XDG_CONFIG_HOME'];
+  if (config == null) {
+    config = '$home/.config';
+  }
+
+  /// One of COSMIC's settings files, or '' if it isn't there.
   String read(String path) {
-    final f = File('$config/cosmic/$path');
-    return f.existsSync() ? f.readAsStringSync() : '';
+    final file = File('$config/cosmic/$path');
+    if (file.existsSync()) {
+      return file.readAsStringSync();
+    } else {
+      return '';
+    }
   }
 
   final dark = read('com.system76.CosmicTheme.Mode/v1/is_dark').trim() != 'false';
-  final mode = dark ? 'Dark' : 'Light';
+  String mode;
+  if (dark) {
+    mode = 'Dark';
+  } else {
+    mode = 'Light';
+  }
   for (final path in ['com.system76.CosmicTheme.$mode.Builder/v1/accent', 'com.system76.CosmicTheme.$mode/v1/accent']) {
-    final m = RegExp(r'red:\s*([\d.]+),\s*green:\s*([\d.]+),\s*blue:\s*([\d.]+)').firstMatch(read(path));
-    if (m != null) {
-      int c(int i) => (double.parse(m.group(i)!) * 255).round().clamp(0, 255);
-      return Color.fromARGB(255, c(1), c(2), c(3));
+    final match = RegExp(r'red:\s*([\d.]+),\s*green:\s*([\d.]+),\s*blue:\s*([\d.]+)').firstMatch(read(path));
+    if (match != null) {
+      /// One colour channel, from 0 to 1 in the file to 0 to 255.
+      int channel(int groupNumber) {
+        return (double.parse(match.group(groupNumber)!) * 255).round().clamp(0, 255);
+      }
+
+      return Color.fromARGB(255, channel(1), channel(2), channel(3));
     }
   }
   return null;
 }
 
-/// The system's accent colour where it can be read.
+/// The system's accent colour where it can be read: from the registry on Windows, the global
+/// defaults on macOS, and on Linux from COSMIC's files, Deepin's settings or GNOME's.
 Color? _readSystemAccent() {
   try {
     if (Platform.isWindows) {
-      final r = Process.runSync('reg', ['query', r'HKCU\Software\Microsoft\Windows\DWM', '/v', 'AccentColor']);
-      final m = RegExp(r'0x([0-9a-fA-F]{8})').firstMatch('${r.stdout}');
-      if (m != null) {
+      final result = Process.runSync('reg', ['query', r'HKCU\Software\Microsoft\Windows\DWM', '/v', 'AccentColor']);
+      final match = RegExp(r'0x([0-9a-fA-F]{8})').firstMatch('${result.stdout}');
+      if (match != null) {
         // ABGR.
-        final v = int.parse(m.group(1)!, radix: 16);
-        return Color.fromARGB(255, v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff);
+        final value = int.parse(match.group(1)!, radix: 16);
+        return Color.fromARGB(255, value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff);
       }
     } else if (Platform.isMacOS) {
-      final r = Process.runSync('defaults', ['read', '-g', 'AppleAccentColor']);
+      final result = Process.runSync('defaults', ['read', '-g', 'AppleAccentColor']);
       const accents = {
         '-1': Color(0xFF8E8E93),
         '0': Color(0xFFFF3B30),
@@ -207,19 +293,32 @@ Color? _readSystemAccent() {
         '5': Color(0xFFAF52DE),
         '6': Color(0xFFFF2D55),
       };
-      return accents['${r.stdout}'.trim()] ?? const Color(0xFF007AFF);
+      final accent = accents['${result.stdout}'.trim()];
+      if (accent == null) {
+        // Blue (the default, with no number set) or a number not listed.
+        return const Color(0xFF007AFF);
+      }
+      return accent;
     } else {
-      final desktop = (Platform.environment['XDG_CURRENT_DESKTOP'] ?? '').toUpperCase();
+      String? currentDesktop = Platform.environment['XDG_CURRENT_DESKTOP'];
+      if (currentDesktop == null) {
+        currentDesktop = '';
+      }
+      final desktop = currentDesktop.toUpperCase();
       if (desktop.contains('COSMIC')) {
-        final c = _cosmicAccent();
-        if (c != null) return c;
+        final accent = _cosmicAccent();
+        if (accent != null) {
+          return accent;
+        }
       }
       if (desktop.contains('DEEPIN') || desktop.contains('DDE')) {
-        final r = Process.runSync('gsettings', ['get', 'com.deepin.dde.appearance', 'qt-active-color']);
-        final c = _hex('${r.stdout}');
-        if (c != null) return c;
+        final result = Process.runSync('gsettings', ['get', 'com.deepin.dde.appearance', 'qt-active-color']);
+        final accent = _colorFromHex('${result.stdout}');
+        if (accent != null) {
+          return accent;
+        }
       }
-      final r = Process.runSync('gsettings', ['get', 'org.gnome.desktop.interface', 'accent-color']);
+      final result = Process.runSync('gsettings', ['get', 'org.gnome.desktop.interface', 'accent-color']);
       const accents = {
         'blue': Color(0xFF3584E4),
         'teal': Color(0xFF2190A4),
@@ -231,9 +330,13 @@ Color? _readSystemAccent() {
         'purple': Color(0xFF9141AC),
         'slate': Color(0xFF6F8396),
       };
-      final c = accents['${r.stdout}'.replaceAll("'", '').trim()];
-      if (c != null) return c;
+      final accent = accents['${result.stdout}'.replaceAll("'", '').trim()];
+      if (accent != null) {
+        return accent;
+      }
     }
-  } catch (_) {}
+  } catch (error) {
+    // Couldn't be read: no accent.
+  }
   return null;
 }

@@ -26,18 +26,51 @@ const _pagesKey = 'uwuboard.tour.pages';
 class TourTargets {
   TourTargets._();
   static final Map<String, GlobalKey> _keys = {};
-  static GlobalKey key(String id) => _keys.putIfAbsent(id, () => GlobalKey(debugLabel: 'tour:$id'));
+
+  /// The key for the thing named [id], made the first time it's asked for.
+  static GlobalKey key(String id) {
+    return _keys.putIfAbsent(id, () {
+      return GlobalKey(debugLabel: 'tour:$id');
+    });
+  }
 
   /// Where the thing is, measured from the top left of the navigator's overlay, which is where the
   /// tour draws. That isn't the window's top left on the desktop, whose title bar sits above it.
   static Rect? rectOf(String id) {
-    final ctx = _keys[id]?.currentContext;
-    final box = ctx?.findRenderObject();
-    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
-    final layer = AppNav.navigatorKey.currentState?.overlay?.context.findRenderObject();
-    final origin = layer is RenderBox && layer.attached ? layer.localToGlobal(Offset.zero) : Offset.zero;
-    final r = (box.localToGlobal(Offset.zero) - origin) & box.size;
-    return r.width > 0 && r.height > 0 ? r : null;
+    final targetKey = _keys[id];
+    BuildContext? targetContext;
+    if (targetKey != null) {
+      targetContext = targetKey.currentContext;
+    }
+    RenderObject? box;
+    if (targetContext != null) {
+      box = targetContext.findRenderObject();
+    }
+    if (box is! RenderBox || !box.attached || !box.hasSize) {
+      return null;
+    }
+    // The overlay's own render box, whose top left the tour measures from.
+    final navigatorState = AppNavigation.navigatorKey.currentState;
+    OverlayState? overlay;
+    if (navigatorState != null) {
+      overlay = navigatorState.overlay;
+    }
+    RenderObject? layer;
+    if (overlay != null) {
+      layer = overlay.context.findRenderObject();
+    }
+    Offset origin;
+    if (layer is RenderBox && layer.attached) {
+      origin = layer.localToGlobal(Offset.zero);
+    } else {
+      origin = Offset.zero;
+    }
+    final rect = (box.localToGlobal(Offset.zero) - origin) & box.size;
+    if (rect.width > 0 && rect.height > 0) {
+      return rect;
+    } else {
+      return null;
+    }
   }
 }
 
@@ -50,8 +83,8 @@ class TourStep {
   final bool Function()? when;
 }
 
-class TourDef {
-  const TourDef(this.label, this.steps, {this.page, this.available, this.why});
+class TourDefinition {
+  const TourDefinition(this.label, this.steps, {this.page, this.available, this.why});
   final String label;
   final List<TourStep> steps;
   final String? page;
@@ -59,25 +92,39 @@ class TourDef {
   final String? why;
 }
 
+/// Whether the app is phone-sized (no context yet counts as not).
 bool _narrow() {
-  final ctx = AppNav.context;
-  return ctx != null && MediaQuery.sizeOf(ctx).width <= Env.phoneWidth;
+  final context = AppNavigation.context;
+  return context != null && MediaQuery.sizeOf(context).width <= Environment.phoneWidth;
 }
 
-bool _hasBoard() => AppState.I.activeBoard != null;
+/// Whether a board is open.
+bool _hasBoard() {
+  return AppState.instance.activeBoard != null;
+}
+
+/// The open board's first card, or null if there's no board or no card.
 Json? _firstCard() {
-  final b = AppState.I.activeBoard;
-  if (b == null) return null;
-  for (final c in allCards(b)) {
-    return c;
+  final board = AppState.instance.activeBoard;
+  if (board == null) {
+    return null;
+  }
+  for (final card in allCards(board)) {
+    return card;
   }
   return null;
 }
 
-final tours = <String, TourDef>{
-  'welcome': TourDef('Welcome', [
+final tours = <String, TourDefinition>{
+  'welcome': TourDefinition('Welcome', [
     const TourStep(['empty-new-board'], 'Start here: make a board. It can be a Kanban board or a Timeline.'),
-    TourStep(const ['board-list'], 'All your boards are listed here, with New Board below to make another.', when: () => !_narrow()),
+    TourStep(
+      const ['board-list'],
+      'All your boards are listed here, with New Board below to make another.',
+      when: () {
+        return !_narrow();
+      },
+    ),
     TourStep(const ['menu'], 'Your boards are in here, with New Board to make another.', when: _narrow),
     const TourStep(
       ['tray-buttons', 'tray-tab'],
@@ -85,7 +132,7 @@ final tours = <String, TourDef>{
     ),
     const TourStep(['tray-sync', 'tray-tab'], 'Sync copies boards straight to your other phone or computer, no account needed.'),
   ]),
-  'kanban': TourDef(
+  'kanban': TourDefinition(
     'Kanban board',
     const [
       TourStep(['add-card'], 'Add a card to a column.'),
@@ -98,7 +145,7 @@ final tours = <String, TourDef>{
     available: _hasBoard,
     why: 'Open a board first',
   ),
-  'timeline': TourDef(
+  'timeline': TourDefinition(
     'Timeline',
     const [
       TourStep(['tl-bar'], 'Each task is a bar across its dates. Drag it to move them, or drag an end to change how long it takes.'),
@@ -111,13 +158,13 @@ final tours = <String, TourDef>{
     available: _hasBoard,
     why: 'Open a board first',
   ),
-  'newboard': const TourDef('New board', [
+  'newboard': const TourDefinition('New board', [
     TourStep(['nb-name'], 'Name the board after what it’s for.'),
     TourStep(['nb-type'], 'Kanban moves cards across columns; Timeline lays tasks out as bars across dates. You can switch later.'),
     TourStep(['nb-cols'], 'The columns it starts with: phases, on a Timeline. Tap one to remove it, or Add for another.'),
     TourStep(['nb-create'], 'Create makes the board and opens it.'),
   ], page: 'newboard'),
-  'card': TourDef(
+  'card': TourDefinition(
     'Card details',
     const [
       TourStep(['card-desc'], 'Notes on the card go here, formatted as on Discord: **bold**, *italic*, lists, links and more.'),
@@ -129,7 +176,9 @@ final tours = <String, TourDef>{
       TourStep(['card-save'], 'Save keeps what you’ve changed.'),
     ],
     page: 'card',
-    available: () => _firstCard() != null,
+    available: () {
+      return _firstCard() != null;
+    },
     why: 'Add a card first',
   ),
 };
@@ -142,9 +191,9 @@ class Tour {
   static OverlayEntry? _entry;
   static bool _starting = false;
   static List<({String target, String text})> _steps = [];
-  static List<String> _marks = [];
-  static final ValueNotifier<int> _at = ValueNotifier(0);
-  static Timer? _waiting;
+  static List<String> _toursToMarkSeen = [];
+  static final ValueNotifier<int> _currentStepIndex = ValueNotifier(0);
+  static Timer? _waitTimer;
 
   /// What the page is now, for its tour.
   static String? Function()? currentPage;
@@ -153,125 +202,241 @@ class Tour {
   /// board as a view.
   static Future<void> Function(String page)? openPage;
 
-  static bool get active => _entry != null || _starting;
+  /// Whether a tour is on screen or about to be.
+  static bool get active {
+    return _entry != null || _starting;
+  }
 
+  /// The page on show now, or null if it can't be told.
+  static String? _pageNow() {
+    final pageGetter = currentPage;
+    if (pageGetter == null) {
+      return null;
+    }
+    return pageGetter();
+  }
+
+  /// The ids of the page tours seen, as saved (a JSON list); '[]' when nothing is saved.
+  static String _storedPages() {
+    final stored = Store.instance.get(_pagesKey);
+    if (stored == null) {
+      return '[]';
+    }
+    return stored;
+  }
+
+  /// Whether the tour [id] has been seen on this device.
   static bool seen(String id) {
     try {
-      if (id == 'welcome') return Store.I.get(_welcomeKey) == 'done';
-      return (jsonDecode(Store.I.get(_pagesKey) ?? '[]') as List).contains(id);
-    } catch (_) {
+      if (id == 'welcome') {
+        return Store.instance.get(_welcomeKey) == 'done';
+      }
+      return (jsonDecode(_storedPages()) as List).contains(id);
+    } catch (error) {
       // Broken storage counts every tour as seen, rather than showing one on every visit.
       return true;
     }
   }
 
+  /// Saves that the tour [id] has been seen, under the site's keys.
   static void markSeen(String id) {
     try {
-      if (id == 'welcome') return Store.I.put(_welcomeKey, 'done');
-      final list = (jsonDecode(Store.I.get(_pagesKey) ?? '[]') as List).cast<Object?>();
-      if (!list.contains(id)) Store.I.put(_pagesKey, jsonEncode([...list, id]));
-    } catch (_) {
+      if (id == 'welcome') {
+        Store.instance.put(_welcomeKey, 'done');
+        return;
+      }
+      final list = (jsonDecode(_storedPages()) as List).cast<Object?>();
+      if (!list.contains(id)) {
+        Store.instance.put(_pagesKey, jsonEncode([...list, id]));
+      }
+    } catch (error) {
       // Shown again next time.
     }
   }
 
-  static StreamSubscription<void>? _sub;
+  static StreamSubscription<void>? _pageChangesSubscription;
 
   /// Once the app is on screen: the first tour, unless a link opened something.
   static void init({bool skipFirst = false}) {
-    _sub ??= AppState.I.pageChanges.listen((_) => forPage());
-    if (!skipFirst) forPage();
+    final existingSubscription = _pageChangesSubscription;
+    if (existingSubscription == null) {
+      _pageChangesSubscription = AppState.instance.pageChanges.listen((event) {
+        forPage();
+      });
+    }
+    if (!skipFirst) {
+      forPage();
+    }
   }
 
-  static bool _ready(String id) => !(id == 'kanban' || id == 'timeline' || id == 'empty') || AppState.I.boardsReady;
+  /// Whether the page [id] is ready for its tour: a board view only once the boards have loaded.
+  static bool _ready(String id) {
+    return !(id == 'kanban' || id == 'timeline' || id == 'empty') || AppState.instance.boardsReady;
+  }
 
   /// The tour for what's on screen, the first time, once it's drawn.
   static void forPage() {
-    if (active) return;
-    final id = currentPage?.call();
-    if (id == null) return;
+    if (active) {
+      return;
+    }
+    final id = _pageNow();
+    if (id == null) {
+      return;
+    }
+    // The welcome joins onto the first board view's tour.
     final welcome = !seen('welcome') && (id == 'kanban' || id == 'timeline' || id == 'empty');
-    if (!welcome && (!tours.containsKey(id) || seen(id))) return;
-    _waiting?.cancel();
+    if (!welcome && (!tours.containsKey(id) || seen(id))) {
+      return;
+    }
+    final previousTimer = _waitTimer;
+    if (previousTimer != null) {
+      previousTimer.cancel();
+    }
+    // Checks every half second: a moment for a ready page to settle, up to eight seconds for
+    // the boards to load. Gives up if the page changes or a tour starts meanwhile.
     var tries = 0;
-    _waiting = Timer.periodic(const Duration(milliseconds: 500), (t) {
-      tries++;
-      if (currentPage?.call() != id || active) return t.cancel();
-      if (_ready(id) ? tries < 2 : tries <= 16) return;
-      t.cancel();
+    _waitTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      tries = tries + 1;
+      if (_pageNow() != id || active) {
+        timer.cancel();
+        return;
+      }
+      bool keepWaiting;
+      if (_ready(id)) {
+        keepWaiting = tries < 2;
+      } else {
+        keepWaiting = tries <= 16;
+      }
+      if (keepWaiting) {
+        return;
+      }
+      timer.cancel();
       // A window open over the page that isn't the page itself.
-      final own = {'card': 'card', 'newboard': 'newboard'}[id];
-      if (AppSheet.open.value.any((s) => s != own)) return;
+      final ownWindow = {'card': 'card', 'newboard': 'newboard'}[id];
+      final otherWindowOpen = AppSheet.open.value.any((windowId) {
+        return windowId != ownWindow;
+      });
+      if (otherWindowOpen) {
+        return;
+      }
       start(id, withWelcome: welcome);
     });
   }
 
+  /// Starts the tour [id] (with the welcome's steps after it if [withWelcome]): goes to its page
+  /// first if it has one, keeps only the steps whose target is on screen, and puts the tour's
+  /// layer over the app. A tour with nothing to point at is marked seen and goes no further.
   static Future<void> start(String id, {bool withWelcome = false}) async {
     final tour = tours[id];
-    if (active || (tour == null && !withWelcome)) return;
-    final from = currentPage?.call();
-    if (from == null) return;
-    final goTo = tour?.page;
+    if (active || (tour == null && !withWelcome)) {
+      return;
+    }
+    final from = _pageNow();
+    if (from == null) {
+      return;
+    }
+    String? goTo;
+    if (tour != null) {
+      goTo = tour.page;
+    }
     _starting = true;
     if (goTo != null && from != goTo) {
-      await openPage?.call(goTo);
+      final pageOpener = openPage;
+      if (pageOpener != null) {
+        await pageOpener(goTo);
+      }
       await Future<void>.delayed(const Duration(milliseconds: 450));
     } else {
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
     _starting = false;
     // What's on screen changed while the page was drawn (a window closed): not this tour, now.
-    if (currentPage?.call() != (goTo ?? from)) {
+    String expectedPage;
+    if (goTo != null) {
+      expectedPage = goTo;
+    } else {
+      expectedPage = from;
+    }
+    if (_pageNow() != expectedPage) {
       Timer(const Duration(milliseconds: 600), forPage);
       return;
     }
-    final list = [...?tour?.steps, if (withWelcome && id != 'welcome') ...tours['welcome']!.steps];
+    final candidateSteps = <TourStep>[
+      if (tour != null) ...tour.steps,
+      if (withWelcome && id != 'welcome') ...tours['welcome']!.steps,
+    ];
     final steps = <({String target, String text})>[];
     String? lastTarget;
-    for (final s in list) {
-      if (s.when != null && !s.when!()) continue;
-      final target = s.targets.where((t) => TourTargets.rectOf(t) != null).firstOrNull;
+    for (final step in candidateSteps) {
+      final condition = step.when;
+      if (condition != null && !condition()) {
+        continue;
+      }
+      final target = step.targets.where((targetName) {
+        return TourTargets.rectOf(targetName) != null;
+      }).firstOrNull;
       // Two steps can land on the same thing, such as the collapsed tray's tab.
-      if (target == null || target == lastTarget) continue;
+      if (target == null || target == lastTarget) {
+        continue;
+      }
       lastTarget = target;
-      steps.add((target: target, text: s.text));
+      steps.add((target: target, text: step.text));
     }
-    final done = [if (withWelcome) 'welcome', if (tour != null) id];
+    final toursShown = [if (withWelcome) 'welcome', if (tour != null) id];
     if (steps.isEmpty) {
-      done.forEach(markSeen);
+      toursShown.forEach(markSeen);
       _backTo(from);
       return;
     }
-    _marks = done;
+    _toursToMarkSeen = toursShown;
     _steps = steps;
-    _at.value = 0;
-    _began = from;
-    final overlay = AppNav.navigatorKey.currentState?.overlay;
-    if (overlay == null) return;
-    _entry = OverlayEntry(builder: (_) => const _TourLayer());
-    overlay.insert(_entry!);
+    _currentStepIndex.value = 0;
+    _startPage = from;
+    final navigatorState = AppNavigation.navigatorKey.currentState;
+    OverlayState? overlay;
+    if (navigatorState != null) {
+      overlay = navigatorState.overlay;
+    }
+    if (overlay == null) {
+      return;
+    }
+    final entry = OverlayEntry(
+      builder: (context) {
+        return const _TourLayer();
+      },
+    );
+    _entry = entry;
+    overlay.insert(entry);
   }
 
-  static String? _began;
+  static String? _startPage;
 
+  /// The next step, or the end after the last one.
   static void next() {
-    if (_at.value < _steps.length - 1) {
-      _at.value++;
+    if (_currentStepIndex.value < _steps.length - 1) {
+      _currentStepIndex.value = _currentStepIndex.value + 1;
     } else {
       end();
     }
   }
 
+  /// Ends the tour: marks it seen, takes its layer away, and goes back to where it began (or
+  /// looks for the next page's tour).
   static void end() {
-    for (final id in _marks) {
+    for (final id in _toursToMarkSeen) {
       markSeen(id);
     }
-    _marks = [];
-    _entry?.remove();
+    _toursToMarkSeen = [];
+    final entry = _entry;
+    if (entry != null) {
+      entry.remove();
+    }
     _entry = null;
-    final back = _began;
-    _began = null;
-    if (!_backTo(back)) Timer(const Duration(milliseconds: 600), forPage);
+    final back = _startPage;
+    _startPage = null;
+    if (!_backTo(back)) {
+      Timer(const Duration(milliseconds: 600), forPage);
+    }
   }
 
   /// Back where a tour began, if it was a board view the tour changed (the open board shown as
@@ -279,8 +444,13 @@ class Tour {
   /// since stays closed. True if it went back.
   static bool _backTo(String? page) {
     const views = {'kanban', 'timeline', 'empty'};
-    if (page == null || !views.contains(page) || currentPage?.call() == page) return false;
-    openPage?.call(page);
+    if (page == null || !views.contains(page) || _pageNow() == page) {
+      return false;
+    }
+    final pageOpener = openPage;
+    if (pageOpener != null) {
+      pageOpener(page);
+    }
     return true;
   }
 }
@@ -289,71 +459,121 @@ class _TourLayer extends StatefulWidget {
   const _TourLayer();
 
   @override
-  State<_TourLayer> createState() => _TourLayerState();
+  State<_TourLayer> createState() {
+    return _TourLayerState();
+  }
 }
 
 class _TourLayerState extends State<_TourLayer> {
-  final _focus = FocusNode();
-  final _placed = _Placement();
+  final _focusNode = FocusNode();
+  final _placement = _Placement();
 
   @override
   void initState() {
     super.initState();
-    Tour._at.addListener(_reveal);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focus.requestFocus();
+    Tour._currentStepIndex.addListener(_reveal);
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+      _focusNode.requestFocus();
       _reveal();
     });
   }
 
   @override
   void dispose() {
-    Tour._at.removeListener(_reveal);
-    _focus.dispose();
+    Tour._currentStepIndex.removeListener(_reveal);
+    _focusNode.dispose();
     super.dispose();
   }
 
   /// The step's target scrolled into view if it's off the edge of what scrolls it (a column past
   /// the right of the board, a field below the fold of a window), then the spotlight moved to it.
   Future<void> _reveal() async {
-    if (Tour._steps.isEmpty) return;
-    final ctx = TourTargets._keys[Tour._steps[Tour._at.value].target]?.currentContext;
-    if (ctx == null) return;
-    const d = Duration(milliseconds: 220);
-    for (final policy in [ScrollPositionAlignmentPolicy.keepVisibleAtEnd, ScrollPositionAlignmentPolicy.keepVisibleAtStart]) {
-      if (!ctx.mounted) return;
-      await Scrollable.ensureVisible(ctx, duration: d, alignmentPolicy: policy);
+    if (Tour._steps.isEmpty) {
+      return;
     }
-    if (mounted) setState(() {});
+    final targetKey = TourTargets._keys[Tour._steps[Tour._currentStepIndex.value].target];
+    BuildContext? targetContext;
+    if (targetKey != null) {
+      targetContext = targetKey.currentContext;
+    }
+    if (targetContext == null) {
+      return;
+    }
+    const scrollDuration = Duration(milliseconds: 220);
+    for (final policy in [ScrollPositionAlignmentPolicy.keepVisibleAtEnd, ScrollPositionAlignmentPolicy.keepVisibleAtStart]) {
+      if (!targetContext.mounted) {
+        return;
+      }
+      await Scrollable.ensureVisible(targetContext, duration: scrollDuration, alignmentPolicy: policy);
+    }
+    if (mounted) {
+      setState(() {});
+    }
   }
 
+  /// The tour's layer: the page dimmed except for the lit target, the card with the step's words,
+  /// its dots and Next (Done on the last), and Skip at the top left. Escape skips; the right
+  /// arrow or Enter goes on.
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<int>(
-      valueListenable: Tour._at,
-      builder: (context, at, _) {
-        final c = UwuColors.of(context);
-        final step = Tour._steps[at];
+      valueListenable: Tour._currentStepIndex,
+      builder: (context, stepIndex, child) {
+        final colors = UwuColors.of(context);
+        final step = Tour._steps[stepIndex];
         final size = MediaQuery.sizeOf(context);
-        final pad = MediaQuery.paddingOf(context);
+        final safePadding = MediaQuery.paddingOf(context);
         final screen = Offset.zero & size;
         // Lit up to the screen's edge, never past it.
         final target = TourTargets.rectOf(step.target);
-        final lit = target?.inflate(8).intersect(screen.deflate(2));
-        final hole = lit != null && lit.width > 0 && lit.height > 0 ? lit : null;
+        Rect? lit;
+        if (target != null) {
+          lit = target.inflate(8).intersect(screen.deflate(2));
+        }
+        Rect? hole;
+        if (lit != null && lit.width > 0 && lit.height > 0) {
+          hole = lit;
+        } else {
+          hole = null;
+        }
         // Where the card may go: inside the screen and its safe area, and clear of Skip.
-        final bounds = Rect.fromLTRB(pad.left + 12, pad.top + 60, size.width - pad.right - 12, size.height - pad.bottom - 12);
-        final cardW = math.min(340.0, bounds.width);
-        final last = at == Tour._steps.length - 1;
+        final bounds = Rect.fromLTRB(safePadding.left + 12, safePadding.top + 60, size.width - safePadding.right - 12, size.height - safePadding.bottom - 12);
+        final cardWidth = math.min(340.0, bounds.width);
+        final isLastStep = stepIndex == Tour._steps.length - 1;
+        String nextLabel;
+        if (isLastStep) {
+          nextLabel = 'Done';
+        } else {
+          nextLabel = 'Next';
+        }
+
+        /// One of the dots under the words, filled for the step on show.
+        Widget stepDot(int index) {
+          Color dotColor;
+          if (index == stepIndex) {
+            dotColor = colors.brandInk;
+          } else {
+            dotColor = colors.border;
+          }
+          return Container(
+            margin: const EdgeInsets.only(right: 5),
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: dotColor),
+          );
+        }
+
         return Focus(
-          focusNode: _focus,
-          onKeyEvent: (_, e) {
-            if (e is! KeyDownEvent) return KeyEventResult.ignored;
-            if (e.logicalKey == LogicalKeyboardKey.escape) {
+          focusNode: _focusNode,
+          onKeyEvent: (node, event) {
+            if (event is! KeyDownEvent) {
+              return KeyEventResult.ignored;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.escape) {
               Tour.end();
               return KeyEventResult.handled;
             }
-            if (e.logicalKey == LogicalKeyboardKey.arrowRight || e.logicalKey == LogicalKeyboardKey.enter) {
+            if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.enter) {
               Tour.next();
               return KeyEventResult.handled;
             }
@@ -367,12 +587,12 @@ class _TourLayerState extends State<_TourLayer> {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () {},
-                    child: CustomPaint(painter: _DimPainter(hole, c.scrim.withValues(alpha: 0.62), _placed, c.brand)),
+                    child: CustomPaint(painter: _DimPainter(hole, colors.scrim.withValues(alpha: 0.62), _placement, colors.brand)),
                   ),
                 ),
                 Positioned.fill(
                   child: CustomSingleChildLayout(
-                    delegate: _CardLayout(hole, bounds, cardW, _placed),
+                    delegate: _CardLayout(hole, bounds, cardWidth, _placement),
                     child: Semantics(
                       scopesRoute: true,
                       namesRoute: true,
@@ -380,9 +600,9 @@ class _TourLayerState extends State<_TourLayer> {
                       child: Container(
                         padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
                         decoration: BoxDecoration(
-                          color: Color.alphaBlend(c.surfaceStrong, c.bg),
+                          color: Color.alphaBlend(colors.surfaceStrong, colors.background),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: c.border),
+                          border: Border.all(color: colors.border),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -394,22 +614,16 @@ class _TourLayerState extends State<_TourLayer> {
                               child: SingleChildScrollView(
                                 child: Semantics(
                                   liveRegion: true,
-                                  child: Text(step.text, style: TextStyle(color: c.ink, fontSize: 15, height: 1.35)),
+                                  child: Text(step.text, style: TextStyle(color: colors.ink, fontSize: 15, height: 1.35)),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 10),
                             Row(
                               children: [
-                                for (var i = 0; i < Tour._steps.length; i++)
-                                  Container(
-                                    margin: const EdgeInsets.only(right: 5),
-                                    width: 7,
-                                    height: 7,
-                                    decoration: BoxDecoration(shape: BoxShape.circle, color: i == at ? c.brandInk : c.border),
-                                  ),
+                                for (var index = 0; index < Tour._steps.length; index = index + 1) stepDot(index),
                                 const Spacer(),
-                                FilledButton(onPressed: Tour.next, child: Text(last ? 'Done' : 'Next')),
+                                FilledButton(onPressed: Tour.next, child: Text(nextLabel)),
                               ],
                             ),
                           ],
@@ -420,8 +634,8 @@ class _TourLayerState extends State<_TourLayer> {
                 ),
                 // Top left, as on the site: the top right is the tray's, which steps point at.
                 Positioned(
-                  top: pad.top + 10,
-                  left: pad.left + 14,
+                  top: safePadding.top + 10,
+                  left: safePadding.left + 14,
                   child: OutlinedButton(onPressed: Tour.end, child: const Text('Skip')),
                 ),
               ],
@@ -454,104 +668,159 @@ class _CardLayout extends SingleChildLayoutDelegate {
   static const sideGap = 48.0;
 
   @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
-      BoxConstraints(minWidth: width, maxWidth: width, maxHeight: math.max(0, bounds.height));
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    return BoxConstraints(minWidth: width, maxWidth: width, maxHeight: math.max(0, bounds.height));
+  }
 
+  /// Picks the card's place (see the class's comment) and records where its arrow runs from and
+  /// to, for the painter.
   @override
   Offset getPositionForChild(Size size, Size card) {
-    final w = card.width, h = card.height;
-    double x(double v) => v.clamp(bounds.left, math.max(bounds.left, bounds.right - w));
-    double y(double v) => v.clamp(bounds.top, math.max(bounds.top, bounds.bottom - h));
+    final cardWidth = card.width;
+    final cardHeight = card.height;
+
+    /// A left edge moved so the card stays inside [bounds] across.
+    double keepInsideX(double value) {
+      return value.clamp(bounds.left, math.max(bounds.left, bounds.right - cardWidth));
+    }
+
+    /// A top edge moved so the card stays inside [bounds] down.
+    double keepInsideY(double value) {
+      return value.clamp(bounds.top, math.max(bounds.top, bounds.bottom - cardHeight));
+    }
+
     placed.from = null;
     placed.tip = null;
-    final r = hole;
-    if (r == null) return Offset(x(bounds.center.dx - w / 2), y(bounds.center.dy - h / 2));
+    final litRect = hole;
+    if (litRect == null) {
+      return Offset(keepInsideX(bounds.center.dx - cardWidth / 2), keepInsideY(bounds.center.dy - cardHeight / 2));
+    }
 
     // The arrow meets the lit box near its middle, but not at a rounded corner.
-    double alongX(Rect a) => a.width > 24 ? a.center.dx.clamp(a.left + 12, a.right - 12) : a.center.dx;
-    double alongY(Rect a) => a.height > 24 ? a.center.dy.clamp(a.top + 12, a.bottom - 12) : a.center.dy;
+    double alongX(Rect rect) {
+      if (rect.width > 24) {
+        return rect.center.dx.clamp(rect.left + 12, rect.right - 12);
+      } else {
+        return rect.center.dx;
+      }
+    }
 
-    if (bounds.bottom - r.bottom >= h + gap) {
-      final at = Offset(x(r.center.dx - w / 2), r.bottom + gap);
-      placed.tip = Offset(alongX(r), r.bottom + 4);
-      placed.from = Offset(placed.tip!.dx.clamp(at.dx + 24, at.dx + w - 24), at.dy - 4);
-      return at;
+    double alongY(Rect rect) {
+      if (rect.height > 24) {
+        return rect.center.dy.clamp(rect.top + 12, rect.bottom - 12);
+      } else {
+        return rect.center.dy;
+      }
     }
-    if (r.top - bounds.top >= h + gap) {
-      final at = Offset(x(r.center.dx - w / 2), r.top - gap - h);
-      placed.tip = Offset(alongX(r), r.top - 4);
-      placed.from = Offset(placed.tip!.dx.clamp(at.dx + 24, at.dx + w - 24), at.dy + h + 4);
-      return at;
+
+    // Below.
+    if (bounds.bottom - litRect.bottom >= cardHeight + gap) {
+      final cardPosition = Offset(keepInsideX(litRect.center.dx - cardWidth / 2), litRect.bottom + gap);
+      final tip = Offset(alongX(litRect), litRect.bottom + 4);
+      placed.tip = tip;
+      placed.from = Offset(tip.dx.clamp(cardPosition.dx + 24, cardPosition.dx + cardWidth - 24), cardPosition.dy - 4);
+      return cardPosition;
     }
-    if (bounds.right - r.right >= w + sideGap) {
-      final at = Offset(r.right + sideGap, y(r.center.dy - h / 2));
-      placed.tip = Offset(r.right + 4, alongY(r));
-      placed.from = Offset(at.dx - 4, placed.tip!.dy.clamp(at.dy + 20, at.dy + h - 20));
-      return at;
+    // Above.
+    if (litRect.top - bounds.top >= cardHeight + gap) {
+      final cardPosition = Offset(keepInsideX(litRect.center.dx - cardWidth / 2), litRect.top - gap - cardHeight);
+      final tip = Offset(alongX(litRect), litRect.top - 4);
+      placed.tip = tip;
+      placed.from = Offset(tip.dx.clamp(cardPosition.dx + 24, cardPosition.dx + cardWidth - 24), cardPosition.dy + cardHeight + 4);
+      return cardPosition;
     }
-    if (r.left - bounds.left >= w + sideGap) {
-      final at = Offset(r.left - sideGap - w, y(r.center.dy - h / 2));
-      placed.tip = Offset(r.left - 4, alongY(r));
-      placed.from = Offset(at.dx + w + 4, placed.tip!.dy.clamp(at.dy + 20, at.dy + h - 20));
-      return at;
+    // To the right.
+    if (bounds.right - litRect.right >= cardWidth + sideGap) {
+      final cardPosition = Offset(litRect.right + sideGap, keepInsideY(litRect.center.dy - cardHeight / 2));
+      final tip = Offset(litRect.right + 4, alongY(litRect));
+      placed.tip = tip;
+      placed.from = Offset(cardPosition.dx - 4, tip.dy.clamp(cardPosition.dy + 20, cardPosition.dy + cardHeight - 20));
+      return cardPosition;
     }
-    return Offset(x(r.center.dx - w / 2), y(bounds.bottom - h));
+    // To the left.
+    if (litRect.left - bounds.left >= cardWidth + sideGap) {
+      final cardPosition = Offset(litRect.left - sideGap - cardWidth, keepInsideY(litRect.center.dy - cardHeight / 2));
+      final tip = Offset(litRect.left - 4, alongY(litRect));
+      placed.tip = tip;
+      placed.from = Offset(cardPosition.dx + cardWidth + 4, tip.dy.clamp(cardPosition.dy + 20, cardPosition.dy + cardHeight - 20));
+      return cardPosition;
+    }
+    // Nowhere beside it: over it, at the bottom.
+    return Offset(keepInsideX(litRect.center.dx - cardWidth / 2), keepInsideY(bounds.bottom - cardHeight));
   }
 
   @override
-  bool shouldRelayout(_CardLayout old) => old.hole != hole || old.bounds != bounds || old.width != width;
+  bool shouldRelayout(_CardLayout oldDelegate) {
+    return oldDelegate.hole != hole || oldDelegate.bounds != bounds || oldDelegate.width != width;
+  }
 }
 
+/// Paints the dimmed page with a rounded hole over the lit thing, a chalk outline round the hole,
+/// and the chalk arrow from the card to it.
 class _DimPainter extends CustomPainter {
-  _DimPainter(this.hole, this.dim, this.placed, this.chalk);
+  _DimPainter(this.hole, this.dimColor, this.placed, this.chalkColor);
   final Rect? hole;
-  final Color dim;
+  final Color dimColor;
   final _Placement placed;
-  final Color chalk;
+  final Color chalkColor;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final outer = Path()..addRect(Offset.zero & size);
-    final r = hole;
-    if (r == null) {
-      canvas.drawPath(outer, Paint()..color = dim);
+    final outer = Path();
+    outer.addRect(Offset.zero & size);
+    final litRect = hole;
+    if (litRect == null) {
+      final dimPaint = Paint();
+      dimPaint.color = dimColor;
+      canvas.drawPath(outer, dimPaint);
       return;
     }
-    final cut = Path()..addRRect(RRect.fromRectAndRadius(r, const Radius.circular(12)));
-    canvas.drawPath(Path.combine(PathOperation.difference, outer, cut), Paint()..color = dim);
+    final cut = Path();
+    cut.addRRect(RRect.fromRectAndRadius(litRect, const Radius.circular(12)));
+    final dimPaint = Paint();
+    dimPaint.color = dimColor;
+    canvas.drawPath(Path.combine(PathOperation.difference, outer, cut), dimPaint);
+    final outlinePaint = Paint();
+    outlinePaint.color = chalkColor;
+    outlinePaint.style = PaintingStyle.stroke;
+    outlinePaint.strokeWidth = 2;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(r, const Radius.circular(12)),
-      Paint()
-        ..color = chalk
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+      RRect.fromRectAndRadius(litRect, const Radius.circular(12)),
+      outlinePaint,
     );
     // The chalk arrow, from the card to the thing it's about, with a slight bow.
-    final start = placed.from, tip = placed.tip;
-    if (start == null || tip == null || (tip - start).distance < 8) return;
+    final start = placed.from;
+    final tip = placed.tip;
+    if (start == null || tip == null || (tip - start).distance < 8) {
+      return;
+    }
     final along = tip - start;
     final bow = Offset(-along.dy, along.dx) / along.distance * 24;
-    final ctrl = Offset((start.dx + tip.dx) / 2, (start.dy + tip.dy) / 2) + bow;
-    final line = Paint()
-      ..color = chalk
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    final controlPoint = Offset((start.dx + tip.dx) / 2, (start.dy + tip.dy) / 2) + bow;
+    final line = Paint();
+    line.color = chalkColor;
+    line.strokeWidth = 3;
+    line.style = PaintingStyle.stroke;
+    line.strokeCap = StrokeCap.round;
+    final arrowPath = Path();
+    arrowPath.moveTo(start.dx, start.dy);
+    arrowPath.quadraticBezierTo(controlPoint.dx, controlPoint.dy, tip.dx, tip.dy);
     canvas.drawPath(
-      Path()
-        ..moveTo(start.dx, start.dy)
-        ..quadraticBezierTo(ctrl.dx, ctrl.dy, tip.dx, tip.dy),
+      arrowPath,
       line,
     );
-    final ang = math.atan2(tip.dy - ctrl.dy, tip.dx - ctrl.dx);
-    for (final a in [ang + math.pi * 0.8, ang - math.pi * 0.8]) {
-      canvas.drawLine(tip, tip + Offset(math.cos(a) * 14, math.sin(a) * 14), line);
+    // The arrowhead: two short strokes back from the tip.
+    final angle = math.atan2(tip.dy - controlPoint.dy, tip.dx - controlPoint.dx);
+    for (final headAngle in [angle + math.pi * 0.8, angle - math.pi * 0.8]) {
+      canvas.drawLine(tip, tip + Offset(math.cos(headAngle) * 14, math.sin(headAngle) * 14), line);
     }
   }
 
   // The card's place is only known once it's laid out, in the same frame, so always repaint.
   @override
-  bool shouldRepaint(_DimPainter old) => true;
+  bool shouldRepaint(_DimPainter oldDelegate) {
+    return true;
+  }
 }
 
 /// "Show me around": a button per tour, each only while there's something for it to show.
@@ -561,7 +830,7 @@ Future<void> openTourPicker(BuildContext context) {
     id: 'tour',
     width: 420,
     builder: (context) {
-      final c = UwuColors.of(context);
+      final colors = UwuColors.of(context);
       return SheetFrame(
         title: 'Show me around',
         children: [
@@ -572,18 +841,29 @@ Future<void> openTourPicker(BuildContext context) {
               for (final id in tourOrder)
                 Builder(
                   builder: (context) {
-                    final t = tours[id]!;
-                    final off = t.available != null && !t.available!();
+                    final tourDefinition = tours[id]!;
+                    final available = tourDefinition.available;
+                    final unavailable = available != null && !available();
+                    // A tour with nothing to show can't be pressed, and its tooltip says why.
+                    String tooltipMessage;
+                    VoidCallback? onPressed;
+                    if (unavailable) {
+                      tooltipMessage = tourDefinition.why!;
+                      onPressed = null;
+                    } else {
+                      tooltipMessage = '';
+                      onPressed = () {
+                        AppSheet.close(context);
+                        Timer(const Duration(milliseconds: 300), () {
+                          Tour.start(id);
+                        });
+                      };
+                    }
                     return Tooltip(
-                      message: off ? t.why! : '',
+                      message: tooltipMessage,
                       child: OutlinedButton(
-                        onPressed: off
-                            ? null
-                            : () {
-                                AppSheet.close(context);
-                                Timer(const Duration(milliseconds: 300), () => Tour.start(id));
-                              },
-                        child: Text(t.label),
+                        onPressed: onPressed,
+                        child: Text(tourDefinition.label),
                       ),
                     );
                   },
@@ -593,7 +873,7 @@ Future<void> openTourPicker(BuildContext context) {
           const SizedBox(height: 12),
           Text(
             'Each part of uwuBoard shows you around the first time you open it. Pick one to see its tour again.',
-            style: TextStyle(color: c.muted, fontSize: 12.5),
+            style: TextStyle(color: colors.muted, fontSize: 12.5),
           ),
         ],
       );

@@ -19,47 +19,84 @@ const MAX_PAGES = 1000;
 // `<user id>/<file>` and an avatar `<user id>/avatar.<ext>`, each a file of its own.
 async function removeFolder(bucket, userId) {
   const store = supabase.storage.from(bucket);
-  for (let page = 0; page < MAX_PAGES; page++) {
+  for (let page = 0; page < MAX_PAGES; page = page + 1) {
     const { data, error } = await store.list(userId, { limit: PAGE });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
+    let listed = data;
+    if (!listed) {
+      listed = [];
+    }
     // A sub-folder is listed with no id; there are none, but they aren't files to remove.
-    const keys = (data || []).filter((f) => f && f.id && f.name).map((f) => `${userId}/${f.name}`);
-    if (!keys.length) return;
+    const keys = listed
+      .filter((listedFile) => {
+        return listedFile && listedFile.id && listedFile.name;
+      })
+      .map((listedFile) => {
+        return `${userId}/${listedFile.name}`;
+      });
+    if (!keys.length) {
+      return;
+    }
     const { data: removed, error: removeError } = await store.remove(keys);
-    if (removeError) throw removeError;
-    if (!removed || !removed.length) throw new Error(`${bucket}: nothing was removed`);
+    if (removeError) {
+      throw removeError;
+    }
+    if (!removed || !removed.length) {
+      throw new Error(`${bucket}: nothing was removed`);
+    }
   }
   throw new Error(`${bucket}: more than ${PAGE * MAX_PAGES} files`);
 }
 
-module.exports = async (req, res) => {
-  if (req.method !== 'DELETE') return res.status(405).json({ error: 'Method not allowed' });
+// Checks the password, removes the pictures, then deletes the sessions, boards and account.
+module.exports = async (request, response) => {
+  if (request.method !== 'DELETE') {
+    return response.status(405).json({ error: 'Method not allowed' });
+  }
   try {
     const { requireAuth } = require('../lib/auth');
-    const { userId } = await requireAuth(req);
-    const { password } = req.body || {};
-    if (!password) return res.status(400).json({ error: 'Password required' });
+    const { userId } = await requireAuth(request);
+    let body = request.body;
+    if (!body) {
+      body = {};
+    }
+    const { password } = body;
+    if (!password) {
+      return response.status(400).json({ error: 'Password required' });
+    }
 
     const { data: user } = await supabase
       .from('uwu_users').select('password_hash').eq('id', userId).single();
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) {
+      return response.status(404).json({ error: 'User not found' });
+    }
 
     const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Incorrect password' });
+    if (!valid) {
+      return response.status(401).json({ error: 'Incorrect password' });
+    }
 
     try {
-      for (const bucket of BUCKETS) await removeFolder(bucket, userId);
-    } catch (e) {
-      console.error(`delete-account: pictures: ${e.message}`);
-      return res.status(500).json({ error: "Couldn't delete your pictures, so nothing was deleted. Please try again." });
+      for (const bucket of BUCKETS) {
+        await removeFolder(bucket, userId);
+      }
+    } catch (error) {
+      console.error(`delete-account: pictures: ${error.message}`);
+      return response.status(500).json({ error: "Couldn't delete your pictures, so nothing was deleted. Please try again." });
     }
 
     await supabase.from('uwu_sessions').delete().eq('user_id', userId);
     await supabase.from('uwuboard_boards').delete().eq('user_id', userId);
     await supabase.from('uwu_users').delete().eq('id', userId);
 
-    return res.status(200).json({ ok: true });
-  } catch (e) {
-    return res.status(e.status || 500).json({ error: e.message });
+    return response.status(200).json({ ok: true });
+  } catch (error) {
+    let status = error.status;
+    if (!status) {
+      status = 500;
+    }
+    return response.status(status).json({ error: error.message });
   }
 };

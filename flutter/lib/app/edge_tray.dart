@@ -30,7 +30,9 @@ class EdgeTray extends StatefulWidget {
   static const openWidth = tabWidth + 6 + 44 + 10;
 
   @override
-  State<EdgeTray> createState() => _EdgeTrayState();
+  State<EdgeTray> createState() {
+    return _EdgeTrayState();
+  }
 }
 
 /// How much further the board's sideways scroll runs at its end, so its last column (or the end
@@ -42,47 +44,90 @@ class TrayClearance extends InheritedWidget {
 
   final double end;
 
-  static double of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<TrayClearance>()?.end ?? 0;
+  static double of(BuildContext context) {
+    final clearance = context.dependOnInheritedWidgetOfExactType<TrayClearance>();
+    if (clearance == null) {
+      return 0;
+    }
+    return clearance.end;
+  }
 
   @override
-  bool updateShouldNotify(TrayClearance oldWidget) => oldWidget.end != end;
+  bool updateShouldNotify(TrayClearance oldWidget) {
+    return oldWidget.end != end;
+  }
 }
 
 class _EdgeTrayState extends State<EdgeTray> {
-  bool get _open => EdgeTray.open.value;
+  bool get _open {
+    return EdgeTray.open.value;
+  }
 
   @override
   void initState() {
     super.initState();
-    EdgeTray.open.value = Store.I.get(_trayKey) != '0';
+    EdgeTray.open.value = Store.instance.get(_trayKey) != '0';
   }
 
+  /// Opens or closes the tray, and remembers which on this device.
   void _toggle() {
-    setState(() => EdgeTray.open.value = !_open);
-    Store.I.put(_trayKey, _open ? '1' : '0');
+    setState(() {
+      EdgeTray.open.value = !_open;
+    });
+    if (_open) {
+      Store.instance.put(_trayKey, '1');
+    } else {
+      Store.instance.put(_trayKey, '0');
+    }
   }
 
-  Widget _button(String target, String icon, String label, VoidCallback onTap, {bool danger = false}) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: KeyedSubtree(
-      key: TourTargets.key(target),
-      child: Tooltip(
-        excludeFromSemantics: true,
-        triggerMode: TooltipTriggerMode.longPress,
-        message: label,
-        preferBelow: false,
-        child: GlassButton(icon: icon, label: label, onPressed: onTap, danger: danger),
+  /// One round button in the tray, with its label shown on a long press.
+  Widget _button(String target, String icon, String label, VoidCallback onTap, {bool danger = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: KeyedSubtree(
+        key: TourTargets.key(target),
+        child: Tooltip(
+          excludeFromSemantics: true,
+          triggerMode: TooltipTriggerMode.longPress,
+          message: label,
+          preferBelow: false,
+          child: GlassButton(icon: icon, label: label, onPressed: onTap, danger: danger),
+        ),
       ),
-    ),
-  );
+    );
+  }
 
+  /// The tab on the left that slides the tray in and out, then the buttons themselves while
+  /// it's open.
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
-    final app = AppState.I;
+    final colors = UwuColors.of(context);
+    final app = AppState.instance;
     final board = app.activeBoard;
     final timeline = app.isTimeline(board);
-    final reduce = MediaQuery.disableAnimationsOf(context);
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final String tabLabel;
+    final String tabIcon;
+    if (_open) {
+      tabLabel = 'Hide menu';
+      tabIcon = 'chevron-right';
+    } else {
+      tabLabel = 'Show menu';
+      tabIcon = 'chevron-left';
+    }
+    final int resizeMilliseconds;
+    if (reduceMotion) {
+      resizeMilliseconds = 0;
+    } else {
+      resizeMilliseconds = 220;
+    }
+    final Widget trayContent;
+    if (!_open) {
+      trayContent = const SizedBox(width: 0);
+    } else {
+      trayContent = _trayButtons(context, colors, app, board, timeline);
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,16 +139,16 @@ class _EdgeTrayState extends State<EdgeTray> {
             child: Semantics(
               button: true,
               expanded: _open,
-              label: _open ? 'Hide menu' : 'Show menu',
+              label: tabLabel,
               excludeSemantics: true,
               child: Tooltip(
                 excludeFromSemantics: true,
-                message: _open ? 'Hide menu' : 'Show menu',
+                message: tabLabel,
                 child: Material(
-                  color: c.surfaceStrong,
+                  color: colors.surfaceStrong,
                   shape: RoundedRectangleBorder(
                     borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-                    side: BorderSide(color: c.border),
+                    side: BorderSide(color: colors.border),
                   ),
                   child: InkWell(
                     mouseCursor: WidgetStateMouseCursor.clickable,
@@ -112,7 +157,7 @@ class _EdgeTrayState extends State<EdgeTray> {
                     child: SizedBox(
                       width: 26,
                       height: 44,
-                      child: Center(child: AppIcon(_open ? 'chevron-right' : 'chevron-left', size: 16, color: c.ink)),
+                      child: Center(child: AppIcon(tabIcon, size: 16, color: colors.ink)),
                     ),
                   ),
                 ),
@@ -121,37 +166,66 @@ class _EdgeTrayState extends State<EdgeTray> {
           ),
         ),
         AnimatedSize(
-          duration: Duration(milliseconds: reduce ? 0 : 220),
+          duration: Duration(milliseconds: resizeMilliseconds),
           curve: Curves.easeOutCubic,
           alignment: Alignment.centerLeft,
-          child: !_open
-              ? const SizedBox(width: 0)
-              : Padding(
-                  padding: const EdgeInsets.only(left: 6, right: 10),
-                  child: KeyedSubtree(
-                    key: TourTargets.key('tray-buttons'),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _button('tray-theme', ThemeController.I.mode == 'dark' ? 'moon' : 'sun', 'Theme: colour, light or dark', () => openThemeSheet(context)),
-                        _button('tray-sync', 'sync', 'Sync with another device', () => openSync(context)),
-                        _button('tray-tour', 'help', 'Show me around', () => openTourPicker(context)),
-                        _button('tray-bug', 'bug', 'Report a bug', () => openBugReport(context)),
-                        if (board != null) ...[
-                          Container(width: 22, height: 1, margin: const EdgeInsets.only(bottom: 8), color: c.border),
-                          _button('tray-view', timeline ? 'kanban' : 'timeline', timeline ? 'Show as Kanban' : 'Show as Timeline', app.toggleView),
-                          _button('tray-export', 'file-export', 'Export this board to a file', exportActiveBoard),
-                          _button('tray-import', 'file-import', 'Import a board file over this board', importOverActiveBoard),
-                          _button('tray-delete', 'trash', 'Delete this board', () async {
-                            if (await AppNav.confirm('Delete board "${board['name']}"?')) await app.deleteBoard(board);
-                          }, danger: true),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
+          child: trayContent,
         ),
       ],
+    );
+  }
+
+  /// The column of buttons in the open tray: the app's own actions, then, with a board open,
+  /// that board's (switch view, export, import over it, delete).
+  Widget _trayButtons(BuildContext context, UwuColors colors, AppState app, Map<String, dynamic>? board, bool timeline) {
+    final String themeIcon;
+    if (ThemeController.instance.mode == 'dark') {
+      themeIcon = 'moon';
+    } else {
+      themeIcon = 'sun';
+    }
+    final String viewIcon;
+    final String viewLabel;
+    if (timeline) {
+      viewIcon = 'kanban';
+      viewLabel = 'Show as Kanban';
+    } else {
+      viewIcon = 'timeline';
+      viewLabel = 'Show as Timeline';
+    }
+    return Padding(
+      padding: const EdgeInsets.only(left: 6, right: 10),
+      child: KeyedSubtree(
+        key: TourTargets.key('tray-buttons'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _button('tray-theme', themeIcon, 'Theme: colour, light or dark', () {
+              openThemeSheet(context);
+            }),
+            _button('tray-sync', 'sync', 'Sync with another device', () {
+              openSync(context);
+            }),
+            _button('tray-tour', 'help', 'Show me around', () {
+              openTourPicker(context);
+            }),
+            _button('tray-bug', 'bug', 'Report a bug', () {
+              openBugReport(context);
+            }),
+            if (board != null) ...[
+              Container(width: 22, height: 1, margin: const EdgeInsets.only(bottom: 8), color: colors.border),
+              _button('tray-view', viewIcon, viewLabel, app.toggleView),
+              _button('tray-export', 'file-export', 'Export this board to a file', exportActiveBoard),
+              _button('tray-import', 'file-import', 'Import a board file over this board', importOverActiveBoard),
+              _button('tray-delete', 'trash', 'Delete this board', () async {
+                if (await AppNavigation.confirm('Delete board "${board['name']}"?')) {
+                  await app.deleteBoard(board);
+                }
+              }, danger: true),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

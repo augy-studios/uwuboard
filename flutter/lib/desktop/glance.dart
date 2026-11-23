@@ -34,23 +34,49 @@ class DueCard {
   /// Days until it's due: 0 today, negative overdue.
   final int days;
 
-  String get when =>
-      days < 0 ? (days == -1 ? 'overdue by a day' : 'overdue by ${-days} days') : (days == 0 ? 'today' : (days == 1 ? 'tomorrow' : 'in $days days'));
+  /// When it's due, in words: 'overdue by 3 days', 'today', 'tomorrow', 'in 5 days'.
+  String get when {
+    if (days < 0) {
+      if (days == -1) {
+        return 'overdue by a day';
+      } else {
+        return 'overdue by ${-days} days';
+      }
+    } else {
+      if (days == 0) {
+        return 'today';
+      } else if (days == 1) {
+        return 'tomorrow';
+      } else {
+        return 'in $days days';
+      }
+    }
+  }
 }
 
 /// A board's cards with a due date, not all ticked off, soonest first.
 List<DueCard> dueCards(Json board, {DateTime? now}) {
-  final today = dayOf(todayIso(now));
-  final out = <DueCard>[];
+  final today = dayOf(todayIsoDate(now));
+  final result = <DueCard>[];
   for (final card in allCards(board)) {
     final due = card['due'];
-    if (!isIso(due)) continue;
-    final list = checklistOf(card);
-    if (list.isNotEmpty && list.every((c) => c['done'] == true)) continue;
-    out.add(DueCard(board, card, dayOf(due as String) - today));
+    if (!isIsoDate(due)) {
+      continue;
+    }
+    final checklist = checklistOf(card);
+    // A card whose checklist is all ticked off is done, so it isn't due any more.
+    if (checklist.isNotEmpty &&
+        checklist.every((item) {
+          return item['done'] == true;
+        })) {
+      continue;
+    }
+    result.add(DueCard(board, card, dayOf(due as String) - today));
   }
-  out.sort((a, b) => a.days.compareTo(b.days));
-  return out;
+  result.sort((first, second) {
+    return first.days.compareTo(second.days);
+  });
+  return result;
 }
 
 /// The tray tooltip: the board's name, then one line per card, cut to 127 characters (Windows'
@@ -61,129 +87,231 @@ String trayText(Json board, {DateTime? now}) {
   if (due.isEmpty) {
     lines.add('No cards due');
   } else {
-    for (final d in due) {
-      lines.add('${d.card['title']}: ${d.when}');
+    for (final dueCard in due) {
+      lines.add('${dueCard.card['title']}: ${dueCard.when}');
     }
   }
   final text = lines.join('\n');
-  return text.length <= 127 ? text : '${text.substring(0, 126)}…';
+  if (text.length <= 127) {
+    return text;
+  } else {
+    return '${text.substring(0, 126)}…';
+  }
 }
 
 class Glance {
   Glance._();
 
-  static Timer? _due;
-  static Timer? _tray;
-  static bool _first = true;
+  static Timer? _dueTimer;
+  static Timer? _trayTimer;
+
+  /// True until the first due check has run (that one only records what's already due).
+  static bool _firstCheck = true;
 
   /// Set by tray.dart: puts a new tooltip, title or menu up.
   static void Function(String tooltip, String title)? onTray;
   static final ValueNotifier<Json?> followed = ValueNotifier(null);
 
+  /// Starts the due-card check (every minute, first after 5 seconds) and the tray countdown
+  /// (every 30 seconds), and picks up the board followed last time.
   static void start() {
-    _due?.cancel();
-    _due = Timer.periodic(const Duration(minutes: 1), (_) => checkDue());
+    final oldDueTimer = _dueTimer;
+    if (oldDueTimer != null) {
+      oldDueTimer.cancel();
+    }
+    _dueTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      checkDue();
+    });
     Timer(const Duration(seconds: 5), checkDue);
-    _tray?.cancel();
-    _tray = Timer.periodic(const Duration(seconds: 30), (_) => refreshTray());
+    final oldTrayTimer = _trayTimer;
+    if (oldTrayTimer != null) {
+      oldTrayTimer.cancel();
+    }
+    _trayTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      refreshTray();
+    });
     final stop = DeskSettings.get<Map<String, dynamic>>('trayStop');
-    if (stop != null) followed.value = stop;
-    AppState.I.addListener(_boardsChanged);
+    if (stop != null) {
+      followed.value = stop;
+    }
+    AppState.instance.addListener(_boardsChanged);
     _boardsChanged();
   }
 
-  static String _lastFavs = '';
+  /// The favourites last sent to the runner, as text, so they're only sent again when changed.
+  static String _lastFavourites = '';
 
+  /// The boards changed: sends the first 10 to the runner as favourites (if they're different
+  /// from last time) and refreshes the tray countdown.
   static void _boardsChanged() {
-    final favs = [
-      for (final b in AppState.I.boards.take(10)) {'code': b['id'], 'name': b['name']},
+    final favourites = [
+      for (final board in AppState.instance.boards.take(10)) {'code': board['id'], 'name': board['name']},
     ];
-    final key = favs.toString();
-    if (key != _lastFavs) {
-      _lastFavs = key;
-      DeskSettings.write({'favourites': favs});
-      Runner.setFavourites(favs);
+    final key = favourites.toString();
+    if (key != _lastFavourites) {
+      _lastFavourites = key;
+      DeskSettings.write({'favourites': favourites});
+      Runner.setFavourites(favourites);
     }
     refreshTray();
   }
 
   /// Follows a board in the tray, or stops (null).
   static void follow(Json? board) {
-    final v = board == null ? null : {'code': board['id'], 'name': board['name']};
-    DeskSettings.write({'trayStop': v});
-    followed.value = v;
+    Map<String, dynamic>? followedBoard;
+    if (board == null) {
+      followedBoard = null;
+    } else {
+      followedBoard = {'code': board['id'], 'name': board['name']};
+    }
+    DeskSettings.write({'trayStop': followedBoard});
+    followed.value = followedBoard;
     refreshTray();
   }
 
+  /// The board being followed in the tray, found among the boards here, or null.
   static Json? _followedBoard() {
-    final f = followed.value;
-    if (f == null) return null;
-    for (final b in AppState.I.boards) {
-      if (b['id'] == f['code']) return b;
+    final following = followed.value;
+    if (following == null) {
+      return null;
+    }
+    for (final board in AppState.instance.boards) {
+      if (board['id'] == following['code']) {
+        return board;
+      }
     }
     return null;
   }
 
+  /// Puts the followed board's due cards in the tray tooltip, beside the menu bar icon and on
+  /// the Dock's badge; or clears them when no board is followed.
   static void refreshTray() {
     final board = _followedBoard();
     if (board == null) {
-      onTray?.call(Desktop.name, '');
+      final trayHandler = onTray;
+      if (trayHandler != null) {
+        trayHandler(Desktop.name, '');
+      }
       Runner.setBadge('');
       return;
     }
     final due = dueCards(board);
-    final urgent = due.where((d) => d.days <= 0).length;
-    onTray?.call(trayText(board), due.isEmpty ? '' : ' ${due.first.card['title']} · ${due.first.when}');
-    Runner.setBadge(urgent > 0 ? '$urgent' : '');
+    final urgent = due.where((dueCard) {
+      return dueCard.days <= 0;
+    }).length;
+    final trayHandler = onTray;
+    if (trayHandler != null) {
+      final tooltip = trayText(board);
+      String title;
+      if (due.isEmpty) {
+        title = '';
+      } else {
+        title = ' ${due.first.card['title']} · ${due.first.when}';
+      }
+      trayHandler(tooltip, title);
+    }
+    String badge;
+    if (urgent > 0) {
+      badge = '$urgent';
+    } else {
+      badge = '';
+    }
+    Runner.setBadge(badge);
+  }
+
+  /// A board's last-changed time, or 0 if it has none.
+  static num _updatedAtOf(Json board) {
+    final updatedAt = board['updatedAt'] as num?;
+    if (updatedAt == null) {
+      return 0;
+    }
+    return updatedAt;
   }
 
   /// Due today and overdue, said once per card and due date.
   static Future<void> checkDue() async {
-    final app = AppState.I;
-    if (!app.shown) return;
+    final app = AppState.instance;
+    if (!app.shown) {
+      return;
+    }
+    // Signed in: fetch the boards again, so a card changed on another device counts too.
     if (app.signedIn) {
       try {
         final data = await Api.call('GET', '/boards/list');
-        final fresh = boardsFromJson(data['boards']);
+        final freshBoards = boardsFromJson(data['boards']);
         // Only boards whose copy here is older than the server's, so nothing typed just now is lost.
         var changed = false;
-        for (final f in fresh) {
-          final i = app.boards.indexWhere((b) => b['id'] == f['id']);
-          if (i < 0) {
-            app.boards.add(f);
+        for (final freshBoard in freshBoards) {
+          final index = app.boards.indexWhere((board) {
+            return board['id'] == freshBoard['id'];
+          });
+          if (index < 0) {
+            app.boards.add(freshBoard);
             changed = true;
-          } else if ((f['updatedAt'] as num? ?? 0) > (app.boards[i]['updatedAt'] as num? ?? 0)) {
-            app.boards[i] = f;
+          } else if (_updatedAtOf(freshBoard) > _updatedAtOf(app.boards[index])) {
+            app.boards[index] = freshBoard;
             changed = true;
           }
         }
-        if (changed) app.boardsChanged(fresh);
-      } catch (_) {
+        if (changed) {
+          app.boardsChanged(freshBoards);
+        }
+      } catch (error) {
         // Offline: what's here.
       }
     }
-    final seen = Map<String, dynamic>.from(DeskSettings.get<Map<String, dynamic>>('dueSeen') ?? const {});
-    final fresh = <DueCard>[];
-    for (final b in app.boards) {
-      for (final d in dueCards(b)) {
-        if (d.days > 0) continue;
-        final key = '${d.card['id']}';
-        final mark = '${d.card['due']}:${d.days < 0 ? 'late' : 'today'}';
-        if (seen[key] == mark) continue;
+    // Find the cards due today or overdue that haven't been announced for this due date yet.
+    Map<String, dynamic>? seenBefore = DeskSettings.get<Map<String, dynamic>>('dueSeen');
+    if (seenBefore == null) {
+      seenBefore = const {};
+    }
+    final seen = Map<String, dynamic>.from(seenBefore);
+    final newlyDue = <DueCard>[];
+    for (final board in app.boards) {
+      for (final dueCard in dueCards(board)) {
+        if (dueCard.days > 0) {
+          continue;
+        }
+        final key = '${dueCard.card['id']}';
+        String state;
+        if (dueCard.days < 0) {
+          state = 'late';
+        } else {
+          state = 'today';
+        }
+        final mark = '${dueCard.card['due']}:$state';
+        if (seen[key] == mark) {
+          continue;
+        }
         seen[key] = mark;
-        fresh.add(d);
+        newlyDue.add(dueCard);
       }
     }
     DeskSettings.write({'dueSeen': seen});
-    final first = _first;
-    _first = false;
-    if (first || fresh.isEmpty) return;
-    final d = fresh.first;
-    final more = fresh.length - 1;
+    final first = _firstCheck;
+    _firstCheck = false;
+    if (first || newlyDue.isEmpty) {
+      return;
+    }
+    // One notification: the first card, and how many more there are.
+    final dueCard = newlyDue.first;
+    final more = newlyDue.length - 1;
+    String title;
+    if (dueCard.days < 0) {
+      title = '${dueCard.card['title']} is overdue';
+    } else {
+      title = '${dueCard.card['title']} is due today';
+    }
+    String moreText;
+    if (more > 0) {
+      moreText = '\nAnd $more more…';
+    } else {
+      moreText = '';
+    }
     DeskNotify.show(
-      title: d.days < 0 ? '${d.card['title']} is overdue' : '${d.card['title']} is due today',
-      body: '${d.board['name']}${more > 0 ? '\nAnd $more more…' : ''}',
-      link: 'uwu://board/b/${d.board['id']}',
+      title: title,
+      body: '${dueCard.board['name']}$moreText',
+      link: 'uwu://board/b/${dueCard.board['id']}',
     );
   }
 }

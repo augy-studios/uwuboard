@@ -2,16 +2,27 @@ const supabase = require('../lib/supabase');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
-module.exports = async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+// POST /api/auth/register { username, email, password }: creates the account and signs it in
+// with a new 30-day session.
+module.exports = async (request, response) => {
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: 'Method not allowed' });
+  }
 
-  const { username, email, password } = req.body || {};
-  if (!username || !email || !password)
-    return res.status(400).json({ error: 'username, email, and password are required' });
-  if (password.length < 8)
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
-  if (!/^[a-zA-Z0-9_]{3,24}$/.test(username))
-    return res.status(400).json({ error: 'Username must be 3-24 alphanumeric/underscore characters' });
+  let body = request.body;
+  if (!body) {
+    body = {};
+  }
+  const { username, email, password } = body;
+  if (!username || !email || !password) {
+    return response.status(400).json({ error: 'username, email, and password are required' });
+  }
+  if (password.length < 8) {
+    return response.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) {
+    return response.status(400).json({ error: 'Username must be 3-24 alphanumeric/underscore characters' });
+  }
 
   // Check uniqueness
   const { data: existing } = await supabase
@@ -20,16 +31,20 @@ module.exports = async (req, res) => {
     .or(`username.eq.${username},email.eq.${email}`)
     .maybeSingle();
 
-  if (existing) return res.status(409).json({ error: 'Username or email already taken' });
+  if (existing) {
+    return response.status(409).json({ error: 'Username or email already taken' });
+  }
 
-  const hash = await bcrypt.hash(password, 12);
+  const passwordHash = await bcrypt.hash(password, 12);
   const { data: user, error } = await supabase
     .from('uwu_users')
-    .insert({ username, email, password_hash: hash })
+    .insert({ username, email, password_hash: passwordHash })
     .select('id, username')
     .single();
 
-  if (error) return res.status(500).json({ error: 'Registration failed' });
+  if (error) {
+    return response.status(500).json({ error: 'Registration failed' });
+  }
 
   const token = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
@@ -40,7 +55,7 @@ module.exports = async (req, res) => {
     expires_at: expires.toISOString(),
   });
 
-  return res.status(200).json({
+  return response.status(200).json({
     username: user.username,
     displayName: user.username,
     session: { token, userId: user.id },

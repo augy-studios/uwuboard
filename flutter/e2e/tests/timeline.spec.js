@@ -8,8 +8,12 @@ test("a Timeline board starts with phases, takes a task, and switches to Kanban 
   await startAsGuest(page);
   await newBoard(page, "Launch", "Timeline");
   await skipTour(page);
-  for (const phase of ["Requirements", "Design", "Build", "Test", "Release"]) await expect(page.getByRole("button", { name: new RegExp(`^${phase}\\b`) }).first()).toBeVisible();
-  for (const z of ["Weeks", "Months", "Quarters"]) await expect(button(page, z)).toBeVisible();
+  for (const phase of ["Requirements", "Design", "Build", "Test", "Release"]) {
+    await expect(page.getByRole("button", { name: new RegExp(`^${phase}\\b`) }).first()).toBeVisible();
+  }
+  for (const zoomLevel of ["Weeks", "Months", "Quarters"]) {
+    await expect(button(page, zoomLevel)).toBeVisible();
+  }
 
   // A task in Design.
   await page.getByRole("button", { name: "+ Add task" }).nth(1).click();
@@ -29,9 +33,15 @@ test("a Timeline board starts with phases, takes a task, and switches to Kanban 
   await expect(said(page, "Showing as a kanban board")).toBeVisible();
   expect((await guestBoards(page))[0].view).toBe("kanban");
   await button(page, "Show as Timeline").click();
-  await expect.poll(async () => (await guestBoards(page))[0].view).toBe("timeline");
+  await expect.poll(async () => {
+    return (await guestBoards(page))[0].view;
+  }).toBe("timeline");
 
   await button(page, "Weeks").click();
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("flutter.ls.uwuboard.timeline.zoom")))).toBe("weeks");
+  await expect.poll(() => {
+    return page.evaluate(() => {
+      return JSON.parse(localStorage.getItem("flutter.ls.uwuboard.timeline.zoom"));
+    });
+  }).toBe("weeks");
   noErrors(page);
 });

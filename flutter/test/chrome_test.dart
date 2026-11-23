@@ -14,7 +14,7 @@ import 'package:uwuboard/theme/theme.dart';
 void main() {
   setUpAll(() {
     Store.memory();
-    Env.desktopOverride = true;
+    Environment.desktopOverride = true;
   });
 
   testWidgets('a title bar button shows its tooltip on hover', (tester) async {
@@ -23,13 +23,16 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        navigatorKey: AppNav.navigatorKey,
+        navigatorKey: AppNavigation.navigatorKey,
         theme: buildTheme(look: lookUwuApps, brightness: Brightness.light, brand: colorThemes.first.color, desktop: true),
-        builder: (context, child) => DesktopChrome(child: child!),
+        builder: (context, child) {
+          return DesktopChrome(child: child!);
+        },
         home: const Scaffold(body: SizedBox()),
       ),
     );
     await tester.pump();
+    // Move a real mouse pointer over the Reload button and wait long enough for its tooltip.
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
     addTearDown(mouse.removePointer);
@@ -46,20 +49,27 @@ void main() {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    desktopChrome = (context, child) => DesktopChrome(child: child);
-    addTearDown(() => desktopChrome = null);
+    desktopChrome = (context, child) {
+      return DesktopChrome(child: child);
+    };
+    addTearDown(() {
+      desktopChrome = null;
+    });
     await tester.pumpWidget(const UwuBoardApp());
     await tester.pump();
 
-    final page = tester.getRect(find.byKey(AppNav.repaintKey));
+    final page = tester.getRect(find.byKey(AppNavigation.repaintKey));
     expect(page.width, 1400);
     expect(page.bottom, 900);
     expect(page.height, greaterThan(800));
     // And what's on it is drawn across the whole of it: the navigator's page is as wide.
     expect(tester.getSize(find.byType(Navigator).first).width, 1400);
 
+    // Turn on screenshot mode so the bug report's bar appears at the bottom of the window.
     BugShot.shooting.value = true;
-    addTearDown(() => BugShot.shooting.value = false);
+    addTearDown(() {
+      BugShot.shooting.value = false;
+    });
     await tester.pump();
     final bar = tester.getRect(find.byType(BugShotBar));
     expect(bar.width, 1400);

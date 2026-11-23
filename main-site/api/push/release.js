@@ -16,49 +16,81 @@ const { asRelease, latestRelease, newer } = require('../lib/releases');
 
 const TOPIC = 'uwuboard-releases';
 
+// Whether the X-Hub-Signature-256 header matches the body signed with our webhook secret. The
+// comparison takes the same time however much matches, so it gives nothing away.
 function signedByGitHub(body, signature) {
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
-  if (!secret || typeof signature !== 'string' || !signature.startsWith('sha256=')) return false;
+  if (!secret || typeof signature !== 'string' || !signature.startsWith('sha256=')) {
+    return false;
+  }
   const expected = Buffer.from(`sha256=${createHmac('sha256', secret).update(body).digest('hex')}`);
   const given = Buffer.from(signature);
-  return expected.length === given.length && timingSafeEqual(expected, given);
+  if (expected.length !== given.length) {
+    return false;
+  }
+  return timingSafeEqual(expected, given);
 }
 
 // The body exactly as GitHub sent it: the signature is over these bytes.
-async function rawBody(req) {
-  if (Buffer.isBuffer(req.body)) return req.body;
-  if (typeof req.body === 'string') return Buffer.from(req.body);
+async function rawBody(request) {
+  if (Buffer.isBuffer(request.body)) {
+    return request.body;
+  }
+  if (typeof request.body === 'string') {
+    return Buffer.from(request.body);
+  }
+  // Not read yet: collect it from the request stream.
   const chunks = [];
-  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  for await (const chunk of request) {
+    if (Buffer.isBuffer(chunk)) {
+      chunks.push(chunk);
+    } else {
+      chunks.push(Buffer.from(chunk));
+    }
+  }
   return Buffer.concat(chunks);
 }
 
-module.exports = async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const body = await rawBody(req);
-  if (!signedByGitHub(body, req.headers['x-hub-signature-256'])) return res.status(401).json({ error: 'Bad signature' });
+// Checks the delivery, then pushes the release to the topic unless there's a reason not to,
+// answering with whether it was sent and, if not, why.
+module.exports = async (request, response) => {
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: 'Method not allowed' });
+  }
+  const body = await rawBody(request);
+  if (!signedByGitHub(body, request.headers['x-hub-signature-256'])) {
+    return response.status(401).json({ error: 'Bad signature' });
+  }
 
-  const event = req.headers['x-github-event'];
+  const event = request.headers['x-github-event'];
   // GitHub's hello when the webhook is first saved.
-  if (event === 'ping') return res.status(200).json({ ok: true, pong: true });
-  if (event !== 'release') return res.status(200).json({ sent: false, why: `Not a release event (${event})` });
+  if (event === 'ping') {
+    return response.status(200).json({ ok: true, pong: true });
+  }
+  if (event !== 'release') {
+    return response.status(200).json({ sent: false, why: `Not a release event (${event})` });
+  }
 
   let payload;
   try {
     payload = JSON.parse(body.toString('utf8'));
   } catch {
-    return res.status(400).json({ error: 'Not JSON: set the webhook content type to application/json' });
+    return response.status(400).json({ error: 'Not JSON: set the webhook content type to application/json' });
   }
-  if (payload.action !== 'released') return res.status(200).json({ sent: false, why: `Release ${payload.action}, not released` });
+  if (payload.action !== 'released') {
+    return response.status(200).json({ sent: false, why: `Release ${payload.action}, not released` });
+  }
 
   const release = asRelease(payload.release);
-  if (!release) return res.status(200).json({ sent: false, why: 'Not an android-v* release with its APK uploaded' });
+  if (!release) {
+    return response.status(200).json({ sent: false, why: 'Not an android-v* release with its APK uploaded' });
+  }
 
   // Re-publishing an old version shouldn't tell everyone it's new.
   try {
     const latest = await latestRelease();
     if (latest && newer(latest.version, release.version)) {
-      return res.status(200).json({ sent: false, why: `${latest.version} is newer than ${release.version}` });
+      return response.status(200).json({ sent: false, why: `${latest.version} is newer than ${release.version}` });
     }
   } catch (cause) {
     console.warn('push/release: could not compare with the newest release:', cause.message);
@@ -73,10 +105,24 @@ module.exports = async (req, res) => {
       tag: 'release',
     });
   } catch (cause) {
-    const why = typeof cause.body === 'string' ? cause.body
-      : cause.body?.error?.message ? `${cause.message}: ${cause.body.error.message}` : cause.message;
+    // The clearest reason: FCM's own text, else its error message added to ours, else ours.
+    let googleErrorMessage;
+    if (cause.body !== null && cause.body !== undefined) {
+      const googleError = cause.body.error;
+      if (googleError !== null && googleError !== undefined) {
+        googleErrorMessage = googleError.message;
+      }
+    }
+    let why;
+    if (typeof cause.body === 'string') {
+      why = cause.body;
+    } else if (googleErrorMessage) {
+      why = `${cause.message}: ${cause.body.error.message}`;
+    } else {
+      why = cause.message;
+    }
     console.error('push/release:', why);
-    return res.status(502).json({ sent: false, error: why });
+    return response.status(502).json({ sent: false, error: why });
   }
-  return res.status(200).json({ sent: true, version: release.version });
+  return response.status(200).json({ sent: true, version: release.version });
 };

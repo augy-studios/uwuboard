@@ -8,9 +8,13 @@ test("off Android, the site's look: light, dark and the brand colours, under the
   await button(page, "Theme: colour, light or dark").click();
   await expect(page.getByRole("heading", { name: "Theme" })).toBeVisible();
   await button(page, "Dark").click();
-  await expect.poll(() => stored(page, "uwuboard.mode")).toBe("dark");
+  await expect.poll(() => {
+    return stored(page, "uwuboard.mode");
+  }).toBe("dark");
   await button(page, "Not green 2").click();
-  await expect.poll(() => stored(page, "uwuboard.colorTheme")).toBe("not-green-2");
+  await expect.poll(() => {
+    return stored(page, "uwuboard.colorTheme");
+  }).toBe("not-green-2");
   await button(page, "Time-based").click();
   await expect(page.getByText(/Following the clock\. Currently (light|dark)\./)).toBeVisible();
   noErrors(page);
@@ -25,10 +29,14 @@ test("on Android with wallpaper colours, Material You is the default, and the Uw
   // Material You has no brand swatches.
   await expect(button(page, "Classic")).toHaveCount(0);
   await button(page, "UwU Apps").click();
-  await expect.poll(() => stored(page, "app.look")).toBe("uwuapps");
+  await expect.poll(() => {
+    return stored(page, "app.look");
+  }).toBe("uwuapps");
   await expect(button(page, "Classic")).toBeVisible();
   await button(page, "Material You").click();
-  await expect.poll(() => stored(page, "app.look")).toBe("material");
+  await expect.poll(() => {
+    return stored(page, "app.look");
+  }).toBe("material");
   noErrors(page);
 });
 
@@ -42,16 +50,21 @@ test("on the desktop, the second look is the system's glass in place of Material
   await expect(page.getByRole("heading", { name: "Theme" })).toBeVisible();
   await expect(button(page, "Material You")).toHaveCount(0);
   await button(page, "Fluent 2").click();
-  await expect.poll(() => stored(page, "app.look")).toBe("native");
+  await expect.poll(() => {
+    return stored(page, "app.look");
+  }).toBe("native");
   await expect(page.getByText(/Windows 11’s Fluent 2: Mica behind the window and Acrylic/)).toBeVisible();
   // The system's accent, not the brand swatches.
   await expect(button(page, "Classic")).toHaveCount(0);
   await expect(page.getByText("Use system accent colour")).toHaveCount(0);
   await button(page, "UwU Apps").click();
-  await expect.poll(() => stored(page, "app.look")).toBe("uwuapps");
+  await expect.poll(() => {
+    return stored(page, "app.look");
+  }).toBe("uwuapps");
   await expect(button(page, "Classic")).toBeVisible();
 });
 
+// The other two desktops: each one's glass is offered under its own name.
 for (const [glass, label, note] of [
   ["tahoe", "macOS Tahoe", /The glass of macOS Tahoe/],
   ["frosted", "Frosted Glass", /The frosted glass of Deepin \(DDE\) and COSMIC/],

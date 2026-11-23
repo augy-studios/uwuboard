@@ -9,28 +9,41 @@ import '../native/bridge.dart';
 import 'desk.dart';
 import 'notify.dart';
 
+/// Answers the shared screens' native calls on the desktop. Only the 'App' plugin exists here;
+/// each case below is one method it understands.
 class DesktopHost implements NativeHost {
   @override
   Future<Map<String, dynamic>?> call(String plugin, String method, Map<String, dynamic> options) async {
-    if (plugin != 'App') throw NativeError('No plugin $plugin', code: 'unavailable');
+    if (plugin != 'App') {
+      throw NativeError('No plugin $plugin', code: 'unavailable');
+    }
     switch (method) {
       case 'info':
         return {
           'platform': 'desktop',
-          'version': Env.version,
+          'version': Environment.version,
           // For a bug report (lib/features/bug/bug_report.dart): the system and its version.
           'os': '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
           // What the desktop does; never a phone-only feature.
           'features': ['notifications', 'links', 'glance', 'widgets', 'checkUpdate'],
         };
       case 'launchLink':
-        final link = Desktop.linkIn(Desktop.launchArgs);
-        return {'url': ?link};
+        final link = Desktop.linkIn(Desktop.launchArguments);
+        // The 'url' key is only present when the app was started with a link.
+        return {if (link != null) 'url': link};
       case 'openLink':
         await Desktop.openExternal('${options['url']}');
         return null;
       case 'notify':
-        await DeskNotify.show(title: '${options['title'] ?? ''}', body: '${options['body'] ?? ''}', link: options['link'] as String?);
+        Object? title = options['title'];
+        if (title == null) {
+          title = '';
+        }
+        Object? body = options['body'];
+        if (body == null) {
+          body = '';
+        }
+        await DeskNotify.show(title: '$title', body: '$body', link: options['link'] as String?);
         return null;
       case 'background':
         await Desktop.hide();

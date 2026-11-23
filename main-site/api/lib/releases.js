@@ -8,14 +8,25 @@
 const RELEASES = 'https://api.github.com/repos/augy-studios/uwuboard/releases?per_page=100';
 const TAG = /^android-v(\d+(?:\.\d+)*)$/;
 
-// Whether version a comes after version b, number by number: 1.10.0 after 1.9.0. The same as
-// newerVersion() in flutter/lib/features/update/update_bar.dart.
-function newer(a, b) {
-  const x = String(a).split('.').map(Number);
-  const y = String(b).split('.').map(Number);
-  for (let i = 0; i < Math.max(x.length, y.length); i++) {
-    const d = (x[i] || 0) - (y[i] || 0);
-    if (d) return d > 0;
+// Whether version `version` comes after version `otherVersion`, number by number: 1.10.0 after
+// 1.9.0. The same as newerVersion() in flutter/lib/features/update/update_bar.dart.
+function newer(version, otherVersion) {
+  const versionNumbers = String(version).split('.').map(Number);
+  const otherNumbers = String(otherVersion).split('.').map(Number);
+  for (let index = 0; index < Math.max(versionNumbers.length, otherNumbers.length); index = index + 1) {
+    // A missing (or unreadable) number counts as 0, so 1.2 is the same as 1.2.0.
+    let versionNumber = versionNumbers[index];
+    if (!versionNumber) {
+      versionNumber = 0;
+    }
+    let otherNumber = otherNumbers[index];
+    if (!otherNumber) {
+      otherNumber = 0;
+    }
+    const difference = versionNumber - otherNumber;
+    if (difference) {
+      return difference > 0;
+    }
   }
   return false;
 }
@@ -23,7 +34,11 @@ function newer(a, b) {
 // Markdown as plain lines: no bold, code or link markup; headings and bullets kept, which the
 // Updates page draws as such.
 function plain(body) {
-  return String(body || '')
+  let text = body;
+  if (!text) {
+    text = '';
+  }
+  return String(text)
     .replace(/\r\n/g, '\n')
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
@@ -33,38 +48,102 @@ function plain(body) {
 
 // A release as the app wants it, or null if it isn't one to offer: a draft, a pre-release, a tag
 // that isn't android-v*, or one published before its APK finished uploading.
-function asRelease(rel) {
-  const version = TAG.exec(rel?.tag_name || '')?.[1];
-  if (!version || rel.draft || rel.prerelease) return null;
-  const assets = rel.assets || [];
-  const apk = assets.find((a) => a.name === `uwuboard-${version}.apk`) || assets.find((a) => /\.apk$/i.test(a.name));
-  if (!apk || apk.state !== 'uploaded') return null;
+function asRelease(release) {
+  let tagName;
+  if (release !== null && release !== undefined) {
+    tagName = release.tag_name;
+  }
+  if (!tagName) {
+    tagName = '';
+  }
+  const tagMatch = TAG.exec(tagName);
+  let version;
+  if (tagMatch !== null && tagMatch !== undefined) {
+    version = tagMatch[1];
+  }
+  if (!version || release.draft || release.prerelease) {
+    return null;
+  }
+  let assets = release.assets;
+  if (!assets) {
+    assets = [];
+  }
+  // The APK named for this version, else any APK attached.
+  let apk = assets.find((asset) => {
+    return asset.name === `uwuboard-${version}.apk`;
+  });
+  if (!apk) {
+    apk = assets.find((asset) => {
+      return /\.apk$/i.test(asset.name);
+    });
+  }
+  if (!apk || apk.state !== 'uploaded') {
+    return null;
+  }
+  // GitHub gives the file's checksum as "sha256:<hex>"; only the hex part is passed on.
+  let digest = apk.digest;
+  if (!digest) {
+    digest = '';
+  }
+  let sha256;
+  if (/^sha256:[0-9a-f]{64}$/i.test(digest)) {
+    sha256 = apk.digest.slice(7).toLowerCase();
+  } else {
+    sha256 = null;
+  }
+  let date = release.published_at;
+  if (!date) {
+    date = null;
+  }
   return {
     version,
     apk: apk.browser_download_url,
     size: apk.size,
-    sha256: /^sha256:[0-9a-f]{64}$/i.test(apk.digest || '') ? apk.digest.slice(7).toLowerCase() : null,
-    page: rel.html_url,
-    date: rel.published_at || null,
-    notes: plain(rel.body),
+    sha256: sha256,
+    page: release.html_url,
+    date: date,
+    notes: plain(release.body),
   };
 }
 
 // Every release worth offering, newest first.
 async function allReleases() {
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'uwuboard-releases' };
-  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  const r = await fetch(RELEASES, { headers });
-  if (!r.ok) throw new Error(`GitHub said ${r.status}`);
-  const list = await r.json();
-  return (Array.isArray(list) ? list : [])
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+  const response = await fetch(RELEASES, { headers });
+  if (!response.ok) {
+    throw new Error(`GitHub said ${response.status}`);
+  }
+  const list = await response.json();
+  let releases;
+  if (Array.isArray(list)) {
+    releases = list;
+  } else {
+    releases = [];
+  }
+  return releases
     .map(asRelease)
     .filter(Boolean)
-    .sort((a, b) => (newer(a.version, b.version) ? -1 : newer(b.version, a.version) ? 1 : 0));
+    .sort((first, second) => {
+      if (newer(first.version, second.version)) {
+        return -1;
+      } else if (newer(second.version, first.version)) {
+        return 1;
+      } else {
+        return 0;
+      }
+    });
 }
 
+// The newest release worth offering, or null when there is none.
 async function latestRelease() {
-  return (await allReleases())[0] || null;
+  const newest = (await allReleases())[0];
+  if (!newest) {
+    return null;
+  }
+  return newest;
 }
 
 module.exports = { TAG, newer, asRelease, allReleases, latestRelease };

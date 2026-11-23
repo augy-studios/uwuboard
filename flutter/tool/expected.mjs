@@ -1,6 +1,7 @@
-// Runs the site's own JavaScript (main-site/js/timeline.js and sync.js) on fixed inputs and writes
-// what it answers to test/fixtures/expected.json, which test/parity_test.dart compares the Dart
-// ports (lib/data/timeline_logic.dart, lib/data/sync_logic.dart) with. Run it again whenever
+// Runs the site's own JavaScript (main-site/js/timeline.js, sync.js and markdown.js) on fixed
+// inputs and writes what it answers to test/fixtures/expected.json, which test/parity_test.dart
+// compares the Dart ports (lib/data/timeline_logic.dart, lib/data/sync_logic.dart,
+// lib/data/markdown.dart) with. Run it again whenever
 // either side changes:
 //
 //     node tool/expected.mjs
@@ -9,49 +10,100 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const site = join(here, '../../main-site/js');
+const toolDirectory = dirname(fileURLToPath(import.meta.url));
+const siteScripts = join(toolDirectory, '../../main-site/js');
 
 // timeline.js: its exported helpers, with the page it would touch stubbed out.
-const ctx = { window: {}, document: { getElementById: () => null }, localStorage: { getItem: () => null, setItem() {} }, console, Event: class {} };
-vm.createContext(ctx);
-vm.runInContext(readFileSync(join(site, 'timeline.js'), 'utf8'), ctx);
-const T = ctx.window.Timeline;
-vm.runInContext(readFileSync(join(site, 'markdown.js'), 'utf8'), ctx);
-const M = ctx.window.Markdown;
+const timelineContext = {
+  window: {},
+  document: {
+    getElementById: () => {
+      return null;
+    },
+  },
+  localStorage: {
+    getItem: () => {
+      return null;
+    },
+    setItem() {},
+  },
+  console,
+  Event: class {},
+};
+vm.createContext(timelineContext);
+vm.runInContext(readFileSync(join(siteScripts, 'timeline.js'), 'utf8'), timelineContext);
+const Timeline = timelineContext.window.Timeline;
+// markdown.js, in the same stubbed-out page.
+vm.runInContext(readFileSync(join(siteScripts, 'markdown.js'), 'utf8'), timelineContext);
+const Markdown = timelineContext.window.Markdown;
 
 // sync.js keeps its helpers inside its closure: the pure ones are lifted out by name.
-const syncSrc = readFileSync(join(site, 'sync.js'), 'utf8');
-const grab = (name) => {
-  const start = syncSrc.indexOf(`function ${name}(`);
-  if (start < 0) throw new Error(`no function ${name} in sync.js`);
+const syncSource = readFileSync(join(siteScripts, 'sync.js'), 'utf8');
+
+// The source of `function name(...) { ... }` in sync.js, found by counting braces from the
+// first `{` after the name until they balance again.
+const functionSource = (name) => {
+  const start = syncSource.indexOf(`function ${name}(`);
+  if (start < 0) {
+    throw new Error(`no function ${name} in sync.js`);
+  }
   let depth = 0;
-  for (let i = syncSrc.indexOf('{', start); i < syncSrc.length; i++) {
-    if (syncSrc[i] === '{') depth++;
-    if (syncSrc[i] === '}' && --depth === 0) return syncSrc.slice(start, i + 1);
+  for (let index = syncSource.indexOf('{', start); index < syncSource.length; index = index + 1) {
+    if (syncSource[index] === '{') {
+      depth = depth + 1;
+    }
+    if (syncSource[index] === '}') {
+      depth = depth - 1;
+      if (depth === 0) {
+        return syncSource.slice(start, index + 1);
+      }
+    }
   }
   throw new Error(`unbalanced ${name}`);
 };
-// A `const name = …;`, however many lines it runs to.
-const constLine = (name) => {
-  const start = syncSrc.indexOf(`const ${name} = `);
-  if (start < 0) throw new Error(`no const ${name} in sync.js`);
+
+// A `const name = …;`, however many lines it runs to: up to the first `;` outside any
+// brackets.
+const constSource = (name) => {
+  const start = syncSource.indexOf(`const ${name} = `);
+  if (start < 0) {
+    throw new Error(`no const ${name} in sync.js`);
+  }
   let depth = 0;
-  for (let i = start; i < syncSrc.length; i++) {
-    const ch = syncSrc[i];
-    if ('([{'.includes(ch)) depth++;
-    if (')]}'.includes(ch)) depth--;
-    if (ch === ';' && depth === 0) return syncSrc.slice(start, i + 1);
+  for (let index = start; index < syncSource.length; index = index + 1) {
+    const character = syncSource[index];
+    if ('([{'.includes(character)) {
+      depth = depth + 1;
+    }
+    if (')]}'.includes(character)) {
+      depth = depth - 1;
+    }
+    if (character === ';' && depth === 0) {
+      return syncSource.slice(start, index + 1);
+    }
   }
   throw new Error(`unended ${name}`);
 };
-const lifted = [
-  'MAX_BOARDS', 'MAX_COLUMNS', 'MAX_CARDS', 'MAX_IMAGES', 'ID_RE', 'isId', 'text', 'list', 'PRIORITIES', 'clone', 'stamp', 'cardSig',
-].map(constLine).join('\n') + '\n' + ['cleanCard', 'cleanBoards', 'mergeBoardInto', 'wouldChange'].map(grab).join('\n');
-const S = {};
-vm.runInNewContext(`${lifted}\nout.cleanBoards = cleanBoards; out.mergeBoardInto = mergeBoardInto; out.wouldChange = wouldChange; out.clone = clone;`, { out: S, JSON });
 
-const card = (id, title, extra = {}) => ({ id, title, description: '', labels: [], checklist: [], due: '', priority: '', images: [], thumbnailId: null, updatedAt: 10, ...extra });
+const liftedConstants = [
+  'MAX_BOARDS', 'MAX_COLUMNS', 'MAX_CARDS', 'MAX_IMAGES', 'ID_PATTERN', 'isId', 'text', 'list', 'PRIORITIES', 'clone', 'stamp', 'cardSignature',
+].map(constSource).join('\n');
+const liftedFunctions = ['cleanCard', 'cleanBoards', 'mergeBoardInto', 'wouldChange'].map(functionSource).join('\n');
+const lifted = liftedConstants + '\n' + liftedFunctions;
+const syncHelpers = {};
+vm.runInNewContext(`${lifted}\nexported.cleanBoards = cleanBoards; exported.mergeBoardInto = mergeBoardInto; exported.wouldChange = wouldChange; exported.clone = clone;`, { exported: syncHelpers, JSON });
+
+// A card with every field at its empty value, plus whatever `extra` sets.
+const card = (id, title, extra = {}) => {
+  return { id, title, description: '', labels: [], checklist: [], due: '', priority: '', images: [], thumbnailId: null, updatedAt: 10, ...extra };
+};
+
+// All the cards on a board, column after column.
+const allCards = (board) => {
+  return board.columns.flatMap((column) => {
+    return column.cards;
+  });
+};
 
 // ---- Timeline ----
 const spanCards = [
@@ -77,31 +129,73 @@ const board = {
   ],
 };
 const timeline = {
-  spans: spanCards.map((c) => ({ id: c.id, span: T.span(c, today) })),
-  actual: spanCards.map((c) => ({ id: c.id, actual: T.actual(c, today) })),
-  when: spanCards.map((c) => ({ id: c.id, when: T.when(c, today) })),
-  late: spanCards.map((c) => ({ id: c.id, late: T.isLate(c, today) })),
+  spans: spanCards.map((spanCard) => {
+    return { id: spanCard.id, span: Timeline.span(spanCard, today) };
+  }),
+  actual: spanCards.map((spanCard) => {
+    return { id: spanCard.id, actual: Timeline.actual(spanCard, today) };
+  }),
+  when: spanCards.map((spanCard) => {
+    return { id: spanCard.id, when: Timeline.when(spanCard, today) };
+  }),
+  late: spanCards.map((spanCard) => {
+    return { id: spanCard.id, late: Timeline.isLate(spanCard, today) };
+  }),
   // Into the last column (Done) completed today, out of it cleared, other moves left be.
   stamped: [
     ['p1', 'p2', null], ['p2', 'p1', '2026-03-01'], ['p1', 'p1', null], [null, 'p2', null], [null, 'p1', '2026-03-01'],
-  ].map(([from, to, had]) => {
-    const k = card('s', 'Moving', had ? { completed: had } : {});
-    T.stampCompleted(board, k, from, to, today);
-    return { from, to, had, completed: k.completed ?? null };
+  ].map(([fromColumnId, toColumnId, had]) => {
+    let extra = {};
+    if (had) {
+      extra = { completed: had };
+    }
+    const movingCard = card('s', 'Moving', extra);
+    Timeline.stampCompleted(board, movingCard, fromColumnId, toColumnId, today);
+    let completed = movingCard.completed;
+    if (completed === undefined) {
+      completed = null;
+    }
+    return { from: fromColumnId, to: toColumnId, had, completed };
   }),
-  shifted: spanCards.map((c) => { const k = S.clone(c); T.shift(k, 3); return { id: c.id, start: k.start ?? null, due: k.due, completed: k.completed ?? null }; }),
+  shifted: spanCards.map((spanCard) => {
+    const shiftedCard = syncHelpers.clone(spanCard);
+    Timeline.shift(shiftedCard, 3);
+    let start = shiftedCard.start;
+    if (start === undefined) {
+      start = null;
+    }
+    let completed = shiftedCard.completed;
+    if (completed === undefined) {
+      completed = null;
+    }
+    return { id: spanCard.id, start, due: shiftedCard.due, completed };
+  }),
   clashes: [
     ['a', 'b'], ['b', 'c'], ['a', 'f'],
-  ].map(([p, k]) => {
-    const all = board.columns.flatMap((c) => c.cards);
-    return { pred: p, card: k, clash: T.clashes(all.find((x) => x.id === p), all.find((x) => x.id === k)) };
+  ].map(([predecessorId, cardId]) => {
+    const all = allCards(board);
+    const predecessor = all.find((candidate) => {
+      return candidate.id === predecessorId;
+    });
+    const waitingCard = all.find((candidate) => {
+      return candidate.id === cardId;
+    });
+    return { pred: predecessorId, card: cardId, clash: Timeline.clashes(predecessor, waitingCard) };
   }),
-  waitingOn: ['a', 'b', 'c'].map((id) => ({ id, waiting: [...T.waitingOn(board, id)].sort() })),
+  waitingOn: ['a', 'b', 'c'].map((id) => {
+    return { id, waiting: [...Timeline.waitingOn(board, id)].sort() };
+  }),
 };
-const pruned = S.clone(board);
+const pruned = syncHelpers.clone(board);
 pruned.columns[0].cards.splice(0, 1);
-T.pruneDeps(pruned);
-timeline.pruned = pruned.columns.flatMap((c) => c.cards).map((c) => ({ id: c.id, dependsOn: c.dependsOn || null }));
+Timeline.pruneDependencies(pruned);
+timeline.pruned = allCards(pruned).map((prunedCard) => {
+  let dependsOn = prunedCard.dependsOn;
+  if (!dependsOn) {
+    dependsOn = null;
+  }
+  return { id: prunedCard.id, dependsOn };
+});
 
 // ---- Descriptions (markdown.js) ----
 const markdownCases = [
@@ -123,25 +217,39 @@ const markdownCases = [
   '',
   '   \n\n',
 ];
-const markdown = markdownCases.map((src) => {
-  const blocks = M.parse(src);
-  return { src, blocks, snippet: M.snippetLines(blocks) };
+const markdown = markdownCases.map((source) => {
+  const blocks = Markdown.parse(source);
+  return { src: source, blocks, snippet: Markdown.snippetLines(blocks) };
 });
 // The toolbar, on a stand-in for the text box: what it leaves, and what it selects.
-const box = (value, a, b) => ({
-  value, selectionStart: a, selectionEnd: b,
-  setRangeText(text, s, e, mode) { this.value = this.value.slice(0, s) + text + this.value.slice(e); if (mode === 'end') this.selectionStart = this.selectionEnd = s + text.length; },
-  setSelectionRange(s, e) { this.selectionStart = s; this.selectionEnd = e; },
-  focus() {}, dispatchEvent() {},
-});
+const textBox = (value, selectionStart, selectionEnd) => {
+  return {
+    value,
+    selectionStart,
+    selectionEnd,
+    setRangeText(text, start, end, mode) {
+      this.value = this.value.slice(0, start) + text + this.value.slice(end);
+      if (mode === 'end') {
+        this.selectionStart = start + text.length;
+        this.selectionEnd = start + text.length;
+      }
+    },
+    setSelectionRange(start, end) {
+      this.selectionStart = start;
+      this.selectionEnd = end;
+    },
+    focus() {},
+    dispatchEvent() {},
+  };
+};
 const formatted = [
   ['make this bold', 10, 14, 'bold'], ['', 0, 0, 'italic'], ['a b', 2, 3, 'strike'], ['x', 0, 1, 'code'], ['hide', 0, 4, 'spoiler'],
   ['u', 1, 1, 'underline'], ['go here', 3, 7, 'link'], ['', 0, 0, 'link'], ['https://a.b/c', 0, 13, 'link'],
   ['one\ntwo\nthree', 1, 6, 'list'], ['- one\n- two', 0, 11, 'list'], ['\nnext', 0, 0, 'list'], ['solo', 4, 4, 'list'],
-].map(([value, a, b, kind]) => {
-  const t = box(value, a, b);
-  M.format(t, kind);
-  return { value, a, b, kind, text: t.value, from: t.selectionStart, to: t.selectionEnd };
+].map(([value, selectionStart, selectionEnd, kind]) => {
+  const box = textBox(value, selectionStart, selectionEnd);
+  Markdown.format(box, kind);
+  return { value, a: selectionStart, b: selectionEnd, kind, text: box.value, from: box.selectionStart, to: box.selectionEnd };
 });
 
 // ---- Sync ----
@@ -159,31 +267,31 @@ const raw = [
   { id: 'b2', name: '   ', columns: [] },
   { id: 'b3', name: 'Plain', columns: 'not a list' },
 ];
-const dest = {
+const destinationBoard = {
   id: 'm1', name: 'Mine', view: 'kanban', updatedAt: 100, columns: [
     { id: 'c1', name: 'To Do', updatedAt: 100, cards: [card('x1', 'Old copy', { updatedAt: 5 }), card('x2', 'Newer here', { updatedAt: 50 }), card('x3', 'Same', { updatedAt: 5 })] },
     { id: 'c2', name: 'Done', updatedAt: 1, cards: [card('x4', 'Moving', { updatedAt: 5 })] },
   ],
 };
-const src = {
+const sourceBoard = {
   id: 'm1', name: 'Theirs', view: 'timeline', updatedAt: 200, columns: [
     { id: 'c1', name: 'To Do', updatedAt: 1, cards: [card('x1', 'New copy', { updatedAt: 9 }), card('x2', 'Older there', { updatedAt: 20 }), card('x3', 'Same', { updatedAt: 9 }), card('x4', 'Moving', { updatedAt: 9 })] },
     { id: 'c2', name: 'Finished', updatedAt: 2, cards: [] },
     { id: 'c3', name: 'New column', updatedAt: 3, cards: [card('x5', 'Brand new')] },
   ],
 };
-const merged = S.clone(dest);
-const changes = S.mergeBoardInto(merged, S.clone(src));
+const merged = syncHelpers.clone(destinationBoard);
+const changes = syncHelpers.mergeBoardInto(merged, syncHelpers.clone(sourceBoard));
 const sync = {
   raw,
-  cleaned: S.cleanBoards(raw),
-  dest,
-  src,
+  cleaned: syncHelpers.cleanBoards(raw),
+  dest: destinationBoard,
+  src: sourceBoard,
   merged,
   changes,
-  wouldChangeSame: S.wouldChange([S.clone(merged)], S.clone(src)),
-  wouldChangeNew: S.wouldChange([], S.clone(src)),
+  wouldChangeSame: syncHelpers.wouldChange([syncHelpers.clone(merged)], syncHelpers.clone(sourceBoard)),
+  wouldChangeNew: syncHelpers.wouldChange([], syncHelpers.clone(sourceBoard)),
 };
 
-writeFileSync(join(here, '../test/fixtures/expected.json'), JSON.stringify({ timeline, sync, markdown, formatted }, null, 2) + '\n');
+writeFileSync(join(toolDirectory, '../test/fixtures/expected.json'), JSON.stringify({ timeline, sync, markdown, formatted }, null, 2) + '\n');
 console.log('test/fixtures/expected.json written');

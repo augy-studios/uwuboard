@@ -4,10 +4,15 @@ const supabase = require('./supabase');
  * Verify Bearer token from request headers.
  * Returns { userId, username } or throws.
  */
-async function requireAuth(req) {
-  const auth = req.headers['authorization'] || '';
-  const token = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!token) throw Object.assign(new Error('Unauthorised'), { status: 401 });
+async function requireAuth(request) {
+  let authorizationHeader = request.headers['authorization'];
+  if (!authorizationHeader) {
+    authorizationHeader = '';
+  }
+  const token = authorizationHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) {
+    throw Object.assign(new Error('Unauthorised'), { status: 401 });
+  }
 
   const { data, error } = await supabase
     .from('uwu_sessions')
@@ -15,7 +20,9 @@ async function requireAuth(req) {
     .eq('token', token)
     .single();
 
-  if (error || !data) throw Object.assign(new Error('Unauthorised'), { status: 401 });
+  if (error || !data) {
+    throw Object.assign(new Error('Unauthorised'), { status: 401 });
+  }
   if (new Date(data.expires_at) < new Date()) {
     await supabase.from('uwu_sessions').delete().eq('token', token);
     throw Object.assign(new Error('Session expired'), { status: 401 });

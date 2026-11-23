@@ -14,17 +14,17 @@ typedef Json = Map<String, dynamic>;
 final _random = math.Random();
 
 /// The site's uid(): random base 36, then the time in base 36.
-String uid() {
+String uniqueId() {
   const digits = '0123456789abcdefghijklmnopqrstuvwxyz';
-  final r = [for (var i = 0; i < 8; i++) digits[_random.nextInt(36)]].join();
-  return r + DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+  final randomPart = [for (var index = 0; index < 8; index = index + 1) digits[_random.nextInt(36)]].join();
+  return randomPart + DateTime.now().millisecondsSinceEpoch.toRadixString(36);
 }
 
 /// When a card, a column or a board's name was last changed. Syncing with another device keeps
 /// whichever copy of a thing on both was changed last.
-T touch<T extends Json>(T obj) {
-  obj['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
-  return obj;
+T touch<T extends Json>(T item) {
+  item['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
+  return item;
 }
 
 /// What each type of board starts with: a kanban's columns, a timeline's waterfall phases.
@@ -35,143 +35,259 @@ const starting = {
 
 const priorities = ['', 'low', 'medium', 'high', 'urgent'];
 
-Json newCard(String title) => touch<Json>({
-  'id': uid(),
-  'title': title,
-  'description': '',
-  'labels': <dynamic>[],
-  'checklist': <dynamic>[],
-  'due': '',
-  'priority': '',
-  'images': <dynamic>[],
-  'thumbnailId': null,
-});
+Json newCard(String title) {
+  return touch<Json>({
+    'id': uniqueId(),
+    'title': title,
+    'description': '',
+    'labels': <dynamic>[],
+    'checklist': <dynamic>[],
+    'due': '',
+    'priority': '',
+    'images': <dynamic>[],
+    'thumbnailId': null,
+  });
+}
 
-Json newColumn(String name) => touch<Json>({'id': uid(), 'name': name, 'cards': <dynamic>[]});
+Json newColumn(String name) {
+  return touch<Json>({'id': uniqueId(), 'name': name, 'cards': <dynamic>[]});
+}
 
-Json newBoard(String name, String type, List<String> columns) => touch<Json>({
-  'id': uid(),
-  'name': name,
-  'view': type == 'timeline' ? 'timeline' : 'kanban',
-  'columns': <dynamic>[for (final n in columns) newColumn(n)],
-});
+Json newBoard(String name, String type, List<String> columns) {
+  final String view;
+  if (type == 'timeline') {
+    view = 'timeline';
+  } else {
+    view = 'kanban';
+  }
+  return touch<Json>({
+    'id': uniqueId(),
+    'name': name,
+    'view': view,
+    'columns': <dynamic>[for (final columnName in columns) newColumn(columnName)],
+  });
+}
 
 /* ---- reading a board ---- */
 
-List<Json> columnsOf(Json board) => _maps(board['columns']);
-List<Json> cardsOf(Json column) => _maps(column['cards']);
-List<Json> imagesOf(Json card) => _maps(card['images']);
-List<Json> labelsOf(Json card) => _maps(card['labels']);
-List<Json> checklistOf(Json card) => _maps(card['checklist']);
-List<String> depsOf(Json card) => [
-  for (final d in (card['dependsOn'] as List?) ?? const [])
-    if (d is String) d,
-];
+List<Json> columnsOf(Json board) {
+  return _mapsInList(board['columns']);
+}
 
-List<Json> _maps(Object? v) => [
-  for (final e in (v as List?) ?? const [])
-    if (e is Map) _json(e),
-];
+List<Json> cardsOf(Json column) {
+  return _mapsInList(column['cards']);
+}
+
+List<Json> imagesOf(Json card) {
+  return _mapsInList(card['images']);
+}
+
+List<Json> labelsOf(Json card) {
+  return _mapsInList(card['labels']);
+}
+
+List<Json> checklistOf(Json card) {
+  return _mapsInList(card['checklist']);
+}
+
+/// The ids of the cards this card waits for (a timeline's `dependsOn`).
+List<String> dependenciesOf(Json card) {
+  return [
+    for (final dependency in _listOrEmpty(card['dependsOn']))
+      if (dependency is String) dependency,
+  ];
+}
+
+// The value as a list, or an empty list when there is none. (Anything else that isn't a list
+// throws, as the cast always did.)
+List<dynamic> _listOrEmpty(Object? value) {
+  final list = value as List?;
+  if (list == null) {
+    return const [];
+  }
+  return list;
+}
+
+// Every map in a list, skipping anything that isn't one.
+List<Json> _mapsInList(Object? value) {
+  return [
+    for (final item in _listOrEmpty(value))
+      if (item is Map) _asJson(item),
+  ];
+}
 
 // The same map where it already is one, so a change made through it lands in the board.
-Json _json(Map m) => m is Json ? m : Map<String, dynamic>.from(m);
+Json _asJson(Map map) {
+  if (map is Json) {
+    return map;
+  } else {
+    return Map<String, dynamic>.from(map);
+  }
+}
 
 /// A deep copy, as the site's JSON.parse(JSON.stringify()).
-T clone<T>(T v) {
-  Object? copy(Object? x) {
-    if (x is Map) return <String, dynamic>{for (final e in x.entries) '${e.key}': copy(e.value)};
-    if (x is List) return <dynamic>[for (final e in x) copy(e)];
-    return x;
+T clone<T>(T value) {
+  Object? copy(Object? original) {
+    if (original is Map) {
+      return <String, dynamic>{for (final entry in original.entries) '${entry.key}': copy(entry.value)};
+    }
+    if (original is List) {
+      return <dynamic>[for (final item in original) copy(item)];
+    }
+    return original;
   }
 
-  return copy(v) as T;
+  return copy(value) as T;
 }
 
 /// Boards as decoded from JSON, made of growable lists and string-keyed maps all the way down.
-List<Json> boardsFromJson(Object? v) => [
-  for (final b in (v as List?) ?? const [])
-    if (b is Map) clone(_json(b)),
-];
+List<Json> boardsFromJson(Object? value) {
+  return [
+    for (final board in _listOrEmpty(value))
+      if (board is Map) clone(_asJson(board)),
+  ];
+}
 
 Iterable<Json> allCards(Json board) sync* {
-  for (final col in columnsOf(board)) {
-    yield* cardsOf(col);
+  for (final column in columnsOf(board)) {
+    yield* cardsOf(column);
   }
 }
 
 Json? findCard(Json board, String id) {
   for (final card in allCards(board)) {
-    if (card['id'] == id) return card;
+    if (card['id'] == id) {
+      return card;
+    }
   }
   return null;
 }
 
 Json? findColumn(Json board, String id) {
-  for (final col in columnsOf(board)) {
-    if (col['id'] == id) return col;
+  for (final column in columnsOf(board)) {
+    if (column['id'] == id) {
+      return column;
+    }
   }
   return null;
 }
 
 Json? columnOfCard(Json board, String cardId) {
-  for (final col in columnsOf(board)) {
-    if (cardsOf(col).any((c) => c['id'] == cardId)) return col;
+  for (final column in columnsOf(board)) {
+    final hasCard = cardsOf(column).any((card) {
+      return card['id'] == cardId;
+    });
+    if (hasCard) {
+      return column;
+    }
   }
   return null;
 }
 
-bool isTimelineBoard(Json board) => board['view'] == 'timeline';
+bool isTimelineBoard(Json board) {
+  return board['view'] == 'timeline';
+}
 
 /// The image a card shows: the one starred, or its first.
-Json? thumbOf(Json card) {
+Json? thumbnailOf(Json card) {
   final images = imagesOf(card);
-  if (images.isEmpty) return null;
-  for (final i in images) {
-    if (i['id'] == card['thumbnailId']) return i;
+  if (images.isEmpty) {
+    return null;
+  }
+  for (final image in images) {
+    if (image['id'] == card['thumbnailId']) {
+      return image;
+    }
   }
   return images.first;
 }
 
 /// How a card's due date reads beside now: 'overdue', 'soon' (under two days) or ''.
 String dueClass(String due, DateTime now) {
-  final d = DateTime.tryParse(due);
-  if (d == null) return '';
+  final dueDate = DateTime.tryParse(due);
+  if (dueDate == null) {
+    return '';
+  }
   // The site's new Date('YYYY-MM-DD') is midnight UTC.
-  final at = DateTime.utc(d.year, d.month, d.day);
-  final diff = at.difference(now.toUtc()).inMilliseconds / 86400000;
-  return diff < 0 ? 'overdue' : (diff < 2 ? 'soon' : '');
+  final dueMidnight = DateTime.utc(dueDate.year, dueDate.month, dueDate.day);
+  final daysLeft = dueMidnight.difference(now.toUtc()).inMilliseconds / 86400000;
+  if (daysLeft < 0) {
+    return 'overdue';
+  } else if (daysLeft < 2) {
+    return 'soon';
+  } else {
+    return '';
+  }
 }
 
 /// Whether a label's colour wants white words on it (the site's isDark()).
-bool isDarkHex(String hex) {
-  final c = parseHex(hex);
-  if (c == null) return false;
-  final r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
-  return (r * 0.299 + g * 0.587 + b * 0.114) < 140;
+bool isDarkHexColour(String hex) {
+  final colour = parseHexColour(hex);
+  if (colour == null) {
+    return false;
+  }
+  final red = (colour >> 16) & 255;
+  final green = (colour >> 8) & 255;
+  final blue = colour & 255;
+  return (red * 0.299 + green * 0.587 + blue * 0.114) < 140;
 }
 
 /// #rrggbb as 0xRRGGBB, or null.
-int? parseHex(String? hex) {
-  if (hex == null || !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(hex)) return null;
+int? parseHexColour(String? hex) {
+  if (hex == null || !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(hex)) {
+    return null;
+  }
   return int.parse(hex.substring(1), radix: 16);
 }
 
 /// The file an export is saved as (the site's `${name}_kanban.json`).
-String exportName(Json board) => '${'${board['name']}'.replaceAll(RegExp(r'\s+'), '_')}_kanban.json';
+String exportName(Json board) {
+  return '${'${board['name']}'.replaceAll(RegExp(r'\s+'), '_')}_kanban.json';
+}
 
 /// Whether a file's JSON is a board (the site's importBoardFromJSON's test).
-bool isBoardFile(Object? json) => json is Map && _truthy(json['id']) && _truthy(json['name']) && json['columns'] is List;
+bool isBoardFile(Object? json) {
+  return json is Map && _truthy(json['id']) && _truthy(json['name']) && json['columns'] is List;
+}
 
-bool _truthy(Object? v) => v != null && v != false && v != '' && v != 0;
+// Whether JavaScript would count the value as true (not null, false, '' or 0).
+bool _truthy(Object? value) {
+  return value != null && value != false && value != '' && value != 0;
+}
 
 /// How many columns, cards and images, as the Sync window says under a board's name.
-String boardSub(Json board) {
-  final cols = columnsOf(board);
-  final cards = cols.fold<int>(0, (n, c) => n + cardsOf(c).length);
-  final images = cols.fold<int>(0, (n, c) => n + cardsOf(c).fold<int>(0, (m, k) => m + imagesOf(k).length));
+String boardSummary(Json board) {
+  final columns = columnsOf(board);
+  final cards = columns.fold<int>(0, (total, column) {
+    return total + cardsOf(column).length;
+  });
+  final images = columns.fold<int>(0, (total, column) {
+    final imagesInColumn = cardsOf(column).fold<int>(0, (columnTotal, card) {
+      return columnTotal + imagesOf(card).length;
+    });
+    return total + imagesInColumn;
+  });
+  final String columnsText;
+  if (columns.length == 1) {
+    columnsText = '1 column';
+  } else {
+    columnsText = '${columns.length} columns';
+  }
+  final String cardsText;
+  if (cards == 1) {
+    cardsText = '1 card';
+  } else {
+    cardsText = '$cards cards';
+  }
+  final String imagesText;
+  if (images == 1) {
+    imagesText = '1 image';
+  } else {
+    imagesText = '$images images';
+  }
   return [
-    cols.length == 1 ? '1 column' : '${cols.length} columns',
-    cards == 1 ? '1 card' : '$cards cards',
-    if (images > 0) images == 1 ? '1 image' : '$images images',
+    columnsText,
+    cardsText,
+    if (images > 0) imagesText,
   ].join(' · ');
 }

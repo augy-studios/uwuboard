@@ -9,9 +9,13 @@ import 'package:uwuboard/features/update/update_bar.dart';
 void main() {
   group('links', () {
     test('the site and the uwu://board/ scheme map to the same places', () {
-      expect(parseLink('https://board.uwuapps.org/#sync/BCD234'), isA<LinkSync>().having((l) => l.code, 'code', 'BCD234'));
+      expect(parseLink('https://board.uwuapps.org/#sync/BCD234'), isA<LinkSync>().having((link) {
+        return link.code;
+      }, 'code', 'BCD234'));
       expect(parseLink('uwu://board/sync/BCD234'), isA<LinkSync>());
-      expect(parseLink('uwu://board/b/abc123'), isA<LinkBoard>().having((l) => l.id, 'id', 'abc123'));
+      expect(parseLink('uwu://board/b/abc123'), isA<LinkBoard>().having((link) {
+        return link.id;
+      }, 'id', 'abc123'));
       expect(parseLink('uwu://board/new'), isA<LinkNewBoard>());
       expect(parseLink('uwu://board/updates'), isA<LinkUpdates>());
       expect(parseLink('uwu://board/'), isA<LinkHome>());
@@ -35,7 +39,8 @@ void main() {
   });
 
   test("the desktop's update file picks this processor's file", () {
-    const mac = '''
+    // A macOS update file listing an Apple-silicon zip, an Intel zip and a disk image.
+    const macUpdateFile = '''
 version: 1.2.0
 files:
   - url: uwuboard-1.2.0-mac-arm64.zip
@@ -50,16 +55,20 @@ files:
 path: uwuboard-1.2.0-mac-arm64.zip
 sha512: ARM=
 ''';
-    expect(UpdateInfo.parse(mac, arm64: true)!.file, 'uwuboard-1.2.0-mac-arm64.zip');
-    expect(UpdateInfo.parse(mac)!.sha512, 'X64=');
-    const win = 'version: 1.2.0\nfiles:\n  - url: uwuboard-1.2.0-setup.exe\n    sha512: EXE=\n    size: 9\npath: uwuboard-1.2.0-setup.exe\nsha512: EXE=\n';
-    expect(UpdateInfo.parse(win)!.size, 9);
+    expect(UpdateInfo.parse(macUpdateFile, arm64: true)!.file, 'uwuboard-1.2.0-mac-arm64.zip');
+    expect(UpdateInfo.parse(macUpdateFile)!.sha512, 'X64=');
+    const windowsUpdateFile = 'version: 1.2.0\nfiles:\n  - url: uwuboard-1.2.0-setup.exe\n    sha512: EXE=\n    size: 9\npath: uwuboard-1.2.0-setup.exe\nsha512: EXE=\n';
+    expect(UpdateInfo.parse(windowsUpdateFile)!.size, 9);
     expect(UpdateInfo.parse('not: yaml: at all'), isNull);
   });
 
   test("the tray says a board's due cards, soonest first, under 128 characters", () {
     final now = DateTime(2026, 11, 14, 9);
-    Json card(String t, String due, [List<dynamic> checklist = const []]) => {'id': t, 'title': t, 'due': due, 'checklist': checklist};
+    // Makes a card whose id and title are both [title].
+    Json card(String title, String due, [List<dynamic> checklist = const []]) {
+      return {'id': title, 'title': title, 'due': due, 'checklist': checklist};
+    }
+
     final board = {
       'id': 'b',
       'name': 'Launch',
@@ -78,10 +87,14 @@ sha512: ARM=
       ],
     };
     final due = dueCards(board, now: now);
-    expect(due.map((d) => d.card['title']), ['Late', 'Today', 'Later']);
-    expect(due.map((d) => d.when), ['overdue by 2 days', 'today', 'in 6 days']);
+    expect(due.map((dueCard) {
+      return dueCard.card['title'];
+    }), ['Late', 'Today', 'Later']);
+    expect(due.map((dueCard) {
+      return dueCard.when;
+    }), ['overdue by 2 days', 'today', 'in 6 days']);
     expect(trayText(board, now: now), 'Launch\nLate: overdue by 2 days\nToday: today\nLater: in 6 days');
-    final long = {...board, 'name': 'x' * 200};
-    expect(trayText(long, now: now).length, 127);
+    final longNamedBoard = {...board, 'name': 'x' * 200};
+    expect(trayText(longNamedBoard, now: now).length, 127);
   });
 }

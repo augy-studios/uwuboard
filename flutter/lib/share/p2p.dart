@@ -12,38 +12,51 @@ const codeLength = 6;
 const protocolVersion = 1;
 const _connectTimeout = Duration(seconds: 15);
 
+/// A new random pairing code.
 String generateCode() {
-  final r = math.Random.secure();
-  return [for (var i = 0; i < codeLength; i++) codeAlphabet[r.nextInt(codeAlphabet.length)]].join();
+  final random = math.Random.secure();
+  return [for (var index = 0; index < codeLength; index = index + 1) codeAlphabet[random.nextInt(codeAlphabet.length)]].join();
 }
 
+/// A typed code as the pairing uses it: capitals and digits only, at most `codeLength` long.
 String normaliseCode(String input) {
-  final s = input.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
-  return s.length > codeLength ? s.substring(0, codeLength) : s;
+  final cleaned = input.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  if (cleaned.length > codeLength) {
+    return cleaned.substring(0, codeLength);
+  } else {
+    return cleaned;
+  }
 }
 
 bool isValidCode(String? input) {
-  if (input == null) return false;
-  final c = normaliseCode(input);
-  return c.length == codeLength && c.split('').every(codeAlphabet.contains);
+  if (input == null) {
+    return false;
+  }
+  final code = normaliseCode(input);
+  return code.length == codeLength && code.split('').every(codeAlphabet.contains);
 }
 
-typedef StatusFn = void Function(String status, {String? message, bool taken});
+typedef StatusCallback = void Function(String status, {String? message, bool taken});
 
 /// The site's Connection: the status, and one link's open and close said once each.
 abstract class _Connection {
   String status = 'idle';
-  StatusFn? onStatus;
+  StatusCallback? onStatus;
   void Function(Map<String, dynamic> message)? onMessage;
 
-  void setStatus(String s, {String? message, bool taken = false}) {
-    status = s;
-    onStatus?.call(s, message: message, taken: taken);
+  void setStatus(String newStatus, {String? message, bool taken = false}) {
+    status = newStatus;
+    final statusCallback = onStatus;
+    if (statusCallback != null) {
+      statusCallback(newStatus, message: message, taken: taken);
+    }
   }
 
-  void linkOpened(ShareLink link);
-  void linkClosed(ShareLink link, bool everOpened);
+  void linkOpened(ShareLink openedLink);
+  void linkClosed(ShareLink closedLink, bool everOpened);
 
+  /// Listens to a link: its opening, its messages (those with a type) and its closing, which
+  /// is said only once.
   void bindLink(ShareLink link) {
     // A link that closes without ever opening never reached the other device.
     var everOpened = false;
@@ -53,10 +66,17 @@ abstract class _Connection {
       linkOpened(link);
     };
     link.onData = (message) {
-      if (message['type'] is String) onMessage?.call(message);
+      if (message['type'] is String) {
+        final messageCallback = onMessage;
+        if (messageCallback != null) {
+          messageCallback(message);
+        }
+      }
     };
     link.onClose = () {
-      if (finished) return;
+      if (finished) {
+        return;
+      }
       finished = true;
       linkClosed(link, everOpened);
     };
@@ -66,32 +86,40 @@ abstract class _Connection {
   void close();
 }
 
+/// The device showing the code: it waits on the broker for guests, one at a time.
 class Host extends _Connection {
   ShareLink? link;
   void Function()? onJoin;
   bool _closed = false;
   PeerListener? _listener;
 
+  /// Takes the code's id on the broker and waits there for a guest.
   Future<void> start(String code) async {
     setStatus('connecting');
     _listener = PeerListener(
       code,
-      onLink: (l) {
+      onLink: (newLink) {
         if (_closed) {
-          l.close();
+          newLink.close();
           return;
         }
-        bindLink(l);
+        bindLink(newLink);
       },
-      onOpen: () => _refresh(),
+      onOpen: () {
+        _refresh();
+      },
       onError: (type) {
-        if (_closed) return;
+        if (_closed) {
+          return;
+        }
         if (type == 'unavailable-id') {
           setStatus('error', message: describePeerError(type), taken: true);
           return;
         }
         // A guest already attached doesn't need the broker.
-        if (link != null && brokerErrors.contains(type)) return;
+        if (link != null && brokerErrors.contains(type)) {
+          return;
+        }
         setStatus('error', message: describePeerError(type));
       },
     );
@@ -99,32 +127,48 @@ class Host extends _Connection {
   }
 
   @override
-  void linkOpened(ShareLink l) {
+  void linkOpened(ShareLink openedLink) {
     // The newcomer replaces the incumbent.
     final old = link;
-    link = l;
-    if (old != null && old != l) old.close();
-    onJoin?.call();
+    link = openedLink;
+    if (old != null && old != openedLink) {
+      old.close();
+    }
+    final joinCallback = onJoin;
+    if (joinCallback != null) {
+      joinCallback();
+    }
     _refresh();
   }
 
   @override
-  void linkClosed(ShareLink l, bool everOpened) {
-    if (link != l) return;
+  void linkClosed(ShareLink closedLink, bool everOpened) {
+    if (link != closedLink) {
+      return;
+    }
     link = null;
     _refresh();
   }
 
   void _refresh() {
-    if (_closed) return;
-    setStatus(link != null ? 'connected' : 'waiting');
+    if (_closed) {
+      return;
+    }
+    if (link != null) {
+      setStatus('connected');
+    } else {
+      setStatus('waiting');
+    }
   }
 
   @override
   void send(Map<String, Object?> message) {
     try {
-      link?.send(message);
-    } catch (_) {
+      final currentLink = link;
+      if (currentLink != null) {
+        currentLink.send(message);
+      }
+    } catch (error) {
       // Closed between the check and the send; its close handler reports it.
     }
   }
@@ -132,37 +176,50 @@ class Host extends _Connection {
   @override
   void close() {
     _closed = true;
-    final l = link;
+    final linkToClose = link;
     link = null;
-    l?.close();
-    _listener?.close();
+    if (linkToClose != null) {
+      linkToClose.close();
+    }
+    final listener = _listener;
+    if (listener != null) {
+      listener.close();
+    }
     _listener = null;
     status = 'idle';
   }
 }
 
+/// The device entering the code: it dials the host and gives up if nothing answers in time.
 class Guest extends _Connection {
   ShareLink? link;
   ShareLink? _candidate;
   Timer? _timer;
   PeerDialer? _dialer;
 
+  /// Dials the device sharing this code.
   Future<void> connect(String code) async {
     setStatus('connecting');
     // Nothing errors when ICE can't find a path; it just keeps trying.
     _timer = Timer(_connectTimeout, () {
-      if (status != 'connecting') return;
+      if (status != 'connecting') {
+        return;
+      }
       hangUp();
       setStatus('unreachable');
     });
     final dialer = PeerDialer(
-      onLink: (l) {
-        _candidate = l;
-        bindLink(l);
+      onLink: (newLink) {
+        _candidate = newLink;
+        bindLink(newLink);
       },
       onError: (type) {
-        if (status == 'connected' && brokerErrors.contains(type)) return;
-        if (status != 'connecting') return;
+        if (status == 'connected' && brokerErrors.contains(type)) {
+          return;
+        }
+        if (status != 'connecting') {
+          return;
+        }
         hangUp();
         setStatus('error', message: describePeerError(type));
       },
@@ -171,33 +228,48 @@ class Guest extends _Connection {
     await dialer.connect(code);
   }
 
+  void _cancelTimer() {
+    final timer = _timer;
+    if (timer != null) {
+      timer.cancel();
+    }
+  }
+
   @override
-  void linkOpened(ShareLink l) {
-    if (l != _candidate) {
-      l.close();
+  void linkOpened(ShareLink openedLink) {
+    if (openedLink != _candidate) {
+      openedLink.close();
       return;
     }
-    link = l;
-    _timer?.cancel();
+    link = openedLink;
+    _cancelTimer();
     setStatus('connected');
     send({'type': 'hello', 'v': protocolVersion});
   }
 
   @override
-  void linkClosed(ShareLink l, bool everOpened) {
-    if (l != link && l != _candidate) return;
+  void linkClosed(ShareLink closedLink, bool everOpened) {
+    if (closedLink != link && closedLink != _candidate) {
+      return;
+    }
     link = null;
     _candidate = null;
-    setStatus(everOpened ? 'dropped' : 'unreachable');
+    if (everOpened) {
+      setStatus('dropped');
+    } else {
+      setStatus('unreachable');
+    }
   }
 
   @override
   void send(Map<String, Object?> message) {
-    final l = link;
-    if (l == null || !l.isOpen) return;
+    final currentLink = link;
+    if (currentLink == null || !currentLink.isOpen) {
+      return;
+    }
     try {
-      l.send(message);
-    } catch (_) {
+      currentLink.send(message);
+    } catch (error) {
       // As on the host.
     }
   }
@@ -205,25 +277,40 @@ class Guest extends _Connection {
   /// Leaving on purpose: `bye` first, and a flushed close so it arrives.
   void leave() {
     send({'type': 'bye'});
-    _timer?.cancel();
-    final l = link;
+    _cancelTimer();
+    final linkToClose = link;
     final dialer = _dialer;
     link = null;
     _candidate = null;
     _dialer = null;
     onStatus = null;
-    l?.close(flush: true);
-    Timer(const Duration(seconds: 1), () => dialer?.close());
+    if (linkToClose != null) {
+      linkToClose.close(flush: true);
+    }
+    Timer(const Duration(seconds: 1), () {
+      if (dialer != null) {
+        dialer.close();
+      }
+    });
     status = 'idle';
   }
 
+  /// Drops the link (or the one still trying) and leaves the broker.
   void hangUp() {
-    _timer?.cancel();
-    final l = link ?? _candidate;
+    _cancelTimer();
+    var linkToClose = link;
+    if (linkToClose == null) {
+      linkToClose = _candidate;
+    }
     link = null;
     _candidate = null;
-    l?.close();
-    _dialer?.close();
+    if (linkToClose != null) {
+      linkToClose.close();
+    }
+    final dialer = _dialer;
+    if (dialer != null) {
+      dialer.close();
+    }
     _dialer = null;
   }
 

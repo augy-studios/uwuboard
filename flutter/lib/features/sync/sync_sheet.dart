@@ -9,57 +9,95 @@ import '../../theme/theme.dart';
 import '../../widgets/sheet.dart';
 import 'sync_controller.dart';
 
+/// Opens the Sync window. With a [code] (from a sync link), it starts joining that device
+/// straight away. Tells the controller when the window opens and closes.
 Future<void> openSync(BuildContext context, {String? code}) async {
-  final s = SyncController.I;
-  s.opened();
-  if (code != null) s.fromLink(code);
-  await AppSheet.show(context, id: 'sync', width: 520, builder: (context) => const SyncSheet());
-  s.closed();
+  final syncController = SyncController.instance;
+  syncController.opened();
+  if (code != null) {
+    syncController.fromLink(code);
+  }
+  await AppSheet.show(
+    context,
+    id: 'sync',
+    width: 520,
+    builder: (context) {
+      return const SyncSheet();
+    },
+  );
+  syncController.closed();
 }
 
 class SyncSheet extends StatefulWidget {
   const SyncSheet({super.key});
 
   @override
-  State<SyncSheet> createState() => _SyncSheetState();
+  State<SyncSheet> createState() {
+    return _SyncSheetState();
+  }
 }
 
 class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
-  late final _code = TextEditingController(text: SyncController.I.codeInput);
+  late final _code = TextEditingController(text: SyncController.instance.codeInput);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    SyncController.I.addListener(_follow);
+    SyncController.instance.addListener(_follow);
   }
 
+  /// Keeps the code box in step with the controller's code: always while connecting, and
+  /// whenever the box is empty.
   void _follow() {
-    final v = SyncController.I.codeInput;
-    if (v != _code.text && SyncController.I.role != null) _code.text = v;
-    if (v.isNotEmpty && _code.text.isEmpty) _code.text = v;
+    final codeInput = SyncController.instance.codeInput;
+    if (codeInput != _code.text && SyncController.instance.role != null) {
+      _code.text = codeInput;
+    }
+    if (codeInput.isNotEmpty && _code.text.isEmpty) {
+      _code.text = codeInput;
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) SyncController.I.resumed(true);
+    if (state == AppLifecycleState.resumed) {
+      SyncController.instance.resumed(true);
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    SyncController.I.removeListener(_follow);
+    SyncController.instance.removeListener(_follow);
     super.dispose();
   }
 
+  /// The window: an explanation, the status line, then either the start (show or enter a
+  /// code), the code being shown, or the Import and Send tabs once connected, and the buttons
+  /// to stop.
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: SyncController.I,
-      builder: (context, _) {
-        final s = SyncController.I;
-        final c = UwuColors.of(context);
-        final muted = TextStyle(color: c.muted, fontSize: 12.5, height: 1.4);
+      listenable: SyncController.instance,
+      builder: (context, child) {
+        final syncController = SyncController.instance;
+        final colors = UwuColors.of(context);
+        final muted = TextStyle(color: colors.muted, fontSize: 12.5, height: 1.4);
+        Color noteColor;
+        if (syncController.noteError) {
+          noteColor = colors.error;
+        } else {
+          noteColor = colors.muted;
+        }
+        String stopLabel;
+        if (syncController.connected) {
+          stopLabel = 'Disconnect';
+        } else if (syncController.role == 'host') {
+          stopLabel = 'Stop';
+        } else {
+          stopLabel = 'Cancel';
+        }
         return SheetFrame(
           title: 'Sync with another device',
           children: [
@@ -67,26 +105,32 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
               'Copy boards and your theme straight between this device and another. Both have to be on the same wifi, or one on the other’s hotspot. Copying adds and updates, and never deletes anything.',
               style: muted,
             ),
-            if (s.statusText.isNotEmpty) _status(c, s),
-            if (s.role == null) ..._start(c, s),
-            if (s.role == 'host' && !s.connected) _host(c, s),
-            if (s.connected) ..._live(c, s),
-            if (s.note.isNotEmpty)
+            if (syncController.statusText.isNotEmpty) _status(colors, syncController),
+            if (syncController.role == null) ..._start(colors, syncController),
+            if (syncController.role == 'host' && !syncController.connected) _host(colors, syncController),
+            if (syncController.connected) ..._live(colors, syncController),
+            if (syncController.note.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: Semantics(
                   liveRegion: true,
-                  child: Text(s.note, style: TextStyle(color: s.noteError ? c.error : c.muted, fontSize: 13)),
+                  child: Text(syncController.note, style: TextStyle(color: noteColor, fontSize: 13)),
                 ),
               ),
-            if (s.role != null)
+            if (syncController.role != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Wrap(
                   spacing: 8,
                   children: [
-                    if (s.role == 'host') OutlinedButton(onPressed: () => s.newHostCode(), child: const Text('New code')),
-                    OutlinedButton(onPressed: s.stop, child: Text(s.connected ? 'Disconnect' : (s.role == 'host' ? 'Stop' : 'Cancel'))),
+                    if (syncController.role == 'host')
+                      OutlinedButton(
+                        onPressed: () {
+                          syncController.newHostCode();
+                        },
+                        child: const Text('New code'),
+                      ),
+                    OutlinedButton(onPressed: syncController.stop, child: Text(stopLabel)),
                   ],
                 ),
               ),
@@ -101,13 +145,19 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
     );
   }
 
-  Widget _status(UwuColors c, SyncController s) {
-    final dot = switch (s.statusTone) {
-      'ok' => c.ok,
-      'warn' => c.warn,
-      'error' => c.error,
-      _ => c.busy,
-    };
+  /// The status line: a coloured dot (green, amber, red, or busy) and the status text.
+  Widget _status(UwuColors colors, SyncController syncController) {
+    Color dotColor;
+    switch (syncController.statusTone) {
+      case 'ok':
+        dotColor = colors.success;
+      case 'warn':
+        dotColor = colors.warning;
+      case 'error':
+        dotColor = colors.error;
+      default:
+        dotColor = colors.busy;
+    }
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Row(
@@ -117,12 +167,12 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
             margin: const EdgeInsets.only(top: 5, right: 8),
             width: 9,
             height: 9,
-            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
           Expanded(
             child: Semantics(
               liveRegion: true,
-              child: Text(s.statusText, style: TextStyle(color: c.ink, fontSize: 13.5)),
+              child: Text(syncController.statusText, style: TextStyle(color: colors.ink, fontSize: 13.5)),
             ),
           ),
         ],
@@ -130,40 +180,57 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
     );
   }
 
-  List<Widget> _start(UwuColors c, SyncController s) => [
-    const SizedBox(height: 14),
-    FilledButton.icon(
-      key: const ValueKey('sync-host'),
-      onPressed: () {
-        s.retryTaken();
-        s.startHosting();
-      },
-      icon: AppIcon('sync', size: 16, color: c.onBrand),
-      label: const Text('Show a code on this device'),
-    ),
-    const SizedBox(height: 10),
-    Row(
-      children: [
-        Expanded(
-          child: TextField(
-            key: const ValueKey('sync-code'),
-            controller: _code,
-            maxLength: 12,
-            textCapitalization: TextCapitalization.characters,
-            autocorrect: false,
-            textInputAction: TextInputAction.go,
-            decoration: const InputDecoration(hintText: 'Or enter the other device’s code', counterText: ''),
-            onSubmitted: s.join,
+  /// Before connecting: a button to show a code on this device, or a box to type the other
+  /// device's code and connect.
+  List<Widget> _start(UwuColors colors, SyncController syncController) {
+    return [
+      const SizedBox(height: 14),
+      FilledButton.icon(
+        key: const ValueKey('sync-host'),
+        onPressed: () {
+          syncController.retryTaken();
+          syncController.startHosting();
+        },
+        icon: AppIcon('sync', size: 16, color: colors.onBrand),
+        label: const Text('Show a code on this device'),
+      ),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              key: const ValueKey('sync-code'),
+              controller: _code,
+              maxLength: 12,
+              textCapitalization: TextCapitalization.characters,
+              autocorrect: false,
+              textInputAction: TextInputAction.go,
+              decoration: const InputDecoration(hintText: 'Or enter the other device’s code', counterText: ''),
+              onSubmitted: syncController.join,
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        OutlinedButton(onPressed: () => s.join(_code.text), child: const Text('Connect')),
-      ],
-    ),
-  ];
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: () {
+              syncController.join(_code.text);
+            },
+            child: const Text('Connect'),
+          ),
+        ],
+      ),
+    ];
+  }
 
-  Widget _host(UwuColors c, SyncController s) {
-    final link = syncLink(s.hostCode);
+  /// While this device waits as the host: its code in big letters (press to copy the link),
+  /// a QR code of the link, and the link itself.
+  Widget _host(UwuColors colors, SyncController syncController) {
+    final link = syncLink(syncController.hostCode);
+    String shownCode;
+    if (syncController.hostCode.isEmpty) {
+      shownCode = '------';
+    } else {
+      shownCode = syncController.hostCode;
+    }
     return Padding(
       padding: const EdgeInsets.only(top: 14),
       child: Column(
@@ -177,66 +244,150 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
               onTap: () async {
                 try {
                   await Clipboard.setData(ClipboardData(text: link));
-                  s.showNote('Link copied.');
-                } catch (_) {
-                  s.showNote('Couldn’t copy the link. Type the code on the other device instead.', error: true);
+                  syncController.showNote('Link copied.');
+                } catch (error) {
+                  syncController.showNote('Couldn’t copy the link. Type the code on the other device instead.', error: true);
                 }
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 child: Text(
-                  s.hostCode.isEmpty ? '------' : s.hostCode,
-                  semanticsLabel: 'Sync code ${s.hostCode.split('').join(' ')}. Press to copy the link',
-                  style: TextStyle(fontSize: 34, letterSpacing: 6, color: c.ink, fontWeight: FontWeight.w700),
+                  shownCode,
+                  semanticsLabel: 'Sync code ${syncController.hostCode.split('').join(' ')}. Press to copy the link',
+                  style: TextStyle(fontSize: 34, letterSpacing: 6, color: colors.ink, fontWeight: FontWeight.w700),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 8),
-          if (s.hostCode.isNotEmpty)
+          if (syncController.hostCode.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
               child: QrImageView(data: link, size: 180, padding: EdgeInsets.zero, semanticsLabel: 'QR code of the sync link'),
             ),
           const SizedBox(height: 8),
-          SelectableText(link, style: TextStyle(color: c.muted, fontSize: 12)),
+          SelectableText(link, style: TextStyle(color: colors.muted, fontSize: 12)),
         ],
       ),
     );
   }
 
-  List<Widget> _live(UwuColors c, SyncController s) {
-    final importing = s.tab == 'import';
-    final all = s.offered();
-    final picked = s.picked[s.tab]!;
+  /// Once connected: the Import and Send tabs, each a list of boards and theme settings to
+  /// tick (with Select all), and the button that copies what's ticked.
+  List<Widget> _live(UwuColors colors, SyncController syncController) {
+    final importing = syncController.tab == 'import';
+    final allItems = syncController.offered();
+    final picked = syncController.picked[syncController.tab]!;
     // A pick the other end has since got some other way isn't on offer any more.
-    picked.removeWhere((k) => !all.any((f) => f.key == k && !f.done));
-    final open = all.where((f) => !f.done).toList();
-    final ticked = open.where((f) => picked.contains(f.key)).length;
-    final n = picked.length;
+    picked.removeWhere((pickedKey) {
+      return !allItems.any((item) {
+        return item.key == pickedKey && !item.done;
+      });
+    });
+    final openItems = allItems.where((item) {
+      return !item.done;
+    }).toList();
+    final tickedCount = openItems.where((item) {
+      return picked.contains(item.key);
+    }).length;
+    final pickedCount = picked.length;
 
-    Widget tabButton(String id, String label) => Expanded(
-      child: Semantics(
-        selected: s.tab == id,
-        button: true,
-        child: InkWell(
-          mouseCursor: WidgetStateMouseCursor.clickable,
-          borderRadius: BorderRadius.circular(9),
-          onTap: () => s.setTab(id),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: s.tab == id ? c.brandFill : null, borderRadius: BorderRadius.circular(9)),
-            child: Text(label, style: TextStyle(color: s.tab == id ? c.onBrand : c.ink)),
+    /// One of the Import / Send tab buttons.
+    Widget tabButton(String id, String label) {
+      final isSelected = syncController.tab == id;
+      Color? fillColor;
+      Color textColor;
+      if (isSelected) {
+        fillColor = colors.brandFill;
+        textColor = colors.onBrand;
+      } else {
+        fillColor = null;
+        textColor = colors.ink;
+      }
+      return Expanded(
+        child: Semantics(
+          selected: isSelected,
+          button: true,
+          child: InkWell(
+            mouseCursor: WidgetStateMouseCursor.clickable,
+            borderRadius: BorderRadius.circular(9),
+            onTap: () {
+              syncController.setTab(id);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: fillColor, borderRadius: BorderRadius.circular(9)),
+              child: Text(label, style: TextStyle(color: textColor)),
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
 
+    /// One row to tick. A row the other end already has can't be ticked; it and a row with
+    /// changes get a small label saying so.
+    Widget itemRow(SyncItem item) {
+      bool checkboxValue;
+      ValueChanged<bool?>? onChanged;
+      Color titleColor;
+      if (item.done) {
+        checkboxValue = false;
+        onChanged = null;
+        titleColor = colors.muted;
+      } else {
+        checkboxValue = picked.contains(item.key);
+        onChanged = (value) {
+          syncController.toggle(item.key, value == true);
+        };
+        titleColor = colors.ink;
+      }
+      Widget? badge;
+      if (item.done || item.update) {
+        String badgeText;
+        if (item.done) {
+          if (importing) {
+            badgeText = 'Already here';
+          } else {
+            badgeText = 'Already there';
+          }
+        } else {
+          badgeText = 'Has changes';
+        }
+        badge = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: colors.surfaceStrong,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: colors.border),
+          ),
+          child: Text(badgeText, style: TextStyle(fontSize: 11, color: colors.muted)),
+        );
+      } else {
+        badge = null;
+      }
+      return CheckboxListTile(
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+        value: checkboxValue,
+        onChanged: onChanged,
+        title: Text(item.title, style: TextStyle(color: titleColor, fontSize: 14)),
+        subtitle: Text(item.subtitle, style: TextStyle(color: colors.muted, fontSize: 12)),
+        secondary: badge,
+      );
+    }
+
+    /// The rows of one kind (boards or theme settings) under a small heading; nothing if
+    /// there are none.
     Widget group(String kind, String label) {
-      final rows = all.where((f) => f.kind == kind).toList();
-      if (rows.isEmpty) return const SizedBox.shrink();
+      final rows = allItems.where((item) {
+        return item.kind == kind;
+      }).toList();
+      if (rows.isEmpty) {
+        return const SizedBox.shrink();
+      }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -244,32 +395,69 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
             padding: const EdgeInsets.only(top: 10, bottom: 4),
             child: Text(
               label,
-              style: TextStyle(color: c.muted, fontSize: 12, fontWeight: FontWeight.w600),
+              style: TextStyle(color: colors.muted, fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
-          for (final f in rows)
-            CheckboxListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: f.done ? false : picked.contains(f.key),
-              onChanged: f.done ? null : (v) => s.toggle(f.key, v == true),
-              title: Text(f.title, style: TextStyle(color: f.done ? c.muted : c.ink, fontSize: 14)),
-              subtitle: Text(f.sub, style: TextStyle(color: c.muted, fontSize: 12)),
-              secondary: f.done || f.update
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: c.surfaceStrong,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: c.border),
-                      ),
-                      child: Text(f.done ? (importing ? 'Already here' : 'Already there') : 'Has changes', style: TextStyle(fontSize: 11, color: c.muted)),
-                    )
-                  : null,
-            ),
+          for (final item in rows) itemRow(item),
         ],
       );
+    }
+
+    String tabExplanation;
+    String nothingToShare;
+    if (importing) {
+      tabExplanation = 'The other device’s boards and theme. Tick the ones to copy to this device.';
+      nothingToShare = 'The other device has nothing to share yet.';
+    } else {
+      tabExplanation = 'This device’s boards and theme. Tick the ones to copy to the other device.';
+      nothingToShare = 'This device has nothing to share yet.';
+    }
+
+    // Select all: off with nothing open, on when everything open is ticked, part-way (null)
+    // when some are.
+    bool? selectAllValue;
+    ValueChanged<bool?>? onSelectAll;
+    if (openItems.isEmpty) {
+      selectAllValue = false;
+      onSelectAll = null;
+    } else {
+      if (tickedCount == openItems.length) {
+        selectAllValue = true;
+      } else if (tickedCount == 0) {
+        selectAllValue = false;
+      } else {
+        selectAllValue = null;
+      }
+      onSelectAll = (value) {
+        syncController.toggleAll(tickedCount != openItems.length);
+      };
+    }
+
+    // The copy button: off with nothing ticked, otherwise saying how many things it copies.
+    VoidCallback? onCopy;
+    String copyLabel;
+    if (pickedCount == 0) {
+      onCopy = null;
+      if (importing) {
+        copyLabel = 'Tick what to import';
+      } else {
+        copyLabel = 'Tick what to send';
+      }
+    } else {
+      onCopy = syncController.copyPicked;
+      if (importing) {
+        if (pickedCount == 1) {
+          copyLabel = 'Import 1 thing to this device';
+        } else {
+          copyLabel = 'Import $pickedCount things to this device';
+        }
+      } else {
+        if (pickedCount == 1) {
+          copyLabel = 'Send 1 thing to the other device';
+        } else {
+          copyLabel = 'Send $pickedCount things to the other device';
+        }
+      }
     }
 
     return [
@@ -277,24 +465,22 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
       Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: c.surface,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: c.border),
+          border: Border.all(color: colors.border),
         ),
         child: Row(children: [tabButton('import', 'Import'), tabButton('export', 'Send')]),
       ),
       const SizedBox(height: 8),
       Text(
-        importing
-            ? 'The other device’s boards and theme. Tick the ones to copy to this device.'
-            : 'This device’s boards and theme. Tick the ones to copy to the other device.',
-        style: TextStyle(color: c.muted, fontSize: 12.5),
+        tabExplanation,
+        style: TextStyle(color: colors.muted, fontSize: 12.5),
       ),
-      if (s.theirs == null)
+      if (syncController.theirs == null)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Center(
-            child: Text('Waiting for the other device…', style: TextStyle(color: c.muted)),
+            child: Text('Waiting for the other device…', style: TextStyle(color: colors.muted)),
           ),
         )
       else ...[
@@ -303,28 +489,22 @@ class _SyncSheetState extends State<SyncSheet> with WidgetsBindingObserver {
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           tristate: true,
-          value: open.isEmpty ? false : (ticked == open.length ? true : (ticked == 0 ? false : null)),
-          onChanged: open.isEmpty ? null : (v) => s.toggleAll(ticked != open.length),
-          title: Text('Select all', style: TextStyle(color: c.ink)),
+          value: selectAllValue,
+          onChanged: onSelectAll,
+          title: Text('Select all', style: TextStyle(color: colors.ink)),
         ),
-        if (all.isEmpty)
+        if (allItems.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text(importing ? 'The other device has nothing to share yet.' : 'This device has nothing to share yet.', style: TextStyle(color: c.muted)),
+            child: Text(nothingToShare, style: TextStyle(color: colors.muted)),
           ),
         group('board', 'Boards'),
         group('setting', 'Theme'),
       ],
       const SizedBox(height: 10),
       FilledButton(
-        onPressed: n == 0 ? null : s.copyPicked,
-        child: Text(
-          n == 0
-              ? (importing ? 'Tick what to import' : 'Tick what to send')
-              : importing
-              ? (n == 1 ? 'Import 1 thing to this device' : 'Import $n things to this device')
-              : (n == 1 ? 'Send 1 thing to the other device' : 'Send $n things to the other device'),
-        ),
+        onPressed: onCopy,
+        child: Text(copyLabel),
       ),
     ];
   }

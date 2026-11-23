@@ -53,15 +53,24 @@ test("a newer version shows a bar; the Updates page lists every version and join
   await expect(page.getByText(/^Everywhere\s+1\s+Fewer taps to make a board$/)).toBeVisible();
   await expect(page.getByText(/\*\*|\| Device/)).toHaveCount(0);
   // This one, closed till it's pressed.
-  const mine = page.getByRole("button", { name: /^Version 1\.0\.0 v1\.0\.0 Installed/ });
-  await expect(mine).toBeVisible();
+  const installedVersion = page.getByRole("button", { name: /^Version 1\.0\.0 v1\.0\.0 Installed/ });
+  await expect(installedVersion).toBeVisible();
   await expect(page.getByText("The first uwuBoard app for Android.")).toHaveCount(0);
-  await mine.click();
+  await installedVersion.click();
   await expect(page.getByText("The first uwuBoard app for Android.")).toBeVisible();
   await expect(page.getByRole("button", { name: /Update \(41\.0 MB\)/ })).toBeVisible();
 
   await page.getByRole("switch", { name: /New versions of the app/ }).click();
-  await expect.poll(async () => (await calls(page)).find((c) => c.method === "setReleases")?.options).toEqual({ on: true });
+  // The switch asks the Android side to turn release notifications on.
+  await expect.poll(async () => {
+    const setReleasesCall = (await calls(page)).find((call) => {
+      return call.method === "setReleases";
+    });
+    if (setReleasesCall === null || setReleasesCall === undefined) {
+      return undefined;
+    }
+    return setReleasesCall.options;
+  }).toEqual({ on: true });
   noErrors(page);
 });
 

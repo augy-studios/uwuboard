@@ -19,11 +19,19 @@ class AppSheet {
   /// The ids of the sheets open now, oldest first. The tours and the Back button read it.
   static final ValueNotifier<List<String>> open = ValueNotifier(const []);
 
-  static bool isOpen(String id) => open.value.contains(id);
-  static bool get anyOpen => open.value.isNotEmpty;
+  static bool isOpen(String id) {
+    return open.value.contains(id);
+  }
+
+  static bool get anyOpen {
+    return open.value.isNotEmpty;
+  }
 
   static final Map<String, NavigatorState> _navigators = {};
 
+  /// Opens a sheet, unless one with the same [id] is open already. On a wide screen it's a
+  /// dialog (or, on the desktop, the [kind] asked for); on a phone, a bottom sheet. Returns
+  /// what the sheet was closed with.
   static Future<T?> show<T>(
     BuildContext context, {
     required String id,
@@ -32,14 +40,22 @@ class AppSheet {
     double width = 480,
     bool dismissible = true,
   }) async {
-    if (isOpen(id)) return null;
-    final nav = Navigator.of(context, rootNavigator: true);
+    if (isOpen(id)) {
+      return null;
+    }
+    final navigator = Navigator.of(context, rootNavigator: true);
     open.value = [...open.value, id];
-    _navigators[id] = nav;
+    _navigators[id] = navigator;
     try {
-      final wide = Env.desktop || MediaQuery.sizeOf(context).width > Env.phoneWidth;
+      final wide = Environment.desktop || MediaQuery.sizeOf(context).width > Environment.phoneWidth;
       if (wide) {
-        return await showDesktopSheet<T>(context, builder: builder, kind: Env.desktop ? kind : SheetKind.dialog, width: width, dismissible: dismissible);
+        final SheetKind shownKind;
+        if (Environment.desktop) {
+          shownKind = kind;
+        } else {
+          shownKind = SheetKind.dialog;
+        }
+        return await showDesktopSheet<T>(context, builder: builder, kind: shownKind, width: width, dismissible: dismissible);
       }
       return await showModalBottomSheet<T>(
         context: context,
@@ -49,36 +65,44 @@ class AppSheet {
         isDismissible: dismissible,
         enableDrag: dismissible,
         backgroundColor: Colors.transparent,
-        builder: (context) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-          child: Material(
-            color: Theme.of(context).bottomSheetTheme.backgroundColor,
-            shape: Theme.of(context).bottomSheetTheme.shape,
-            clipBehavior: Clip.antiAlias,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
-              // useSafeArea keeps the sheet clear of the top and sides only: the sheet's own
-              // colour goes on under the navigation bar (gesture pill or three buttons), but its
-              // buttons stop above it. With the keyboard up there's no bar to clear, and the
-              // padding is 0.
-              child: SafeArea(top: false, left: false, right: false, child: builder(context)),
+        builder: (context) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+            child: Material(
+              color: Theme.of(context).bottomSheetTheme.backgroundColor,
+              shape: Theme.of(context).bottomSheetTheme.shape,
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
+                // useSafeArea keeps the sheet clear of the top and sides only: the sheet's own
+                // colour goes on under the navigation bar (gesture pill or three buttons), but its
+                // buttons stop above it. With the keyboard up there's no bar to clear, and the
+                // padding is 0.
+                child: SafeArea(top: false, left: false, right: false, child: builder(context)),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       );
     } finally {
-      open.value = [...open.value]..remove(id);
+      final stillOpen = [...open.value];
+      stillOpen.remove(id);
+      open.value = stillOpen;
       _navigators.remove(id);
     }
   }
 
   /// Closes one sheet by id, wherever it is in the stack: only if it's on top.
-  static void close(BuildContext context, [Object? result]) => Navigator.of(context, rootNavigator: true).pop(result);
+  static void close(BuildContext context, [Object? result]) {
+    Navigator.of(context, rootNavigator: true).pop(result);
+  }
 
   static void closeAll() {
     // The navigator's popUntil has already taken them; this is for the ones it hadn't.
-    for (final nav in _navigators.values.toSet()) {
-      nav.popUntil((r) => r.isFirst);
+    for (final navigator in _navigators.values.toSet()) {
+      navigator.popUntil((route) {
+        return route.isFirst;
+      });
     }
   }
 }
@@ -98,7 +122,29 @@ class SheetFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
+    final colors = UwuColors.of(context);
+    // The given header, or else the title as a heading.
+    final Widget heading;
+    final customHeader = header;
+    if (customHeader != null) {
+      heading = customHeader;
+    } else {
+      final String titleText;
+      final givenTitle = title;
+      if (givenTitle != null) {
+        titleText = givenTitle;
+      } else {
+        titleText = '';
+      }
+      heading = Semantics(
+        header: true,
+        child: Text(
+          titleText,
+          style: TextStyle(fontSize: 18, color: colors.ink, fontWeight: FontWeight.w600),
+        ),
+      );
+    }
+    final footerButtons = footer;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -108,20 +154,14 @@ class SheetFrame extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child:
-                    header ??
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        title ?? '',
-                        style: TextStyle(fontSize: 18, color: c.ink, fontWeight: FontWeight.w600),
-                      ),
-                    ),
+                child: heading,
               ),
               IconButton(
                 tooltip: 'Close',
-                onPressed: () => AppSheet.close(context),
-                icon: AppIcon('close', color: c.muted, size: 18),
+                onPressed: () {
+                  AppSheet.close(context);
+                },
+                icon: AppIcon('close', color: colors.muted, size: 18),
               ),
             ],
           ),
@@ -132,13 +172,13 @@ class SheetFrame extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: children),
           ),
         ),
-        if (footer != null)
+        if (footerButtons != null)
           Container(
             decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: c.border)),
+              border: Border(top: BorderSide(color: colors.border)),
             ),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: footer!),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: footerButtons),
           ),
       ],
     );

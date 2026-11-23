@@ -1,7 +1,6 @@
 // A card's details (the site's #card-modal): title, description, due date and priority; on a
 // Timeline its start date, whether it's a milestone, when it was completed and what it waits
-// for; the column it's in;
-// its images, labels and checklist. Edited on a copy and kept with Save, as on the site, except
+// for; the column it's in; its images, labels and checklist. Edited on a copy and kept with Save, as on the site, except
 // images, which go to storage (and leave it) as they're added and removed.
 import 'dart:convert';
 
@@ -13,7 +12,7 @@ import '../../app/nav.dart';
 import '../../app/state.dart';
 import '../../data/board.dart';
 import '../../data/images.dart';
-import '../../data/timeline_logic.dart' as tl;
+import '../../data/timeline_logic.dart' as timeline;
 import '../../theme/icons.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common.dart';
@@ -21,165 +20,283 @@ import '../../widgets/sheet.dart';
 import '../tour/tour.dart';
 import 'description_field.dart';
 
+/// Opens the details drawer for a card, when the card and its column can be found.
 Future<void> openCardSheet(BuildContext context, Json board, String cardId) {
   final card = findCard(board, cardId);
-  final col = columnOfCard(board, cardId);
-  if (card == null || col == null) return Future.value();
+  final column = columnOfCard(board, cardId);
+  if (card == null || column == null) {
+    return Future.value();
+  }
   return AppSheet.show(
     context,
     id: 'card',
     kind: SheetKind.drawer,
     width: 560,
-    builder: (context) => CardSheet(board: board, card: card, colId: '${col['id']}'),
+    builder: (context) {
+      return CardSheet(board: board, card: card, columnId: '${column['id']}');
+    },
   );
 }
 
 /// The colours a label can be: the site's default first.
 const labelColours = ['#ccffcc', '#4c9aff', '#36b37e', '#ffb31f', '#ff7452', '#998dd9', '#00b8d9', '#e74c8b', '#5b665f', '#121815'];
 
+/// A value as text, or empty text when there is no value.
+String _textOrEmpty(Object? value) {
+  if (value == null) {
+    return '';
+  }
+  return '$value';
+}
+
 class CardSheet extends StatefulWidget {
-  const CardSheet({super.key, required this.board, required this.card, required this.colId});
+  const CardSheet({super.key, required this.board, required this.card, required this.columnId});
   final Json board;
   final Json card;
-  final String colId;
+  final String columnId;
 
   @override
-  State<CardSheet> createState() => _CardSheetState();
+  State<CardSheet> createState() {
+    return _CardSheetState();
+  }
 }
 
 class _CardSheetState extends State<CardSheet> {
   late final Json _draft = clone(widget.card);
-  late final _title = TextEditingController(text: '${widget.card['title'] ?? ''}');
-  late final _desc = TextEditingController(text: '${widget.card['description'] ?? ''}');
-  final _label = TextEditingController();
-  final _check = TextEditingController();
-  late String _colId = widget.colId;
+  late final _title = TextEditingController(text: _textOrEmpty(widget.card['title']));
+  late final _description = TextEditingController(text: _textOrEmpty(widget.card['description']));
+  final _labelText = TextEditingController();
+  final _checklistText = TextEditingController();
+  late String _columnId = widget.columnId;
   String _labelColour = labelColours.first;
   bool _uploading = false;
 
-  bool get _timeline => AppState.I.isTimeline(widget.board);
-
-  List<dynamic> _list(String key) => (_draft[key] ??= <dynamic>[]) as List;
-
-  Future<void> _pickDate(String key) async {
-    final current = DateTime.tryParse('${_draft[key] ?? ''}');
-    final picked = await showDatePicker(context: context, initialDate: current ?? DateTime.now(), firstDate: DateTime(1970), lastDate: DateTime(2100));
-    if (picked == null) return;
-    setState(() => _draft[key] = tl.todayIso(picked));
+  bool get _isTimeline {
+    return AppState.instance.isTimeline(widget.board);
   }
 
+  /// The draft's list under this key, made (and kept on the draft) when there isn't one yet.
+  List<dynamic> _list(String key) {
+    final existing = _draft[key];
+    if (existing != null) {
+      return existing as List;
+    }
+    final created = <dynamic>[];
+    _draft[key] = created;
+    return created;
+  }
+
+  /// Asks for a date and puts it on the draft under this key.
+  Future<void> _pickDate(String key) async {
+    final current = DateTime.tryParse(_textOrEmpty(_draft[key]));
+    DateTime initialDate;
+    if (current == null) {
+      initialDate = DateTime.now();
+    } else {
+      initialDate = current;
+    }
+    final picked = await showDatePicker(context: context, initialDate: initialDate, firstDate: DateTime(1970), lastDate: DateTime(2100));
+    if (picked == null) {
+      return;
+    }
+    setState(() {
+      _draft[key] = timeline.todayIsoDate(picked);
+    });
+  }
+
+  /// Picks images, shrinks each, and adds it to the draft: kept inside the card for a guest,
+  /// uploaded to storage when signed in. The first image becomes the thumbnail if there's none.
   Future<void> _addImages() async {
     final files = await pickImages();
-    if (files.isEmpty) return;
-    setState(() => _uploading = true);
-    for (final f in files) {
-      final data = resizeToDataUrl(await f.readAsBytes());
+    if (files.isEmpty) {
+      return;
+    }
+    setState(() {
+      _uploading = true;
+    });
+    for (final file in files) {
+      final data = resizeToDataUrl(await file.readAsBytes());
       if (data == null) {
-        AppNav.toast('That image could not be read', error: true);
+        AppNavigation.toast('That image could not be read', error: true);
         continue;
       }
-      if (AppState.I.isGuest) {
-        _list('images').add({'id': uid(), 'data': data, 'name': f.name});
+      if (AppState.instance.isGuest) {
+        _list('images').add({'id': uniqueId(), 'data': data, 'name': file.name});
       } else {
         try {
-          final r = await Api.call('POST', '/images/upload', {'imageData': data, 'fileName': f.name});
-          _list('images').add({'id': uid(), 'file': r['file'], 'name': f.name});
+          final response = await Api.call('POST', '/images/upload', {'imageData': data, 'fileName': file.name});
+          _list('images').add({'id': uniqueId(), 'file': response['file'], 'name': file.name});
         } on ApiError {
-          AppNav.toast('Image upload failed', error: true);
+          AppNavigation.toast('Image upload failed', error: true);
         }
       }
     }
-    if (_draft['thumbnailId'] == null && _list('images').isNotEmpty) _draft['thumbnailId'] = (_list('images').first as Map)['id'];
-    if (mounted) setState(() => _uploading = false);
+    if (_draft['thumbnailId'] == null && _list('images').isNotEmpty) {
+      _draft['thumbnailId'] = (_list('images').first as Map)['id'];
+    }
+    if (mounted) {
+      setState(() {
+        _uploading = false;
+      });
+    }
   }
 
-  Future<void> _deleteImage(Json img) async {
-    if (!AppState.I.isGuest && (img['file'] != null || img['path'] != null)) {
+  /// Deletes an image from storage (when signed in) and from the draft, and from the saved card
+  /// straight away too, since it's gone from storage.
+  Future<void> _deleteImage(Json image) async {
+    if (!AppState.instance.isGuest && (image['file'] != null || image['path'] != null)) {
       try {
-        await Api.call('DELETE', '/images/delete', img['file'] != null ? {'file': img['file']} : {'path': img['path']});
+        Map<String, dynamic> target;
+        if (image['file'] != null) {
+          target = {'file': image['file']};
+        } else {
+          target = {'path': image['path']};
+        }
+        await Api.call('DELETE', '/images/delete', target);
       } on ApiError {
-        AppNav.toast('Could not delete image from storage', error: true);
+        AppNavigation.toast('Could not delete image from storage', error: true);
       }
     }
     setState(() {
-      _list('images').removeWhere((i) => i is Map && i['id'] == img['id']);
-      if (_draft['thumbnailId'] == img['id']) {
-        _draft['thumbnailId'] = _list('images').isEmpty ? null : (_list('images').first as Map)['id'];
+      _list('images').removeWhere((entry) {
+        return entry is Map && entry['id'] == image['id'];
+      });
+      if (_draft['thumbnailId'] == image['id']) {
+        if (_list('images').isEmpty) {
+          _draft['thumbnailId'] = null;
+        } else {
+          _draft['thumbnailId'] = (_list('images').first as Map)['id'];
+        }
       }
     });
     // Gone from storage, so gone from the card now, not only when it's saved.
-    final real = imagesOf(widget.card);
-    if (real.any((i) => i['id'] == img['id'])) {
+    final savedImages = imagesOf(widget.card);
+    final onSavedCard = savedImages.any((savedImage) {
+      return savedImage['id'] == image['id'];
+    });
+    if (onSavedCard) {
       widget.card['images'] = [
-        for (final i in real)
-          if (i['id'] != img['id']) i,
+        for (final savedImage in savedImages)
+          if (savedImage['id'] != image['id']) savedImage,
       ];
-      if (widget.card['thumbnailId'] == img['id']) widget.card['thumbnailId'] = _draft['thumbnailId'];
-      AppState.I.persistBoard(widget.board);
+      if (widget.card['thumbnailId'] == image['id']) {
+        widget.card['thumbnailId'] = _draft['thumbnailId'];
+      }
+      AppState.instance.persistBoard(widget.board);
     }
   }
 
-  Future<void> _saveImage(Json img) async {
+  /// Saves an image to a file, named after the image (or its id when it has no name).
+  Future<void> _saveImage(Json image) async {
     try {
-      final loaded = await ImageStore.load(img);
-      final ext = loaded.type.split('/').last.replaceAll('jpeg', 'jpg');
-      final name = '${img['name'] ?? ''}'.isNotEmpty ? '${img['name']}' : 'image-${img['id']}.$ext';
+      final loaded = await ImageStore.load(image);
+      final extension = loaded.type.split('/').last.replaceAll('jpeg', 'jpg');
+      String name;
+      if (_textOrEmpty(image['name']).isNotEmpty) {
+        name = '${image['name']}';
+      } else {
+        name = 'image-${image['id']}.$extension';
+      }
       final where = await saveFile(name, loaded.bytes, mime: loaded.type);
-      if (where != null) AppNav.toast('Saved $name');
-    } catch (_) {
-      AppNav.toast('That image could not be loaded', error: true);
+      if (where != null) {
+        AppNavigation.toast('Saved $name');
+      }
+    } catch (error) {
+      AppNavigation.toast('That image could not be loaded', error: true);
     }
   }
 
-  void _openImage(Json img) {
+  /// Shows an image full screen, zoomable, with a close button.
+  void _openImage(Json image) {
     showDialog<void>(
       context: context,
-      builder: (context) => Dialog.fullscreen(
-        backgroundColor: Colors.black,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: InteractiveViewer(
-                maxScale: 6,
-                child: Center(child: CardImage(img, fit: BoxFit.contain)),
-              ),
-            ),
-            Positioned(
-              top: 12,
-              right: 12,
-              child: SafeArea(
-                child: IconButton.filledTonal(
-                  tooltip: 'Close',
-                  onPressed: () => Navigator.pop(context),
-                  icon: const AppIcon('close', color: Colors.white),
+      builder: (context) {
+        return Dialog.fullscreen(
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: InteractiveViewer(
+                  maxScale: 6,
+                  child: Center(child: CardImage(image, fit: BoxFit.contain)),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: SafeArea(
+                  child: IconButton.filledTonal(
+                    tooltip: 'Close',
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    icon: const AppIcon('close', color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
+  /// Copies the draft onto the card (refusing a completed date before the start date), closes
+  /// the sheet, and saves the board, moving the card if its column changed.
   void _save() {
-    final due = '${_draft['due'] ?? ''}';
-    final milestone = _timeline ? _draft['milestone'] == true : widget.card['milestone'] == true;
-    var start = _timeline ? '${_draft['start'] ?? ''}' : '${widget.card['start'] ?? ''}';
-    if (milestone) start = due.isNotEmpty ? due : start;
+    final due = _textOrEmpty(_draft['due']);
+    bool milestone;
+    if (_isTimeline) {
+      milestone = _draft['milestone'] == true;
+    } else {
+      milestone = widget.card['milestone'] == true;
+    }
+    String start;
+    if (_isTimeline) {
+      start = _textOrEmpty(_draft['start']);
+    } else {
+      start = _textOrEmpty(widget.card['start']);
+    }
+    // A milestone is one day: it starts on its due date, when it has one.
+    if (milestone) {
+      if (due.isNotEmpty) {
+        start = due;
+      }
+    }
     // A start after the due date is work that's very late, and the Timeline shows it; work
     // completed before it started is a mistake to fix.
-    final completed = _timeline ? '${_draft['completed'] ?? ''}' : '${widget.card['completed'] ?? ''}';
-    final completedTyped = completed != '${widget.card['completed'] ?? ''}';
+    String completed;
+    if (_isTimeline) {
+      completed = _textOrEmpty(_draft['completed']);
+    } else {
+      completed = _textOrEmpty(widget.card['completed']);
+    }
+    final completedTyped = completed != _textOrEmpty(widget.card['completed']);
     if (start.isNotEmpty && completed.isNotEmpty && completed.compareTo(start) < 0) {
-      AppNav.toast('The completed date is before the start date', error: true);
+      AppNavigation.toast('The completed date is before the start date', error: true);
       return;
     }
     final card = widget.card;
     final title = _title.text.trim();
-    if (title.isNotEmpty) card['title'] = title;
-    card['description'] = _desc.text;
-    card['due'] = milestone ? (due.isNotEmpty ? due : start) : due;
-    card['priority'] = _draft['priority'] ?? '';
+    if (title.isNotEmpty) {
+      card['title'] = title;
+    }
+    card['description'] = _description.text;
+    if (milestone) {
+      if (due.isNotEmpty) {
+        card['due'] = due;
+      } else {
+        card['due'] = start;
+      }
+    } else {
+      card['due'] = due;
+    }
+    final priority = _draft['priority'];
+    if (priority == null) {
+      card['priority'] = '';
+    } else {
+      card['priority'] = priority;
+    }
     card['labels'] = _list('labels');
     card['checklist'] = _list('checklist');
     card['images'] = _list('images');
@@ -199,47 +316,61 @@ class _CardSheetState extends State<CardSheet> {
     } else {
       card.remove('completed');
     }
-    final deps = _list('dependsOn');
-    if (deps.isNotEmpty) {
-      card['dependsOn'] = deps;
+    final dependsOn = _list('dependsOn');
+    if (dependsOn.isNotEmpty) {
+      card['dependsOn'] = dependsOn;
     } else {
       card.remove('dependsOn');
     }
     touch(card);
     AppSheet.close(context);
-    if (_colId != widget.colId) {
-      AppState.I.moveCard(widget.board, '${card['id']}', _colId, keepCompleted: completedTyped);
+    if (_columnId != widget.columnId) {
+      AppState.instance.moveCard(widget.board, '${card['id']}', _columnId, keepCompleted: completedTyped);
     } else {
-      AppState.I.persistBoard(widget.board);
+      AppState.instance.persistBoard(widget.board);
     }
-    AppNav.toast('Card saved');
+    AppNavigation.toast('Card saved');
   }
 
+  /// The sheet: the title on top, then description, due date and priority, the Timeline fields
+  /// (on a Timeline), the column, images, labels and checklist; Delete and Save at the bottom.
   @override
   Widget build(BuildContext context) {
-    final c = UwuColors.of(context);
-    final col = findColumn(widget.board, _colId);
+    final colors = UwuColors.of(context);
+    final column = findColumn(widget.board, _columnId);
+    String initialPriority;
+    if (priorities.contains(_draft['priority'])) {
+      initialPriority = '${_draft['priority']}';
+    } else {
+      initialPriority = '';
+    }
+    String columnName = 'None';
+    if (column != null && column['name'] != null) {
+      columnName = '${column['name']}';
+    }
     return SheetFrame(
       header: TextField(
         key: const ValueKey('card-title'),
         controller: _title,
-        style: TextStyle(fontSize: 18, color: c.ink, fontWeight: FontWeight.w600),
+        style: TextStyle(fontSize: 18, color: colors.ink, fontWeight: FontWeight.w600),
         decoration: const InputDecoration(hintText: 'Card title', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none),
       ),
       footer: [
         TextButton(
-          style: TextButton.styleFrom(foregroundColor: c.error),
+          style: TextButton.styleFrom(foregroundColor: colors.error),
           onPressed: () async {
-            if (!await AppNav.confirm('Delete this card?') || !context.mounted) return;
+            if (!await AppNavigation.confirm('Delete this card?') || !context.mounted) {
+              return;
+            }
             AppSheet.close(context);
-            AppState.I.deleteCard(widget.board, '${widget.card['id']}');
+            AppState.instance.deleteCard(widget.board, '${widget.card['id']}');
           },
           child: const Text('Delete Card'),
         ),
         FilledButton(key: TourTargets.key('card-save'), onPressed: _save, child: const Text('Save')),
       ],
       children: [
-        KeyedSubtree(key: TourTargets.key('card-desc'), child: DescriptionField(controller: _desc)),
+        KeyedSubtree(key: TourTargets.key('card-desc'), child: DescriptionField(controller: _description)),
         Row(
           key: TourTargets.key('card-dates'),
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +385,7 @@ class _CardSheetState extends State<CardSheet> {
                   DropdownButtonFormField<String>(
                     mouseCursor: WidgetStateMouseCursor.clickable,
                     dropdownMenuItemMouseCursor: WidgetStateMouseCursor.clickable,
-                    initialValue: priorities.contains(_draft['priority']) ? '${_draft['priority']}' : '',
+                    initialValue: initialPriority,
                     items: const [
                       DropdownMenuItem(value: '', child: Text('None')),
                       DropdownMenuItem(value: 'low', child: Text('Low')),
@@ -262,14 +393,22 @@ class _CardSheetState extends State<CardSheet> {
                       DropdownMenuItem(value: 'high', child: Text('High')),
                       DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
                     ],
-                    onChanged: (v) => setState(() => _draft['priority'] = v ?? ''),
+                    onChanged: (value) {
+                      setState(() {
+                        if (value == null) {
+                          _draft['priority'] = '';
+                        } else {
+                          _draft['priority'] = value;
+                        }
+                      });
+                    },
                   ),
                 ],
               ),
             ),
           ],
         ),
-        if (_timeline) Column(key: TourTargets.key('card-tl'), crossAxisAlignment: CrossAxisAlignment.stretch, children: _timelineFields(c)),
+        if (_isTimeline) Column(key: TourTargets.key('card-tl'), crossAxisAlignment: CrossAxisAlignment.stretch, children: _timelineFields(colors)),
         const FieldLabel('Move to Column'),
         OutlinedButton(
           key: TourTargets.key('card-col'),
@@ -277,24 +416,28 @@ class _CardSheetState extends State<CardSheet> {
           onPressed: _pickColumn,
           child: Row(
             children: [
-              Expanded(child: Text('${col?['name'] ?? 'None'}')),
-              AppIcon('chevron-down', size: 14, color: c.muted),
+              Expanded(child: Text(columnName)),
+              AppIcon('chevron-down', size: 14, color: colors.muted),
             ],
           ),
         ),
         const FieldLabel('Images'),
-        KeyedSubtree(key: TourTargets.key('card-images'), child: _images(c)),
+        KeyedSubtree(key: TourTargets.key('card-images'), child: _images(colors)),
         const FieldLabel('Labels'),
         if (_list('labels').isNotEmpty)
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: [
-              for (var i = 0; i < _list('labels').length; i++)
+              for (var labelIndex = 0; labelIndex < _list('labels').length; labelIndex = labelIndex + 1)
                 LabelChip(
-                  text: '${(_list('labels')[i] as Map)['text']}',
-                  color: '${(_list('labels')[i] as Map)['color']}',
-                  onRemove: () => setState(() => _list('labels').removeAt(i)),
+                  text: '${(_list('labels')[labelIndex] as Map)['text']}',
+                  color: '${(_list('labels')[labelIndex] as Map)['color']}',
+                  onRemove: () {
+                    setState(() {
+                      _list('labels').removeAt(labelIndex);
+                    });
+                  },
                 ),
             ],
           ),
@@ -303,28 +446,32 @@ class _CardSheetState extends State<CardSheet> {
           children: [
             Expanded(
               child: TextField(
-                controller: _label,
+                controller: _labelText,
                 decoration: const InputDecoration(hintText: 'Label text'),
-                onSubmitted: (_) => _addLabel(),
+                onSubmitted: (text) {
+                  _addLabel();
+                },
               ),
             ),
             const SizedBox(width: 8),
-            _colourPicker(c),
+            _colourPicker(colors),
             const SizedBox(width: 8),
             OutlinedButton(onPressed: _addLabel, child: const Text('Add')),
           ],
         ),
         const FieldLabel('Checklist'),
-        for (var i = 0; i < _list('checklist').length; i++) _checkRow(c, i),
+        for (var itemIndex = 0; itemIndex < _list('checklist').length; itemIndex = itemIndex + 1) _checkRow(colors, itemIndex),
         Row(
           key: TourTargets.key('card-check'),
           children: [
             Expanded(
               child: TextField(
                 key: const ValueKey('check-input'),
-                controller: _check,
+                controller: _checklistText,
                 decoration: const InputDecoration(hintText: 'Add checklist item'),
-                onSubmitted: (_) => _addCheck(),
+                onSubmitted: (text) {
+                  _addCheck();
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -335,29 +482,51 @@ class _CardSheetState extends State<CardSheet> {
     );
   }
 
+  /// A date on the draft as a button that opens a date picker, with a cross to clear it.
   Widget _dateField(String label, String key, {bool enabled = true}) {
-    final c = UwuColors.of(context);
-    final v = '${_draft[key] ?? ''}';
+    final colors = UwuColors.of(context);
+    final value = _textOrEmpty(_draft[key]);
+    String shownText;
+    Color textColour;
+    if (value.isEmpty) {
+      shownText = 'No date';
+      textColour = colors.muted;
+    } else {
+      shownText = value;
+      textColour = colors.ink;
+    }
+    VoidCallback? onPressed;
+    if (enabled) {
+      onPressed = () {
+        _pickDate(key);
+      };
+    } else {
+      onPressed = null;
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         FieldLabel(label),
         OutlinedButton(
           style: OutlinedButton.styleFrom(alignment: Alignment.centerLeft),
-          onPressed: enabled ? () => _pickDate(key) : null,
+          onPressed: onPressed,
           child: Row(
             children: [
               Expanded(
-                child: Text(v.isEmpty ? 'No date' : v, style: TextStyle(color: v.isEmpty ? c.muted : c.ink)),
+                child: Text(shownText, style: TextStyle(color: textColour)),
               ),
-              if (v.isNotEmpty && enabled)
+              if (value.isNotEmpty && enabled)
                 InkWell(
                   mouseCursor: WidgetStateMouseCursor.clickable,
-                  onTap: () => setState(() => _draft[key] = ''),
-                  child: AppIcon('close', size: 14, color: c.muted),
+                  onTap: () {
+                    setState(() {
+                      _draft[key] = '';
+                    });
+                  },
+                  child: AppIcon('close', size: 14, color: colors.muted),
                 )
               else
-                AppIcon('clock', size: 14, color: c.muted),
+                AppIcon('clock', size: 14, color: colors.muted),
             ],
           ),
         ),
@@ -365,16 +534,36 @@ class _CardSheetState extends State<CardSheet> {
     );
   }
 
-  List<Widget> _timelineFields(UwuColors c) {
-    final all = allCards(widget.board).toList();
-    final deps = [
-      for (final d in _list('dependsOn'))
-        if (all.any((k) => k['id'] == d)) '$d',
+  /// The fields only a Timeline has: the start date, Milestone, and the tasks this one waits
+  /// for (red where their dates clash), with a menu to add another.
+  List<Widget> _timelineFields(UwuColors colors) {
+    final allTaskCards = allCards(widget.board).toList();
+    final dependencyIds = [
+      for (final dependencyId in _list('dependsOn'))
+        if (allTaskCards.any((otherCard) {
+          return otherCard['id'] == dependencyId;
+        }))
+          '$dependencyId',
     ];
-    final blocked = tl.waitingOn(widget.board, '${widget.card['id']}');
-    final choices = all.where((k) => k['id'] != widget.card['id'] && !deps.contains(k['id']) && !blocked.contains(k['id'])).toList();
+    final blocked = timeline.waitingOn(widget.board, '${widget.card['id']}');
+    final choices = allTaskCards.where((otherCard) {
+      return otherCard['id'] != widget.card['id'] && !dependencyIds.contains(otherCard['id']) && !blocked.contains(otherCard['id']);
+    }).toList();
     final milestone = _draft['milestone'] == true;
     final probe = {..._draft};
+    String choicesHint;
+    ValueChanged<String?>? onDependencyPicked;
+    if (choices.isEmpty) {
+      choicesHint = 'No other tasks to wait for';
+      onDependencyPicked = null;
+    } else {
+      choicesHint = 'Add a task this one waits for…';
+      onDependencyPicked = (value) {
+        setState(() {
+          _list('dependsOn').add(value);
+        });
+      };
+    }
     return [
       Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -388,12 +577,23 @@ class _CardSheetState extends State<CardSheet> {
                 const FieldLabel('Milestone'),
                 InkWell(
                   mouseCursor: WidgetStateMouseCursor.clickable,
-                  onTap: () => setState(() => _draft['milestone'] = !milestone),
+                  onTap: () {
+                    setState(() {
+                      _draft['milestone'] = !milestone;
+                    });
+                  },
                   child: Row(
                     children: [
-                      Checkbox(value: milestone, onChanged: (v) => setState(() => _draft['milestone'] = v == true)),
+                      Checkbox(
+                        value: milestone,
+                        onChanged: (value) {
+                          setState(() {
+                            _draft['milestone'] = value == true;
+                          });
+                        },
+                      ),
                       Flexible(
-                        child: Text('One day, on its due date', style: TextStyle(color: c.ink, fontSize: 13)),
+                        child: Text('One day, on its due date', style: TextStyle(color: colors.ink, fontSize: 13)),
                       ),
                     ],
                   ),
@@ -408,30 +608,51 @@ class _CardSheetState extends State<CardSheet> {
         padding: const EdgeInsets.only(top: 4),
         child: Text(
           'Filled in the day the card moves into the last column (Done), and cleared if it leaves. A start after the due date is fine: the bar shows the work from its start to here, or to today.',
-          style: TextStyle(color: c.muted, fontSize: 12),
+          style: TextStyle(color: colors.muted, fontSize: 12),
         ),
       ),
       const FieldLabel('Waits For'),
-      if (deps.isEmpty) Text('Doesn’t wait for anything', style: TextStyle(color: c.muted, fontSize: 13)),
+      if (dependencyIds.isEmpty) Text('Doesn’t wait for anything', style: TextStyle(color: colors.muted, fontSize: 13)),
       Wrap(
         spacing: 6,
         runSpacing: 6,
         children: [
-          for (final id in deps)
+          for (final id in dependencyIds)
             Builder(
               builder: (context) {
-                final other = all.firstWhere((k) => k['id'] == id);
-                final clash = tl.clashes(other, probe);
+                final other = allTaskCards.firstWhere((otherCard) {
+                  return otherCard['id'] == id;
+                });
+                final clash = timeline.clashes(other, probe);
+                String? tooltip;
+                Color chipColour;
+                Color textColour;
+                Color edgeColour;
+                if (clash) {
+                  tooltip = 'Its dates clash with this task';
+                  chipColour = colors.errorFill;
+                  textColour = colors.error;
+                  edgeColour = colors.error;
+                } else {
+                  tooltip = null;
+                  chipColour = colors.surfaceStrong;
+                  textColour = colors.ink;
+                  edgeColour = colors.border;
+                }
                 return InputChip(
                   mouseCursor: WidgetStateMouseCursor.clickable,
                   label: Text('${other['title']}'),
-                  tooltip: clash ? 'Its dates clash with this task' : null,
-                  backgroundColor: clash ? c.errorFill : c.surfaceStrong,
-                  labelStyle: TextStyle(color: clash ? c.error : c.ink, fontSize: 13),
-                  side: BorderSide(color: clash ? c.error : c.border),
-                  deleteIcon: AppIcon('close', size: 14, color: c.muted),
+                  tooltip: tooltip,
+                  backgroundColor: chipColour,
+                  labelStyle: TextStyle(color: textColour, fontSize: 13),
+                  side: BorderSide(color: edgeColour),
+                  deleteIcon: AppIcon('close', size: 14, color: colors.muted),
                   deleteButtonTooltipMessage: 'Stop waiting for ${other['title']}',
-                  onDeleted: () => setState(() => _list('dependsOn').remove(id)),
+                  onDeleted: () {
+                    setState(() {
+                      _list('dependsOn').remove(id);
+                    });
+                  },
                 );
               },
             ),
@@ -439,62 +660,98 @@ class _CardSheetState extends State<CardSheet> {
       ),
       const SizedBox(height: 8),
       DropdownButtonFormField<String>(
-        key: ValueKey('deps-${deps.length}'),
+        key: ValueKey('deps-${dependencyIds.length}'),
         mouseCursor: WidgetStateMouseCursor.clickable,
         dropdownMenuItemMouseCursor: WidgetStateMouseCursor.clickable,
         initialValue: null,
         isExpanded: true,
-        hint: Text(choices.isEmpty ? 'No other tasks to wait for' : 'Add a task this one waits for…'),
+        hint: Text(choicesHint),
         items: [
-          for (final k in choices)
+          for (final otherCard in choices)
             DropdownMenuItem(
-              value: '${k['id']}',
-              child: Text('${k['title']}', overflow: TextOverflow.ellipsis),
+              value: '${otherCard['id']}',
+              child: Text('${otherCard['title']}', overflow: TextOverflow.ellipsis),
             ),
         ],
-        onChanged: choices.isEmpty ? null : (v) => setState(() => _list('dependsOn').add(v)),
+        onChanged: onDependencyPicked,
       ),
     ];
   }
 
+  /// A small sheet listing the board's columns; the one picked becomes the card's column.
   Future<void> _pickColumn() async {
-    final cols = columnsOf(widget.board);
+    final columns = columnsOf(widget.board);
     final picked = await AppSheet.show<String>(
       context,
       id: 'col-picker',
       width: 360,
       builder: (context) {
-        final c = UwuColors.of(context);
+        final colors = UwuColors.of(context);
         return SheetFrame(
           title: 'Move to Column',
-          children: [
-            for (final col in cols)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Material(
-                  color: col['id'] == _colId ? c.brandFill : c.surfaceStrong,
-                  borderRadius: BorderRadius.circular(10),
-                  child: ListTile(
-                    dense: true,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    title: Text('${col['name']}', style: TextStyle(color: col['id'] == _colId ? c.onBrand : c.ink)),
-                    onTap: () => AppSheet.close(context, '${col['id']}'),
-                  ),
-                ),
-              ),
-          ],
+          children: [for (final column in columns) _columnChoice(context, colors, column)],
         );
       },
     );
-    if (picked != null) setState(() => _colId = picked);
+    if (picked != null) {
+      setState(() {
+        _columnId = picked;
+      });
+    }
   }
 
-  Widget _images(UwuColors c) {
+  /// One column in the column picker, filled with the brand colour when it's the card's column.
+  Widget _columnChoice(BuildContext sheetContext, UwuColors colors, Json column) {
+    Color fillColour;
+    Color textColour;
+    if (column['id'] == _columnId) {
+      fillColour = colors.brandFill;
+      textColour = colors.onBrand;
+    } else {
+      fillColour = colors.surfaceStrong;
+      textColour = colors.ink;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: fillColour,
+        borderRadius: BorderRadius.circular(10),
+        child: ListTile(
+          dense: true,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          title: Text('${column['name']}', style: TextStyle(color: textColour)),
+          onTap: () {
+            AppSheet.close(sheetContext, '${column['id']}');
+          },
+        ),
+      ),
+    );
+  }
+
+  /// The draft's images as tiles (the thumbnail outlined), and the Add Image button.
+  Widget _images(UwuColors colors) {
     final images = [
-      for (final i in _list('images'))
-        if (i is Map) Map<String, dynamic>.from(i),
+      for (final entry in _list('images'))
+        if (entry is Map) Map<String, dynamic>.from(entry),
     ];
-    final thumbId = _draft['thumbnailId'] ?? (images.isEmpty ? null : images.first['id']);
+    // The thumbnail: the one chosen, or else the first image.
+    Object? thumbnailId = _draft['thumbnailId'];
+    if (thumbnailId == null) {
+      if (images.isEmpty) {
+        thumbnailId = null;
+      } else {
+        thumbnailId = images.first['id'];
+      }
+    }
+    VoidCallback? onAddPressed;
+    Widget addIcon;
+    if (_uploading) {
+      onAddPressed = null;
+      addIcon = const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2));
+    } else {
+      onAddPressed = _addImages;
+      addIcon = AppIcon('image-add', size: 14, color: colors.ink);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -502,51 +759,14 @@ class _CardSheetState extends State<CardSheet> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: [
-              for (final img in images)
-                Container(
-                  width: 150,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: img['id'] == thumbId ? c.brandInk : c.border, width: img['id'] == thumbId ? 2 : 1),
-                  ),
-                  child: Column(
-                    children: [
-                      InkWell(
-                        mouseCursor: WidgetStateMouseCursor.clickable,
-                        onTap: () => _openImage(img),
-                        child: SizedBox(height: 96, width: 150, child: CardImage(img)),
-                      ),
-                      Container(
-                        color: c.surfaceStrong,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            MiniButton(
-                              icon: 'star',
-                              label: img['id'] == thumbId ? 'Thumbnail' : 'Set as thumbnail',
-                              color: img['id'] == thumbId ? c.warn : c.muted,
-                              onPressed: () => setState(() => _draft['thumbnailId'] = img['id']),
-                            ),
-                            MiniButton(icon: 'download', label: 'Save', onPressed: () => _saveImage(img)),
-                            MiniButton(icon: 'trash', label: 'Delete', color: c.error, onPressed: () => _deleteImage(img)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
+            children: [for (final image in images) _imageTile(colors, image, thumbnailId)],
           ),
         const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(
-            onPressed: _uploading ? null : _addImages,
-            icon: _uploading
-                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                : AppIcon('image-add', size: 14, color: c.ink),
+            onPressed: onAddPressed,
+            icon: addIcon,
             label: const Text('Add Image'),
           ),
         ),
@@ -554,38 +774,120 @@ class _CardSheetState extends State<CardSheet> {
     );
   }
 
-  Widget _colourPicker(UwuColors c) {
+  /// One image tile: the picture (tap to open it), and buttons to make it the thumbnail, save
+  /// it, or delete it.
+  Widget _imageTile(UwuColors colors, Map<String, dynamic> image, Object? thumbnailId) {
+    final isThumbnail = image['id'] == thumbnailId;
+    Color edgeColour;
+    double edgeWidth;
+    String starLabel;
+    Color starColour;
+    if (isThumbnail) {
+      edgeColour = colors.brandInk;
+      edgeWidth = 2;
+      starLabel = 'Thumbnail';
+      starColour = colors.warning;
+    } else {
+      edgeColour = colors.border;
+      edgeWidth = 1;
+      starLabel = 'Set as thumbnail';
+      starColour = colors.muted;
+    }
+    return Container(
+      width: 150,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: edgeColour, width: edgeWidth),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            mouseCursor: WidgetStateMouseCursor.clickable,
+            onTap: () {
+              _openImage(image);
+            },
+            child: SizedBox(height: 96, width: 150, child: CardImage(image)),
+          ),
+          Container(
+            color: colors.surfaceStrong,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                MiniButton(
+                  icon: 'star',
+                  label: starLabel,
+                  color: starColour,
+                  onPressed: () {
+                    setState(() {
+                      _draft['thumbnailId'] = image['id'];
+                    });
+                  },
+                ),
+                MiniButton(
+                  icon: 'download',
+                  label: 'Save',
+                  onPressed: () {
+                    _saveImage(image);
+                  },
+                ),
+                MiniButton(
+                  icon: 'trash',
+                  label: 'Delete',
+                  color: colors.error,
+                  onPressed: () {
+                    _deleteImage(image);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The swatch showing the new label's colour; pressed, it offers every label colour.
+  Widget _colourPicker(UwuColors colors) {
     return PopupMenuButton<String>(
       tooltip: 'Label colour',
-      onSelected: (v) => setState(() => _labelColour = v),
-      itemBuilder: (_) => [
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final hex in labelColours)
-                InkWell(
-                  mouseCursor: WidgetStateMouseCursor.clickable,
-                  onTap: () {
-                    setState(() => _labelColour = hex);
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: Color(0xFF000000 | parseHex(hex)!),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: c.border),
+      onSelected: (value) {
+        setState(() {
+          _labelColour = value;
+        });
+      },
+      itemBuilder: (menuContext) {
+        return [
+          PopupMenuItem<String>(
+            enabled: false,
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final hex in labelColours)
+                  InkWell(
+                    mouseCursor: WidgetStateMouseCursor.clickable,
+                    onTap: () {
+                      setState(() {
+                        _labelColour = hex;
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: Color(0xFF000000 | parseHexColour(hex)!),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colors.border),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ];
+      },
       // PopupMenuButton's own InkWell can't be given a cursor, so the swatch asks for the hand.
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -593,9 +895,9 @@ class _CardSheetState extends State<CardSheet> {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: Color(0xFF000000 | parseHex(_labelColour)!),
+            color: Color(0xFF000000 | parseHexColour(_labelColour)!),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: c.border, width: 1.5),
+            border: Border.all(color: colors.border, width: 1.5),
           ),
         ),
       ),
@@ -603,36 +905,65 @@ class _CardSheetState extends State<CardSheet> {
   }
 
   void _addLabel() {
-    final t = _label.text.trim();
-    if (t.isEmpty) return;
+    final text = _labelText.text.trim();
+    if (text.isEmpty) {
+      return;
+    }
     setState(() {
-      _list('labels').add({'text': t, 'color': _labelColour});
-      _label.clear();
+      _list('labels').add({'text': text, 'color': _labelColour});
+      _labelText.clear();
     });
   }
 
   void _addCheck() {
-    final t = _check.text.trim();
-    if (t.isEmpty) return;
+    final text = _checklistText.text.trim();
+    if (text.isEmpty) {
+      return;
+    }
     setState(() {
-      _list('checklist').add({'text': t, 'done': false});
-      _check.clear();
+      _list('checklist').add({'text': text, 'done': false});
+      _checklistText.clear();
     });
   }
 
-  Widget _checkRow(UwuColors c, int i) {
-    final item = _list('checklist')[i] as Map;
+  /// One checklist item: its tick box, its text (struck through when done), and Remove.
+  Widget _checkRow(UwuColors colors, int index) {
+    final item = _list('checklist')[index] as Map;
     final done = item['done'] == true;
+    Color textColour;
+    TextDecoration? decoration;
+    if (done) {
+      textColour = colors.muted;
+      decoration = TextDecoration.lineThrough;
+    } else {
+      textColour = colors.ink;
+      decoration = null;
+    }
     return Row(
       children: [
-        Checkbox(value: done, onChanged: (v) => setState(() => item['done'] = v == true)),
+        Checkbox(
+          value: done,
+          onChanged: (value) {
+            setState(() {
+              item['done'] = value == true;
+            });
+          },
+        ),
         Expanded(
           child: Text(
             '${item['text']}',
-            style: TextStyle(color: done ? c.muted : c.ink, decoration: done ? TextDecoration.lineThrough : null, fontSize: 14),
+            style: TextStyle(color: textColour, decoration: decoration, fontSize: 14),
           ),
         ),
-        MiniButton(icon: 'close', label: 'Remove', onPressed: () => setState(() => _list('checklist').removeAt(i))),
+        MiniButton(
+          icon: 'close',
+          label: 'Remove',
+          onPressed: () {
+            setState(() {
+              _list('checklist').removeAt(index);
+            });
+          },
+        ),
       ],
     );
   }
@@ -640,24 +971,40 @@ class _CardSheetState extends State<CardSheet> {
 
 /// Exports the open board to a file, its images inside it.
 Future<void> exportActiveBoard() async {
-  final board = AppState.I.activeBoard;
-  if (board == null) return;
-  final r = await AppState.I.exportBoard(board);
-  final where = await saveFile(exportName(board), utf8.encode(r.json), mime: 'application/json');
-  if (where == null) return;
-  AppNav.toast(r.missing > 0 ? 'Board exported, without ${r.missing == 1 ? '1 image' : '${r.missing} images'} that wouldn’t load' : 'Board exported');
+  final board = AppState.instance.activeBoard;
+  if (board == null) {
+    return;
+  }
+  final result = await AppState.instance.exportBoard(board);
+  final where = await saveFile(exportName(board), utf8.encode(result.json), mime: 'application/json');
+  if (where == null) {
+    return;
+  }
+  if (result.missing > 0) {
+    String missingText;
+    if (result.missing == 1) {
+      missingText = '1 image';
+    } else {
+      missingText = '${result.missing} images';
+    }
+    AppNavigation.toast('Board exported, without $missingText that wouldn’t load');
+  } else {
+    AppNavigation.toast('Board exported');
+  }
 }
 
 /// Imports a board file over the open board (or as a new one, with none open).
 Future<void> importOverActiveBoard() async {
-  final f = await pickJson();
-  if (f == null) return;
-  Object? json;
-  try {
-    json = jsonDecode(await f.readAsString());
-  } catch (_) {
-    AppNav.toast('Invalid JSON file', error: true);
+  final file = await pickJson();
+  if (file == null) {
     return;
   }
-  await AppState.I.importBoard(json, asNew: false);
+  Object? json;
+  try {
+    json = jsonDecode(await file.readAsString());
+  } catch (error) {
+    AppNavigation.toast('Invalid JSON file', error: true);
+    return;
+  }
+  await AppState.instance.importBoard(json, asNew: false);
 }
