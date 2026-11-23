@@ -60,9 +60,9 @@ class Span {
   final int end;
 }
 
-/// A task's span as day numbers, or null without dates. One date alone is a one-day task; a
-/// milestone is always one day, on its due date.
-Span? spanOf(Json card) {
+/// A task's span as day numbers, or null without dates: the whole bar, the work as it went
+/// included. One date alone is a one-day task; a milestone is always one day, on its due date.
+Span? spanOf(Json card, {String? today}) {
   final s = isIso(card['start']) ? dayOf(card['start'] as String) : null;
   final d = isIso(card['due']) ? dayOf(card['due'] as String) : null;
   if (s == null && d == null) return null;
@@ -72,7 +72,45 @@ Span? spanOf(Json card) {
   }
   final start = s ?? d!;
   final end = d ?? s!;
-  return start <= end ? Span(start, end) : Span(end, start);
+  final plan = start <= end ? Span(start, end) : Span(end, start);
+  final a = actualOf(card, today: today);
+  return a == null ? plan : Span(a.start < plan.start ? a.start : plan.start, a.end > plan.end ? a.end : plan.end);
+}
+
+/// The work as it went, for a task started after its due date (work that's very late) or
+/// given a completed date: from its start to the day it was completed, or to today while it's
+/// still going. Otherwise null. Such a bar moves whole ([shiftDates]).
+Span? actualOf(Json card, {String? today}) {
+  if (card['milestone'] == true || !isIso(card['start'])) return null;
+  final start = card['start'] as String;
+  final startedLate = isIso(card['due']) && start.compareTo(card['due'] as String) > 0;
+  final completed = isIso(card['completed']) ? card['completed'] as String : null;
+  if (!startedLate && completed == null) return null;
+  final s = dayOf(start);
+  final e = dayOf(completed ?? today ?? todayIso());
+  return Span(s, e > s ? e : s);
+}
+
+/// The day a card reached the board's last column (Done; Release on a timeline) is its
+/// completed date: set as it arrives (or is added there), cleared if it leaves. Moves within a
+/// column, or between two others, leave it be.
+void stampCompleted(Json board, Map card, String? fromColId, String toColId, {String? today}) {
+  if (fromColId == toColId) return;
+  final cols = columnsOf(board);
+  if (cols.isEmpty) return;
+  final last = '${cols.last['id']}';
+  if (toColId == last) {
+    card['completed'] = today ?? todayIso();
+  } else if (fromColId == last) {
+    card.remove('completed');
+  }
+}
+
+/// Every date a task has, moved by `days`: a bar that shows the work as it went moves whole.
+void shiftDates(Json card, int days) {
+  for (final k in const ['start', 'due', 'completed']) {
+    if (isIso(card[k])) card[k] = isoOf(dayOf(card[k] as String) + days);
+  }
 }
 
 /// How far a task's checklist is done, 0 to 1.
@@ -169,7 +207,7 @@ TlRange rangeOf(Json board, String zoom, double minWidth, {String? today}) {
   final t = dayOf(today ?? todayIso());
   var lo = t, hi = t;
   for (final card in allCards(board)) {
-    final s = spanOf(card);
+    final s = spanOf(card, today: today);
     if (s != null) {
       if (s.start < lo) lo = s.start;
       if (s.end > hi) hi = s.end;
@@ -238,12 +276,25 @@ String fmtDay(int n) {
 }
 
 /// A task's dates as its row says them.
-String whenOf(Json card) {
-  final s = spanOf(card);
+String whenOf(Json card, {String? today}) {
+  final s = spanOf(card, today: today);
   if (s == null) return 'No dates';
+  final a = actualOf(card, today: today);
+  if (a != null) {
+    final work = !isIso(card['completed'])
+        ? '${fmtDay(a.start)} – now'
+        : a.start == a.end
+        ? fmtDay(a.start)
+        : '${fmtDay(a.start)} – ${fmtDay(a.end)}';
+    return isIso(card['due']) ? 'Due ${fmtDay(dayOf(card['due'] as String))} · $work' : work;
+  }
   return s.start == s.end ? fmtDay(s.start) : '${fmtDay(s.start)} – ${fmtDay(s.end)}';
 }
 
-/// Late: past its due date and not all ticked off. Never a milestone.
+/// Late: past its due date, not completed and not all ticked off. Never a milestone.
 bool isLate(Json card, {String? today}) =>
-    card['milestone'] != true && isIso(card['due']) && (card['due'] as String).compareTo(today ?? todayIso()) < 0 && progressOf(card) < 1;
+    card['milestone'] != true &&
+    isIso(card['due']) &&
+    (card['due'] as String).compareTo(today ?? todayIso()) < 0 &&
+    !isIso(card['completed']) &&
+    progressOf(card) < 1;

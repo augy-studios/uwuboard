@@ -85,7 +85,7 @@
       available: () => !!window.firstCard?.(),
       why: 'Add a card first',
       steps: [
-        { el: '#card-modal-desc', text: 'Notes on the card go here.' },
+        { el: '#card-desc-box', text: 'Notes on the card go here, formatted as on Discord: **bold**, *italic*, lists, links and more.' },
         { el: '#card-modal .modal-row', text: 'A due date and a priority, both shown on the card.' },
         { el: '#card-tl-fields', text: 'On a Timeline: when it starts, whether it’s a milestone, and what it waits for.' },
         { el: '#card-modal-col-btn', text: 'Move the card to another column without dragging it.' },

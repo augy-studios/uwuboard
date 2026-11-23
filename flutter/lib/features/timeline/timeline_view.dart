@@ -300,7 +300,12 @@ class _TimelineViewState extends State<TimelineView> {
                       ),
                     ],
                   ),
-                  Text(whenOf(card), style: TextStyle(color: undated ? c.muted.withValues(alpha: 0.7) : c.muted, fontSize: 11)),
+                  Text(
+                    whenOf(card),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: undated ? c.muted.withValues(alpha: 0.7) : c.muted, fontSize: 11),
+                  ),
                 ],
               ),
             ),
@@ -627,10 +632,13 @@ class _BarState extends State<_Bar> {
 
   int get _days => (_dx / widget.ppd).round();
 
+  /// A bar that shows the work as it went moves whole, every date with it: it has no ends to drag.
+  bool get _whole => actualOf(widget.card) != null;
+
   void _start(DragStartDetails d) {
     final milestone = widget.card['milestone'] == true;
     final x = d.localPosition.dx;
-    _mode = milestone ? 'move' : (x < 10 ? 'start' : (x > widget.width - 10 ? 'end' : 'move'));
+    _mode = milestone || _whole ? 'move' : (x < 10 ? 'start' : (x > widget.width - 10 ? 'end' : 'move'));
     setState(() => _dx = 0);
   }
 
@@ -643,7 +651,9 @@ class _BarState extends State<_Bar> {
       _dx = 0;
     });
     if (days == 0 || mode == null) return;
-    if (mode == 'move') {
+    if (_whole) {
+      shiftDates(widget.card, days);
+    } else if (mode == 'move') {
       setSpan(widget.card, s.start + days, s.end + days);
     } else if (mode == 'start') {
       setSpan(widget.card, math.min(s.start + days, s.end), s.end);
@@ -663,7 +673,9 @@ class _BarState extends State<_Bar> {
     if (k != LogicalKeyboardKey.arrowLeft && k != LogicalKeyboardKey.arrowRight) return KeyEventResult.ignored;
     final d = k == LogicalKeyboardKey.arrowLeft ? -1 : 1;
     final s = widget.span;
-    if (HardwareKeyboard.instance.isShiftPressed && widget.card['milestone'] != true) {
+    if (_whole) {
+      shiftDates(widget.card, d);
+    } else if (HardwareKeyboard.instance.isShiftPressed && widget.card['milestone'] != true) {
       setSpan(widget.card, s.start, math.max(s.start, s.end + d));
     } else {
       setSpan(widget.card, s.start + d, s.end + d);
@@ -690,9 +702,56 @@ class _BarState extends State<_Bar> {
 
     final pct = progressOf(card);
     final late = isLate(card);
-    final label =
-        '${card['title']}, ${milestone ? 'milestone, ${fmtDay(widget.span.start)}' : '${fmtDay(widget.span.start)} to ${fmtDay(widget.span.end)}'}'
-        '${checklistOf(card).isNotEmpty ? ', ${(pct * 100).round()}% done' : ''}';
+    final actual = actualOf(card);
+    final due = isIso(card['due']) ? dayOf(card['due'] as String) : null;
+    final String said;
+    if (milestone) {
+      said = 'milestone, ${fmtDay(widget.span.start)}';
+    } else if (actual != null) {
+      said =
+          '${due != null ? 'due ${fmtDay(due)}, ' : ''}started ${fmtDay(actual.start)}'
+          '${isIso(card['completed']) ? ', completed ${fmtDay(actual.end)}' : ', still going'}';
+    } else {
+      said = '${fmtDay(widget.span.start)} to ${fmtDay(widget.span.end)}${checklistOf(card).isNotEmpty ? ', ${(pct * 100).round()}% done' : ''}';
+    }
+    final label = '${card['title']}, $said${late ? ', late' : ''}';
+
+    // Inside the bar: as far as its checklist is done; or, for one that shows the work as it
+    // went, a solid stripe from its start to its completion (or today), and a line at the due
+    // date it ran past.
+    final ppd = widget.ppd;
+    final Widget inside = actual == null
+        ? Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: pct,
+              heightFactor: 1,
+              child: Container(color: widget.colour),
+            ),
+          )
+        : Stack(
+            children: [
+              Positioned(
+                key: const ValueKey('tl-actual'),
+                left: (actual.start - widget.span.start) * ppd,
+                width: (actual.end - actual.start + 1) * ppd,
+                top: 4,
+                bottom: 4,
+                child: Container(
+                  decoration: BoxDecoration(color: widget.colour, borderRadius: BorderRadius.circular(4)),
+                ),
+              ),
+              if (due != null && due < widget.span.end)
+                Positioned(
+                  key: const ValueKey('tl-due-mark'),
+                  left: (due - widget.span.start + 1) * ppd - 1,
+                  width: 2,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(color: c.error),
+                ),
+            ],
+          );
 
     final Widget shape = milestone
         ? SizedBox(
@@ -721,14 +780,7 @@ class _BarState extends State<_Bar> {
               border: Border.all(color: late ? c.error : widget.colour, width: late ? 2 : 1),
             ),
             clipBehavior: Clip.antiAlias,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                widthFactor: pct,
-                heightFactor: 1,
-                child: Container(color: widget.colour),
-              ),
-            ),
+            child: inside,
           );
 
     final barLeft = milestone ? left + widget.ppd / 2 - 11 : left;

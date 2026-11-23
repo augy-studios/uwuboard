@@ -6,7 +6,7 @@
 //   column { id, name, updatedAt, cards: [card] }
 //   card   { id, title, description, labels: [{text,color}], checklist: [{text,done}], due,
 //            priority, images: [{id,name, file|data|url}], thumbnailId, updatedAt,
-//            start?, milestone?, dependsOn? }
+//            start?, milestone?, completed?, dependsOn? }
 import 'dart:math' as math;
 
 typedef Json = Map<String, dynamic>;

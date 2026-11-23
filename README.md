@@ -19,7 +19,10 @@ device.
 - **Timeline:** a Gantt chart of the same cards, like Jira's Timeline: columns become phases,
   cards become bars from their start to their due date. Drag to move or resize, zoom by weeks,
   months or quarters, milestones, progress from checklists, a today line, and dependencies whose
-  arrows turn red when the dates clash.
+  arrows turn red when the dates clash. A task can start after its due date (work that's very
+  late). A card's completed date is the day it moved into the last column (Done), and can be
+  changed by hand. Either way its bar shows the work as it went, from its start to its
+  completion (or today), with a line at the due date it ran past.
 - **Columns:** add, rename, delete and drag to reorder.
 - **Cards:** title, description, due date, priority, colour labels, checklists and images; drag
   them between columns.

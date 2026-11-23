@@ -2912,9 +2912,12 @@ body.touring {
 }
 
 .tl-when {
+  max-width: 100%;
   font-size: 11px;
   color: var(--muted-strong);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tl-task.undated .tl-when {
@@ -3036,6 +3039,27 @@ body.touring {
   bottom: 0;
   left: 0;
   background: var(--bar);
+  pointer-events: none;
+}
+
+/* The work as it went (a task started after its due date, or given a completed date): a
+   solid stripe from its start to its completion or today, and a line at the due date it ran
+   past. The bar moves whole, so it has no ends to drag. */
+.tl-actual {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 4px;
+  background: var(--bar);
+  pointer-events: none;
+}
+
+.tl-due-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--error);
   pointer-events: none;
 }
 
@@ -3172,6 +3196,12 @@ body.touring {
   min-height: 38px;
   font-size: 13px;
   color: var(--ink);
+}
+
+.tl-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .tl-check input {
@@ -3471,3 +3501,168 @@ body.touring {
 .bugShotBar .btn-primary {
   white-space: nowrap;
 }
+
+/* ── A card's description, formatted as Discord formats a message (js/markdown.js) ── */
+.md-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.md-edit-btn {
+  margin-bottom: 5px;
+  padding: 2px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.md-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.md-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.md-tool:hover {
+  background: color-mix(in srgb, var(--brand) 30%, var(--surface-strong));
+}
+
+.md-hint {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.md-view {
+  padding: 9px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.md-view > :first-child { margin-top: 0; }
+.md-view > :last-child { margin-bottom: 0; }
+.md-view p { margin: 0 0 6px; }
+
+.md-h {
+  margin: 8px 0 4px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.md-h1 { font-size: 1.45em; }
+.md-h2 { font-size: 1.25em; }
+.md-h3 { font-size: 1.1em; }
+
+.md-view .md-sub {
+  font-size: 0.82em;
+  color: var(--muted);
+}
+
+.md-quote {
+  margin: 4px 0 6px;
+  padding-left: 10px;
+  border-left: 4px solid var(--surface-border);
+}
+
+.md-list { margin: 0 0 6px; }
+
+.md-li {
+  display: flex;
+  gap: 6px;
+  padding-left: calc(var(--d, 0) * 18px);
+}
+
+.md-bullet {
+  flex: none;
+  min-width: 12px;
+  color: var(--muted);
+}
+
+.md-mono,
+.md-pre {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.88em;
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
+  border-radius: 4px;
+}
+
+.md-mono { padding: 1px 4px; }
+
+.md-pre {
+  margin: 4px 0 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre;
+  border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+.md-link {
+  color: var(--brand-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Hidden until pressed: the words drawn in the box's own colour. */
+.md-spoiler {
+  border-radius: 4px;
+  background: var(--muted);
+  color: transparent;
+  cursor: pointer;
+}
+
+.md-spoiler * { color: transparent; }
+
+.md-spoiler.shown {
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  color: inherit;
+  cursor: auto;
+}
+
+.md-spoiler.shown * { color: inherit; }
+
+.md-spoiler.shown .md-link { color: var(--brand-ink); }
+
+/* On a card on the board: the first two lines of its description. */
+.card-desc {
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.card-desc strong,
+.card-desc em,
+.card-desc u,
+.card-desc s { color: var(--ink); }

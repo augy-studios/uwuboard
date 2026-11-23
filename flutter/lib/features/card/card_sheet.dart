@@ -1,5 +1,6 @@
 // A card's details (the site's #card-modal): title, description, due date and priority; on a
-// Timeline its start date, whether it's a milestone and what it waits for; the column it's in;
+// Timeline its start date, whether it's a milestone, when it was completed and what it waits
+// for; the column it's in;
 // its images, labels and checklist. Edited on a copy and kept with Save, as on the site, except
 // images, which go to storage (and leave it) as they're added and removed.
 import 'dart:convert';
@@ -18,6 +19,7 @@ import '../../theme/theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/sheet.dart';
 import '../tour/tour.dart';
+import 'description_field.dart';
 
 Future<void> openCardSheet(BuildContext context, Json board, String cardId) {
   final card = findCard(board, cardId);
@@ -164,8 +166,12 @@ class _CardSheetState extends State<CardSheet> {
     final milestone = _timeline ? _draft['milestone'] == true : widget.card['milestone'] == true;
     var start = _timeline ? '${_draft['start'] ?? ''}' : '${widget.card['start'] ?? ''}';
     if (milestone) start = due.isNotEmpty ? due : start;
-    if (start.isNotEmpty && due.isNotEmpty && start.compareTo(due) > 0) {
-      AppNav.toast('The start date is after the due date', error: true);
+    // A start after the due date is work that's very late, and the Timeline shows it; work
+    // completed before it started is a mistake to fix.
+    final completed = _timeline ? '${_draft['completed'] ?? ''}' : '${widget.card['completed'] ?? ''}';
+    final completedTyped = completed != '${widget.card['completed'] ?? ''}';
+    if (start.isNotEmpty && completed.isNotEmpty && completed.compareTo(start) < 0) {
+      AppNav.toast('The completed date is before the start date', error: true);
       return;
     }
     final card = widget.card;
@@ -188,6 +194,11 @@ class _CardSheetState extends State<CardSheet> {
     } else {
       card.remove('milestone');
     }
+    if (completed.isNotEmpty) {
+      card['completed'] = completed;
+    } else {
+      card.remove('completed');
+    }
     final deps = _list('dependsOn');
     if (deps.isNotEmpty) {
       card['dependsOn'] = deps;
@@ -197,7 +208,7 @@ class _CardSheetState extends State<CardSheet> {
     touch(card);
     AppSheet.close(context);
     if (_colId != widget.colId) {
-      AppState.I.moveCard(widget.board, '${card['id']}', _colId);
+      AppState.I.moveCard(widget.board, '${card['id']}', _colId, keepCompleted: completedTyped);
     } else {
       AppState.I.persistBoard(widget.board);
     }
@@ -228,15 +239,7 @@ class _CardSheetState extends State<CardSheet> {
         FilledButton(key: TourTargets.key('card-save'), onPressed: _save, child: const Text('Save')),
       ],
       children: [
-        const FieldLabel('Description'),
-        TextField(
-          key: TourTargets.key('card-desc'),
-          controller: _desc,
-          minLines: 3,
-          maxLines: 8,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(hintText: 'Add a description…'),
-        ),
+        KeyedSubtree(key: TourTargets.key('card-desc'), child: DescriptionField(controller: _desc)),
         Row(
           key: TourTargets.key('card-dates'),
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,6 +402,14 @@ class _CardSheetState extends State<CardSheet> {
             ),
           ),
         ],
+      ),
+      _dateField('Completed', 'completed'),
+      Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          'Filled in the day the card moves into the last column (Done), and cleared if it leaves. A start after the due date is fine: the bar shows the work from its start to here, or to today.',
+          style: TextStyle(color: c.muted, fontSize: 12),
+        ),
       ),
       const FieldLabel('Waits For'),
       if (deps.isEmpty) Text('Doesn’t wait for anything', style: TextStyle(color: c.muted, fontSize: 13)),

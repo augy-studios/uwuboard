@@ -6,7 +6,14 @@
 
    Each task is a bar from its start date to its due date (one day when it has only one of
    them), filled as far as its checklist is done. A milestone is a diamond on its day. Drag a
-   bar to move it, or either end to change its length. Arrows run from the tasks a task waits
+   bar to move it, or either end to change its length.
+
+   A task can also say how the work really went: started after its due date (work that's very
+   late), or given a completed date. Its bar then runs from the earliest of its dates to the
+   last, and a solid stripe marks the work itself, from its start to the day it was completed,
+   or to today while it's still going. A line marks the due date it ran past. The completed
+   date is the day the card reached the board's last column (Done), and can be changed. Such a bar moves
+   whole, every date with it. Arrows run from the tasks a task waits
    for (`dependsOn`) to it, red when the dates clash: the one waited for ends on or after the
    day the other starts. Nothing moves on its own; the red says to look. A line marks today,
    and the scale zooms between weeks, months and quarters.
@@ -35,26 +42,73 @@
   const dayOf = (iso) => { const [y, m, d] = iso.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / DAY); };
   const isoOf = (n) => new Date(n * DAY).toISOString().slice(0, 10);
   const dateOf = (n) => new Date(n * DAY);
+  const fmt = (n) => { const d = dateOf(n); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
   function todayIso() {
     const t = new Date();
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
   }
 
-  // A task's span as day numbers, or null without dates. One date alone is a one-day task;
-  // a milestone is always one day, on its due date.
-  function span(card) {
+  // A task's span as day numbers, or null without dates: the whole bar, the work as it went
+  // included. One date alone is a one-day task; a milestone is always one day, on its due date.
+  function span(card, today = todayIso()) {
     const s = isIso(card.start) ? dayOf(card.start) : null;
     const d = isIso(card.due) ? dayOf(card.due) : null;
     if (s === null && d === null) return null;
     if (card.milestone) { const day = d ?? s; return { start: day, end: day }; }
     const start = s ?? d;
     const end = d ?? s;
-    return start <= end ? { start, end } : { start: end, end: start };
+    const plan = start <= end ? { start, end } : { start: end, end: start };
+    const a = actual(card, today);
+    return a ? { start: Math.min(plan.start, a.start), end: Math.max(plan.end, a.end) } : plan;
+  }
+
+  // The work as it went, for a task started after its due date or given a completed date: from
+  // its start to the day it was completed, or to today while it's still going. Otherwise null.
+  function actual(card, today = todayIso()) {
+    if (card.milestone || !isIso(card.start)) return null;
+    const startedLate = isIso(card.due) && card.start > card.due;
+    if (!startedLate && !isIso(card.completed)) return null;
+    const s = dayOf(card.start);
+    const e = dayOf(isIso(card.completed) ? card.completed : today);
+    return { start: s, end: Math.max(s, e) };
   }
 
   function progress(card) {
     const list = card.checklist || [];
     return list.length ? list.filter((c) => c.done).length / list.length : 0;
+  }
+
+  // Late: past its due date, not completed and not all ticked off. Never a milestone.
+  function isLate(card, today = todayIso()) {
+    return !card.milestone && isIso(card.due) && card.due < today && !isIso(card.completed) && progress(card) < 1;
+  }
+
+  // A task's dates as its row says them.
+  function when(card, today = todayIso()) {
+    const s = span(card, today);
+    if (!s) return 'No dates';
+    const a = actual(card, today);
+    if (a) {
+      const work = !isIso(card.completed) ? `${fmt(a.start)} – now` : a.start === a.end ? fmt(a.start) : `${fmt(a.start)} – ${fmt(a.end)}`;
+      return isIso(card.due) ? `Due ${fmt(dayOf(card.due))} · ${work}` : work;
+    }
+    return s.start === s.end ? fmt(s.start) : `${fmt(s.start)} – ${fmt(s.end)}`;
+  }
+
+  // The day a card reached the board's last column (Done; Release on a timeline) is its
+  // completed date: set as it arrives (or is added there), cleared if it leaves. Moves within
+  // a column, or between two others, leave it be.
+  function stampCompleted(board, card, fromColId, toColId, today = todayIso()) {
+    if (fromColId === toColId) return;
+    const last = board.columns[board.columns.length - 1]?.id;
+    if (last === undefined) return;
+    if (toColId === last) card.completed = today;
+    else if (fromColId === last) delete card.completed;
+  }
+
+  // Every date a task has moved by `days`: a bar that shows the work as it went moves whole.
+  function shift(card, days) {
+    for (const k of ['start', 'due', 'completed']) if (isIso(card[k])) card[k] = isoOf(dayOf(card[k]) + days);
   }
 
   /* ---- zoom ---- */
@@ -141,8 +195,6 @@
     return { top, bottom, lines };
   }
 
-  const fmt = (n) => { const d = dateOf(n); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
-
   // The board on show, and the width it was drawn for: a chart drawn before it had any room
   // (the app still hidden as a board opens), or for a different width, is drawn again.
   let current = null;
@@ -189,10 +241,9 @@
       }
       if (r.kind === 'task') {
         const s = span(r.card);
-        const when = s ? (s.start === s.end ? fmt(s.start) : `${fmt(s.start)} – ${fmt(s.end)}`) : 'No dates';
         return `<button type="button" class="tl-task${s ? '' : ' undated'}" style="${style}" data-card="${esc(r.card.id)}" data-col="${esc(r.col.id)}">` +
           `<span class="tl-name">${r.card.milestone ? '<span class="tl-diamond-sm" aria-hidden="true"></span>' : ''}${esc(r.card.title)}</span>` +
-          `<span class="tl-when">${when}</span></button>`;
+          `<span class="tl-when">${when(r.card)}</span></button>`;
       }
       if (r.kind === 'add') return `<button type="button" class="tl-add" style="${style}" data-add="${esc(r.col.id)}">+ Add task</button>`;
       return `<button type="button" class="tl-add tl-add-phase" style="${style}" data-add-phase>+ Add phase</button>`;
@@ -202,7 +253,7 @@
     const bars = new Map(); // card id -> { x1, x2, y }
     const chartRows = rows.map((r) => {
       if (r.kind === 'phase') {
-        const spans = r.col.cards.map(span).filter(Boolean);
+        const spans = r.col.cards.map((c) => span(c)).filter(Boolean);
         if (!spans.length) return `<div class="tl-row tl-row-phase" style="top:${r.y}px;height:${r.h}px"></div>`;
         const a = Math.min(...spans.map((s) => s.start)), b = Math.max(...spans.map((s) => s.end));
         return `<div class="tl-row tl-row-phase" style="top:${r.y}px;height:${r.h}px">` +
@@ -216,7 +267,7 @@
       }
       const x1 = xOf(s.start), x2 = xOf(s.end) + ppd, cy = r.y + r.h / 2;
       bars.set(r.card.id, { x1, x2, y: cy });
-      const late = !r.card.milestone && isIso(r.card.due) && r.card.due < todayIso() && progress(r.card) < 1;
+      const late = isLate(r.card);
       if (r.card.milestone) {
         return `<div class="tl-row tl-row-task" style="top:${r.y}px;height:${r.h}px">` +
           `<div class="tl-milestone" style="left:${x1 + ppd / 2 - 11}px" data-card="${id}" data-col="${esc(r.col.id)}" tabindex="0" role="button" aria-label="${esc(r.card.title)}, milestone, ${fmt(s.start)}">` +
@@ -226,10 +277,23 @@
       // A late task says so in words, not only with its red edge (WCAG 1.4.1).
       const label = `<span class="tl-label${late ? ' late' : ''}" style="left:${x2 + 8}px">${esc(r.card.title)}${late ? ' (late)' : ''}</span>`;
       const pct = Math.round(progress(r.card) * 100);
+      const a = actual(r.card);
+      // The work as it went, in place of the checklist's fill: a solid stripe from its start to
+      // its completion (or today), and a line at the due date it ran past. It moves whole.
+      let inside, said;
+      if (a) {
+        const due = isIso(r.card.due) ? dayOf(r.card.due) : null;
+        inside = `<span class="tl-actual" style="left:${(a.start - s.start) * ppd}px;width:${(a.end - a.start + 1) * ppd}px"></span>` +
+          (due !== null && due < s.end ? `<span class="tl-due-mark" style="left:${(due - s.start + 1) * ppd - 1}px"></span>` : '');
+        said = `${due !== null ? `, due ${fmt(due)}` : ''}, started ${fmt(a.start)}${isIso(r.card.completed) ? `, completed ${fmt(a.end)}` : ', still going'}`;
+      } else {
+        inside = `<span class="tl-fill" style="width:${pct}%"></span><span class="tl-h tl-h-start" aria-hidden="true"></span><span class="tl-h tl-h-end" aria-hidden="true"></span>`;
+        said = `, ${fmt(s.start)} to ${fmt(s.end)}${(r.card.checklist || []).length ? `, ${pct}% done` : ''}`;
+      }
       return `<div class="tl-row tl-row-task" style="top:${r.y}px;height:${r.h}px">` +
-        `<div class="tl-bar${late ? ' late' : ''}" style="left:${x1}px;width:${x2 - x1}px;--bar:${r.colour}" data-card="${id}" data-col="${esc(r.col.id)}" tabindex="0" role="button" ` +
-        `aria-label="${esc(r.card.title)}, ${fmt(s.start)} to ${fmt(s.end)}${(r.card.checklist || []).length ? `, ${pct}% done` : ''}">` +
-        `<span class="tl-fill" style="width:${pct}%"></span><span class="tl-h tl-h-start" aria-hidden="true"></span><span class="tl-h tl-h-end" aria-hidden="true"></span></div>` +
+        `<div class="tl-bar${late ? ' late' : ''}${a ? ' has-actual' : ''}" style="left:${x1}px;width:${x2 - x1}px;--bar:${r.colour}" data-card="${id}" data-col="${esc(r.col.id)}" tabindex="0" role="button" ` +
+        `aria-label="${esc(r.card.title)}${said}${late ? ', late' : ''}">` +
+        inside + '</div>' +
         label + '</div>';
     }).join('');
 
@@ -380,7 +444,8 @@
           const card = findCard(board, el.dataset.card);
           const s = span(card);
           const d = e.key === 'ArrowLeft' ? -1 : 1;
-          if (e.shiftKey && !card.milestone) setSpan(card, s.start, Math.max(s.start, s.end + d));
+          if (actual(card)) shift(card, d);
+          else if (e.shiftKey && !card.milestone) setSpan(card, s.start, Math.max(s.start, s.end + d));
           else setSpan(card, s.start + d, s.end + d);
           touch(card);
           save(board);
@@ -403,7 +468,8 @@
     const s = span(card);
     if (!card || !s) return;
     const handle = e.target.closest('.tl-h');
-    const mode = card.milestone || !handle ? 'move' : handle.classList.contains('tl-h-start') ? 'start' : 'end';
+    const whole = !!actual(card);
+    const mode = card.milestone || whole || !handle ? 'move' : handle.classList.contains('tl-h-start') ? 'start' : 'end';
     const x0 = e.clientX;
     let days = 0;
     let moved = false;
@@ -434,7 +500,8 @@
       el.classList.remove('dragging');
       if (!moved) return openCardModal(card.id, el.dataset.col);
       if (!days) return render(board);
-      if (mode === 'move') setSpan(card, s.start + days, s.end + days);
+      if (whole) shift(card, days);
+      else if (mode === 'move') setSpan(card, s.start + days, s.end + days);
       else if (mode === 'start') setSpan(card, Math.min(s.start + days, s.end), s.end);
       else setSpan(card, s.start, Math.max(s.end + days, s.start));
       touch(card);
@@ -445,5 +512,5 @@
     el.addEventListener('pointercancel', onUp);
   }
 
-  window.Timeline = { render, span, waitingOn, pruneDeps, clashes, isIso };
+  window.Timeline = { render, span, actual, isLate, when, shift, stampCompleted, waitingOn, pruneDeps, clashes, isIso };
 })();

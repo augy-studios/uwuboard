@@ -57,7 +57,11 @@ class AppSheet {
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
-              child: builder(context),
+              // useSafeArea keeps the sheet clear of the top and sides only: the sheet's own
+              // colour goes on under the navigation bar (gesture pill or three buttons), but its
+              // buttons stop above it. With the keyboard up there's no bar to clear, and the
+              // padding is 0.
+              child: SafeArea(top: false, left: false, right: false, child: builder(context)),
             ),
           ),
         ),

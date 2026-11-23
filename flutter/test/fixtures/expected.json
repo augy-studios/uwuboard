@@ -26,7 +26,7 @@
         "id": "d",
         "span": {
           "start": 20514,
-          "end": 20521
+          "end": 20532
         }
       },
       {
@@ -43,6 +43,312 @@
       {
         "id": "g",
         "span": null
+      },
+      {
+        "id": "h",
+        "span": {
+          "start": 20517,
+          "end": 20527
+        }
+      },
+      {
+        "id": "i",
+        "span": {
+          "start": 20513,
+          "end": 20522
+        }
+      },
+      {
+        "id": "j",
+        "span": {
+          "start": 20513,
+          "end": 20520
+        }
+      },
+      {
+        "id": "k",
+        "span": {
+          "start": 20522,
+          "end": 20522
+        }
+      },
+      {
+        "id": "l",
+        "span": {
+          "start": 20513,
+          "end": 20517
+        }
+      }
+    ],
+    "actual": [
+      {
+        "id": "a",
+        "actual": null
+      },
+      {
+        "id": "b",
+        "actual": null
+      },
+      {
+        "id": "c",
+        "actual": null
+      },
+      {
+        "id": "d",
+        "actual": {
+          "start": 20521,
+          "end": 20532
+        }
+      },
+      {
+        "id": "e",
+        "actual": null
+      },
+      {
+        "id": "f",
+        "actual": null
+      },
+      {
+        "id": "g",
+        "actual": null
+      },
+      {
+        "id": "h",
+        "actual": {
+          "start": 20524,
+          "end": 20527
+        }
+      },
+      {
+        "id": "i",
+        "actual": {
+          "start": 20513,
+          "end": 20518
+        }
+      },
+      {
+        "id": "j",
+        "actual": {
+          "start": 20513,
+          "end": 20520
+        }
+      },
+      {
+        "id": "k",
+        "actual": {
+          "start": 20522,
+          "end": 20522
+        }
+      },
+      {
+        "id": "l",
+        "actual": null
+      }
+    ],
+    "when": [
+      {
+        "id": "a",
+        "when": "1 Mar – 5 Mar"
+      },
+      {
+        "id": "b",
+        "when": "7 Mar"
+      },
+      {
+        "id": "c",
+        "when": "27 Feb"
+      },
+      {
+        "id": "d",
+        "when": "Due 2 Mar · 9 Mar – now"
+      },
+      {
+        "id": "e",
+        "when": "10 Mar"
+      },
+      {
+        "id": "f",
+        "when": "No dates"
+      },
+      {
+        "id": "g",
+        "when": "No dates"
+      },
+      {
+        "id": "h",
+        "when": "Due 5 Mar · 12 Mar – 15 Mar"
+      },
+      {
+        "id": "i",
+        "when": "Due 10 Mar · 1 Mar – 6 Mar"
+      },
+      {
+        "id": "j",
+        "when": "Due 5 Mar · 1 Mar – 8 Mar"
+      },
+      {
+        "id": "k",
+        "when": "10 Mar"
+      },
+      {
+        "id": "l",
+        "when": "1 Mar – 5 Mar"
+      }
+    ],
+    "late": [
+      {
+        "id": "a",
+        "late": true
+      },
+      {
+        "id": "b",
+        "late": true
+      },
+      {
+        "id": "c",
+        "late": false
+      },
+      {
+        "id": "d",
+        "late": true
+      },
+      {
+        "id": "e",
+        "late": false
+      },
+      {
+        "id": "f",
+        "late": false
+      },
+      {
+        "id": "g",
+        "late": false
+      },
+      {
+        "id": "h",
+        "late": false
+      },
+      {
+        "id": "i",
+        "late": false
+      },
+      {
+        "id": "j",
+        "late": false
+      },
+      {
+        "id": "k",
+        "late": false
+      },
+      {
+        "id": "l",
+        "late": false
+      }
+    ],
+    "stamped": [
+      {
+        "from": "p1",
+        "to": "p2",
+        "had": null,
+        "completed": "2026-03-20"
+      },
+      {
+        "from": "p2",
+        "to": "p1",
+        "had": "2026-03-01",
+        "completed": null
+      },
+      {
+        "from": "p1",
+        "to": "p1",
+        "had": null,
+        "completed": null
+      },
+      {
+        "from": null,
+        "to": "p2",
+        "had": null,
+        "completed": "2026-03-20"
+      },
+      {
+        "from": null,
+        "to": "p1",
+        "had": "2026-03-01",
+        "completed": "2026-03-01"
+      }
+    ],
+    "shifted": [
+      {
+        "id": "a",
+        "start": "2026-03-04",
+        "due": "2026-03-08",
+        "completed": null
+      },
+      {
+        "id": "b",
+        "start": null,
+        "due": "2026-03-10",
+        "completed": null
+      },
+      {
+        "id": "c",
+        "start": "2026-03-02",
+        "due": "",
+        "completed": null
+      },
+      {
+        "id": "d",
+        "start": "2026-03-12",
+        "due": "2026-03-05",
+        "completed": null
+      },
+      {
+        "id": "e",
+        "start": "2026-03-04",
+        "due": "2026-03-13",
+        "completed": null
+      },
+      {
+        "id": "f",
+        "start": null,
+        "due": "",
+        "completed": null
+      },
+      {
+        "id": "g",
+        "start": "2026-3-1",
+        "due": "soon",
+        "completed": null
+      },
+      {
+        "id": "h",
+        "start": "2026-03-15",
+        "due": "2026-03-08",
+        "completed": "2026-03-18"
+      },
+      {
+        "id": "i",
+        "start": "2026-03-04",
+        "due": "2026-03-13",
+        "completed": "2026-03-09"
+      },
+      {
+        "id": "j",
+        "start": "2026-03-04",
+        "due": "2026-03-08",
+        "completed": "2026-03-11"
+      },
+      {
+        "id": "k",
+        "start": "2026-03-13",
+        "due": "",
+        "completed": "2026-03-11"
+      },
+      {
+        "id": "l",
+        "start": "2026-03-04",
+        "due": "2026-03-08",
+        "completed": null
       }
     ],
     "clashes": [
@@ -162,6 +468,7 @@
                 "updatedAt": 10,
                 "start": "2026-01-01",
                 "milestone": "yes",
+                "completed": "2026-01-04",
                 "dependsOn": [
                   "k2",
                   "k1",
@@ -205,7 +512,8 @@
                 "priority": "",
                 "images": [],
                 "thumbnailId": null,
-                "updatedAt": -3
+                "updatedAt": -3,
+                "completed": "yesterday"
               }
             ]
           }
@@ -265,6 +573,7 @@
                 ],
                 "thumbnailId": "i1",
                 "start": "2026-01-01",
+                "completed": "2026-01-04",
                 "dependsOn": [
                   "k2"
                 ],
@@ -550,5 +859,1416 @@
     "changes": 7,
     "wouldChangeSame": false,
     "wouldChangeNew": true
-  }
+  },
+  "markdown": [
+    {
+      "src": "**bold** *it* _it_ __u__ ~~s~~ `code` ``a ` b`` ||spoil||",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "b",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "bold"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "i",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "it"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "i",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "it"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "u",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "u"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "s",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "s"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "mono",
+                "v": "code"
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "mono",
+                "v": "a ` b"
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "spoiler",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "spoil"
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "b",
+            "c": [
+              {
+                "t": "text",
+                "v": "bold"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "i",
+            "c": [
+              {
+                "t": "text",
+                "v": "it"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "i",
+            "c": [
+              {
+                "t": "text",
+                "v": "it"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "u",
+            "c": [
+              {
+                "t": "text",
+                "v": "u"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "s",
+            "c": [
+              {
+                "t": "text",
+                "v": "s"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "mono",
+            "v": "code"
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "mono",
+            "v": "a ` b"
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "spoiler",
+            "c": [
+              {
+                "t": "text",
+                "v": "spoil"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "src": "***both*** __*ui*__ ~~**x**~~ ||*hid*||",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "b",
+                "c": [
+                  {
+                    "t": "i",
+                    "c": [
+                      {
+                        "t": "text",
+                        "v": "both"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "u",
+                "c": [
+                  {
+                    "t": "i",
+                    "c": [
+                      {
+                        "t": "text",
+                        "v": "ui"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "s",
+                "c": [
+                  {
+                    "t": "b",
+                    "c": [
+                      {
+                        "t": "text",
+                        "v": "x"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "spoiler",
+                "c": [
+                  {
+                    "t": "i",
+                    "c": [
+                      {
+                        "t": "text",
+                        "v": "hid"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "b",
+            "c": [
+              {
+                "t": "i",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "both"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "u",
+            "c": [
+              {
+                "t": "i",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "ui"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "s",
+            "c": [
+              {
+                "t": "b",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "x"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "spoiler",
+            "c": [
+              {
+                "t": "i",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "hid"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "src": "snake_case_name and 2*3*4, a * b * c, _not_italic_ here",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "snake_case_name and 2"
+              },
+              {
+                "t": "i",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "3"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": "4, a * b * c, "
+              },
+              {
+                "t": "i",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "not_italic"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " here"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "snake_case_name and 2"
+          },
+          {
+            "t": "i",
+            "c": [
+              {
+                "t": "text",
+                "v": "3"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": "4, a * b * c, "
+          },
+          {
+            "t": "i",
+            "c": [
+              {
+                "t": "text",
+                "v": "not_italic"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " here"
+          }
+        ]
+      ]
+    },
+    {
+      "src": "\\*not\\* **a *b* c** \\# \\> x",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "*not* "
+              },
+              {
+                "t": "b",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "a "
+                  },
+                  {
+                    "t": "i",
+                    "c": [
+                      {
+                        "t": "text",
+                        "v": "b"
+                      }
+                    ]
+                  },
+                  {
+                    "t": "text",
+                    "v": " c"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " # > x"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "*not* "
+          },
+          {
+            "t": "b",
+            "c": [
+              {
+                "t": "text",
+                "v": "a "
+              },
+              {
+                "t": "i",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "b"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " c"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " # > x"
+          }
+        ]
+      ]
+    },
+    {
+      "src": "see https://x.com/a_(b). and <https://y.com> or [site](https://z.com/p?q=1) [bad](javascript:alert(1)) http:// nothing",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "see "
+              },
+              {
+                "t": "link",
+                "href": "https://x.com/a_(b)",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "https://x.com/a_(b)"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": ". and "
+              },
+              {
+                "t": "link",
+                "href": "https://y.com",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "https://y.com"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " or "
+              },
+              {
+                "t": "link",
+                "href": "https://z.com/p?q=1",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "site"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " [bad](javascript:alert(1)) http:// nothing"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "see "
+          },
+          {
+            "t": "link",
+            "href": "https://x.com/a_(b)",
+            "c": [
+              {
+                "t": "text",
+                "v": "https://x.com/a_(b)"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": ". and "
+          },
+          {
+            "t": "link",
+            "href": "https://y.com",
+            "c": [
+              {
+                "t": "text",
+                "v": "https://y.com"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " or "
+          },
+          {
+            "t": "link",
+            "href": "https://z.com/p?q=1",
+            "c": [
+              {
+                "t": "text",
+                "v": "site"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " [bad](javascript:alert(1)) http:// nothing"
+          }
+        ]
+      ]
+    },
+    {
+      "src": "**https://bold.link** [**strong** words](https://a.b/c) [a [b](https://c.d)",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "b",
+                "c": [
+                  {
+                    "t": "link",
+                    "href": "https://bold.link",
+                    "c": [
+                      {
+                        "t": "text",
+                        "v": "https://bold.link"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "link",
+                "href": "https://a.b/c",
+                "c": [
+                  {
+                    "t": "b",
+                    "c": [
+                      {
+                        "t": "text",
+                        "v": "strong"
+                      }
+                    ]
+                  },
+                  {
+                    "t": "text",
+                    "v": " words"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "link",
+                "href": "https://c.d",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "a [b"
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "b",
+            "c": [
+              {
+                "t": "link",
+                "href": "https://bold.link",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "https://bold.link"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "link",
+            "href": "https://a.b/c",
+            "c": [
+              {
+                "t": "b",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "strong"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " words"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "link",
+            "href": "https://c.d",
+            "c": [
+              {
+                "t": "text",
+                "v": "a [b"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "src": "# Head\n## Two\n### Three\n#nottag\n#### four\n-# small\n-#not",
+      "blocks": [
+        {
+          "t": "h",
+          "level": 1,
+          "c": [
+            {
+              "t": "text",
+              "v": "Head"
+            }
+          ]
+        },
+        {
+          "t": "h",
+          "level": 2,
+          "c": [
+            {
+              "t": "text",
+              "v": "Two"
+            }
+          ]
+        },
+        {
+          "t": "h",
+          "level": 3,
+          "c": [
+            {
+              "t": "text",
+              "v": "Three"
+            }
+          ]
+        },
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "#nottag"
+              }
+            ],
+            [
+              {
+                "t": "text",
+                "v": "#### four"
+              }
+            ]
+          ]
+        },
+        {
+          "t": "sub",
+          "c": [
+            {
+              "t": "text",
+              "v": "small"
+            }
+          ]
+        },
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "-#not"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "b",
+            "c": [
+              {
+                "t": "text",
+                "v": "Head"
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "t": "b",
+            "c": [
+              {
+                "t": "text",
+                "v": "Two"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "src": "> quote **b**\n> more\n>\n> after gap\nafter",
+      "blocks": [
+        {
+          "t": "quote",
+          "c": [
+            {
+              "t": "p",
+              "lines": [
+                [
+                  {
+                    "t": "text",
+                    "v": "quote "
+                  },
+                  {
+                    "t": "b",
+                    "c": [
+                      {
+                        "t": "text",
+                        "v": "b"
+                      }
+                    ]
+                  }
+                ],
+                [
+                  {
+                    "t": "text",
+                    "v": "more"
+                  }
+                ]
+              ]
+            },
+            {
+              "t": "p",
+              "lines": [
+                [
+                  {
+                    "t": "text",
+                    "v": "after gap"
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "after"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "quote "
+          },
+          {
+            "t": "b",
+            "c": [
+              {
+                "t": "text",
+                "v": "b"
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "t": "text",
+            "v": "more"
+          }
+        ]
+      ]
+    },
+    {
+      "src": ">>> all\nof this\n# even this",
+      "blocks": [
+        {
+          "t": "quote",
+          "c": [
+            {
+              "t": "p",
+              "lines": [
+                [
+                  {
+                    "t": "text",
+                    "v": "all"
+                  }
+                ],
+                [
+                  {
+                    "t": "text",
+                    "v": "of this"
+                  }
+                ]
+              ]
+            },
+            {
+              "t": "h",
+              "level": 1,
+              "c": [
+                {
+                  "t": "text",
+                  "v": "even this"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "all"
+          }
+        ],
+        [
+          {
+            "t": "text",
+            "v": "of this"
+          }
+        ]
+      ]
+    },
+    {
+      "src": "- a\n* b\n  - nested\n      - deep\n1. one\n10. ten\n-not a list",
+      "blocks": [
+        {
+          "t": "list",
+          "items": [
+            {
+              "d": 0,
+              "o": false,
+              "n": null,
+              "c": [
+                {
+                  "t": "text",
+                  "v": "a"
+                }
+              ]
+            },
+            {
+              "d": 0,
+              "o": false,
+              "n": null,
+              "c": [
+                {
+                  "t": "text",
+                  "v": "b"
+                }
+              ]
+            },
+            {
+              "d": 1,
+              "o": false,
+              "n": null,
+              "c": [
+                {
+                  "t": "text",
+                  "v": "nested"
+                }
+              ]
+            },
+            {
+              "d": 3,
+              "o": false,
+              "n": null,
+              "c": [
+                {
+                  "t": "text",
+                  "v": "deep"
+                }
+              ]
+            },
+            {
+              "d": 0,
+              "o": true,
+              "n": 1,
+              "c": [
+                {
+                  "t": "text",
+                  "v": "one"
+                }
+              ]
+            },
+            {
+              "d": 0,
+              "o": true,
+              "n": 10,
+              "c": [
+                {
+                  "t": "text",
+                  "v": "ten"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "-not a list"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "• "
+          },
+          {
+            "t": "text",
+            "v": "a"
+          }
+        ],
+        [
+          {
+            "t": "text",
+            "v": "• "
+          },
+          {
+            "t": "text",
+            "v": "b"
+          }
+        ]
+      ]
+    },
+    {
+      "src": "```js\nconst a = 1;\n\nconst b = 2;\n```\n```inline```\n```\nnever closed",
+      "blocks": [
+        {
+          "t": "code",
+          "lang": "js",
+          "v": "const a = 1;\n\nconst b = 2;"
+        },
+        {
+          "t": "code",
+          "lang": "",
+          "v": "inline"
+        },
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "```"
+              }
+            ],
+            [
+              {
+                "t": "text",
+                "v": "never closed"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "mono",
+            "v": "const a = 1;"
+          }
+        ],
+        [
+          {
+            "t": "mono",
+            "v": "inline"
+          }
+        ]
+      ]
+    },
+    {
+      "src": "line1\nline2\n\n\npara2\r\nwindows",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "line1"
+              }
+            ],
+            [
+              {
+                "t": "text",
+                "v": "line2"
+              }
+            ]
+          ]
+        },
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "para2"
+              }
+            ],
+            [
+              {
+                "t": "text",
+                "v": "windows"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "line1"
+          }
+        ],
+        [
+          {
+            "t": "text",
+            "v": "line2"
+          }
+        ]
+      ]
+    },
+    {
+      "src": "**unclosed and *also ~~ and || and `",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "**unclosed and *also ~~ and || and `"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "**unclosed and *also ~~ and || and `"
+          }
+        ]
+      ]
+    },
+    {
+      "src": "<script>alert(1)</script> & \"q\" 's'",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "<script>alert(1)</script> & \"q\" 's'"
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "<script>alert(1)</script> & \"q\" 's'"
+          }
+        ]
+      ]
+    },
+    {
+      "src": "Émile_ünïcode_ *ça* **日本語**",
+      "blocks": [
+        {
+          "t": "p",
+          "lines": [
+            [
+              {
+                "t": "text",
+                "v": "Émile_ünïcode_ "
+              },
+              {
+                "t": "i",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "ça"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " "
+              },
+              {
+                "t": "b",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "日本語"
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      ],
+      "snippet": [
+        [
+          {
+            "t": "text",
+            "v": "Émile_ünïcode_ "
+          },
+          {
+            "t": "i",
+            "c": [
+              {
+                "t": "text",
+                "v": "ça"
+              }
+            ]
+          },
+          {
+            "t": "text",
+            "v": " "
+          },
+          {
+            "t": "b",
+            "c": [
+              {
+                "t": "text",
+                "v": "日本語"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "src": "",
+      "blocks": [],
+      "snippet": []
+    },
+    {
+      "src": "   \n\n",
+      "blocks": [],
+      "snippet": []
+    }
+  ],
+  "formatted": [
+    {
+      "value": "make this bold",
+      "a": 10,
+      "b": 14,
+      "kind": "bold",
+      "text": "make this **bold**",
+      "from": 12,
+      "to": 16
+    },
+    {
+      "value": "",
+      "a": 0,
+      "b": 0,
+      "kind": "italic",
+      "text": "**",
+      "from": 1,
+      "to": 1
+    },
+    {
+      "value": "a b",
+      "a": 2,
+      "b": 3,
+      "kind": "strike",
+      "text": "a ~~b~~",
+      "from": 4,
+      "to": 5
+    },
+    {
+      "value": "x",
+      "a": 0,
+      "b": 1,
+      "kind": "code",
+      "text": "`x`",
+      "from": 1,
+      "to": 2
+    },
+    {
+      "value": "hide",
+      "a": 0,
+      "b": 4,
+      "kind": "spoiler",
+      "text": "||hide||",
+      "from": 2,
+      "to": 6
+    },
+    {
+      "value": "u",
+      "a": 1,
+      "b": 1,
+      "kind": "underline",
+      "text": "u____",
+      "from": 3,
+      "to": 3
+    },
+    {
+      "value": "go here",
+      "a": 3,
+      "b": 7,
+      "kind": "link",
+      "text": "go [here](https://)",
+      "from": 10,
+      "to": 18
+    },
+    {
+      "value": "",
+      "a": 0,
+      "b": 0,
+      "kind": "link",
+      "text": "[link](https://)",
+      "from": 7,
+      "to": 15
+    },
+    {
+      "value": "https://a.b/c",
+      "a": 0,
+      "b": 13,
+      "kind": "link",
+      "text": "[](https://a.b/c)",
+      "from": 1,
+      "to": 1
+    },
+    {
+      "value": "one\ntwo\nthree",
+      "a": 1,
+      "b": 6,
+      "kind": "list",
+      "text": "- one\n- two\nthree",
+      "from": 11,
+      "to": 11
+    },
+    {
+      "value": "- one\n- two",
+      "a": 0,
+      "b": 11,
+      "kind": "list",
+      "text": "one\ntwo",
+      "from": 7,
+      "to": 7
+    },
+    {
+      "value": "\nnext",
+      "a": 0,
+      "b": 0,
+      "kind": "list",
+      "text": "- \nnext",
+      "from": 2,
+      "to": 2
+    },
+    {
+      "value": "solo",
+      "a": 4,
+      "b": 4,
+      "kind": "list",
+      "text": "- solo",
+      "from": 6,
+      "to": 6
+    }
+  ]
 }

@@ -131,10 +131,12 @@
         .map((c) => ({ text: c.text.slice(0, 500), done: c.done === true })),
       images,
       thumbnailId: images.some((img) => img.id === raw.thumbnailId) ? raw.thumbnailId : (images[0]?.id ?? null),
-      // A timeline's (js/timeline.js): when it starts, whether it's a milestone, and the cards
-      // it waits for, by id. Only there when set, as on the board they came from.
+      // A timeline's (js/timeline.js): when it starts, whether it's a milestone, when it was
+      // completed, and the cards it waits for, by id. Only there when set, as on the board
+      // they came from.
       ...(/^\d{4}-\d{2}-\d{2}$/.test(raw.start) && { start: raw.start }),
       ...(raw.milestone === true && { milestone: true }),
+      ...(/^\d{4}-\d{2}-\d{2}$/.test(raw.completed) && { completed: raw.completed }),
       ...(Array.isArray(raw.dependsOn) && raw.dependsOn.length && {
         dependsOn: [...new Set(raw.dependsOn.filter((d) => isId(d) && d !== raw.id))].slice(0, 50),
       }),
@@ -177,7 +179,7 @@
   const cardSig = (c) => JSON.stringify([
     c.title, c.description || '', c.due || '', c.priority || '', c.labels || [], c.checklist || [],
     (c.images || []).map((img) => img.id), c.thumbnailId || null,
-    c.start || '', !!c.milestone, [...(c.dependsOn || [])].sort(),
+    c.start || '', !!c.milestone, [...(c.dependsOn || [])].sort(), c.completed || '',
   ]);
 
   // Merges `src` into `dest` in place and says how many things that changed. Adds what `dest`

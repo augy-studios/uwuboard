@@ -120,7 +120,7 @@ final tours = <String, TourDef>{
   'card': TourDef(
     'Card details',
     const [
-      TourStep(['card-desc'], 'Notes on the card go here.'),
+      TourStep(['card-desc'], 'Notes on the card go here, formatted as on Discord: **bold**, *italic*, lists, links and more.'),
       TourStep(['card-dates'], 'A due date and a priority, both shown on the card.'),
       TourStep(['card-tl'], 'On a Timeline: when it starts, whether it’s a milestone, and what it waits for.'),
       TourStep(['card-col'], 'Move the card to another column without dragging it.'),

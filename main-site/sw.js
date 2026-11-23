@@ -1,7 +1,7 @@
 // Bump on every change to anything this worker serves. The browser only sees
 // an update when this file changes byte for byte, so a deploy that leaves this
 // alone never reaches anyone who already has the site cached.
-const VERSION = "v17";
+const VERSION = "v19";
 const CACHE = `uwuboard-${VERSION}`;
 // The last answer from each API route, for opening the app offline. Versioned
 // too, so copies from before a deploy (which may carry what it removed, such as
@@ -23,6 +23,7 @@ const ASSETS = [
   "/js/sync.js",
   "/js/tour.js",
   "/js/timeline.js",
+  "/js/markdown.js",
   "/js/sw-update.js",
   // Report a bug, from the edge tray (js/bug-report.js).
   "/js/bug-report.js",

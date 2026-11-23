@@ -426,13 +426,17 @@ class AppState extends ChangeNotifier {
     if (col == null || t.isEmpty) return null;
     final card = newCard(t);
     (col['cards'] as List).add(card);
+    tl.stampCompleted(board, card, null, colId); // added straight into Done: done today
     persistBoard(board);
     return card;
   }
 
   /// Moves a card to `toColId`, before the card `beforeId` or at the end. Where a card is
   /// counts as a change to it, so a move made here wins over an older copy.
-  void moveCard(Json board, String cardId, String toColId, {String? beforeId}) {
+  ///
+  /// Into the last column (Done) it's completed today; out of it, not completed any more
+  /// ([tl.stampCompleted]), unless `keepCompleted`: a date was just typed in for it.
+  void moveCard(Json board, String cardId, String toColId, {String? beforeId, bool keepCompleted = false}) {
     final src = columnOfCard(board, cardId);
     final dst = findColumn(board, toColId);
     if (src == null || dst == null || beforeId == cardId) return;
@@ -441,6 +445,7 @@ class AppState extends ChangeNotifier {
     if (i < 0) return;
     final card = srcCards.removeAt(i) as Map;
     if (!identical(src, dst)) card['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
+    if (!keepCompleted) tl.stampCompleted(board, card, '${src['id']}', toColId);
     final dstCards = dst['cards'] as List;
     final at = beforeId == null ? -1 : dstCards.indexWhere((c) => c is Map && c['id'] == beforeId);
     if (at < 0) {

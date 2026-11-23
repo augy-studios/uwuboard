@@ -15,6 +15,7 @@ import '../../desktop/adaptive.dart';
 import '../../theme/icons.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/markdown_view.dart';
 import '../card/card_sheet.dart';
 import 'column_sheets.dart';
 import '../tour/tour.dart';
@@ -370,6 +371,7 @@ class CardTile extends StatelessWidget {
     final dueCls = due.isEmpty ? '' : dueClass(due, DateTime.now());
     final dueColor = dueCls == 'overdue' ? c.error : (dueCls == 'soon' ? c.warn : c.muted);
     final done = checklist.where((k) => k['done'] == true).length;
+    final desc = '${card['description'] ?? ''}';
 
     final body = Container(
       decoration: BoxDecoration(
@@ -398,6 +400,12 @@ class CardTile extends StatelessWidget {
                     ),
                   ),
                 Text('${card['title']}', style: TextStyle(fontSize: 14, color: c.ink, height: 1.3)),
+                // The description's first lines, formatted (lib/widgets/markdown_view.dart).
+                if (desc.trim().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: MarkdownSnippet(desc),
+                  ),
                 if (due.isNotEmpty || priority.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -454,6 +462,7 @@ class CardTile extends StatelessWidget {
     // One node for a screen reader: the card's title and what's shown on it, pressed to open.
     final said = [
       '${card['title']}',
+      if (desc.trim().isNotEmpty) snippetPlain(desc),
       if (labels.isNotEmpty) labels.map((l) => l['text']).join(', '),
       if (due.isNotEmpty) 'due $due${dueCls == 'overdue' ? ', overdue' : ''}',
       if (priority.isNotEmpty) '$priority priority',

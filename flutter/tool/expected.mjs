@@ -13,10 +13,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const site = join(here, '../../main-site/js');
 
 // timeline.js: its exported helpers, with the page it would touch stubbed out.
-const ctx = { window: {}, document: { getElementById: () => null }, localStorage: { getItem: () => null, setItem() {} }, console };
+const ctx = { window: {}, document: { getElementById: () => null }, localStorage: { getItem: () => null, setItem() {} }, console, Event: class {} };
 vm.createContext(ctx);
 vm.runInContext(readFileSync(join(site, 'timeline.js'), 'utf8'), ctx);
 const T = ctx.window.Timeline;
+vm.runInContext(readFileSync(join(site, 'markdown.js'), 'utf8'), ctx);
+const M = ctx.window.Markdown;
 
 // sync.js keeps its helpers inside its closure: the pure ones are lifted out by name.
 const syncSrc = readFileSync(join(site, 'sync.js'), 'utf8');
@@ -60,7 +62,14 @@ const spanCards = [
   card('e', 'Milestone', { start: '2026-03-01', due: '2026-03-10', milestone: true }),
   card('f', 'None'),
   card('g', 'Bad dates', { start: '2026-3-1', due: 'soon' }),
+  card('h', 'Started late, done', { start: '2026-03-12', due: '2026-03-05', completed: '2026-03-15' }),
+  card('i', 'Done early', { start: '2026-03-01', due: '2026-03-10', completed: '2026-03-06' }),
+  card('j', 'Ran over', { start: '2026-03-01', due: '2026-03-05', completed: '2026-03-08' }),
+  card('k', 'Done before it started', { start: '2026-03-10', completed: '2026-03-08' }),
+  card('l', 'Ticked off', { start: '2026-03-01', due: '2026-03-05', checklist: [{ text: 'x', done: true }] }),
 ];
+// "Today" for the answers that depend on it: a task still going runs to it.
+const today = '2026-03-20';
 const board = {
   id: 'b1', name: 'Plan', view: 'timeline', columns: [
     { id: 'p1', name: 'Design', cards: [spanCards[0], { ...spanCards[1], dependsOn: ['a'] }] },
@@ -68,7 +77,19 @@ const board = {
   ],
 };
 const timeline = {
-  spans: spanCards.map((c) => ({ id: c.id, span: T.span(c) })),
+  spans: spanCards.map((c) => ({ id: c.id, span: T.span(c, today) })),
+  actual: spanCards.map((c) => ({ id: c.id, actual: T.actual(c, today) })),
+  when: spanCards.map((c) => ({ id: c.id, when: T.when(c, today) })),
+  late: spanCards.map((c) => ({ id: c.id, late: T.isLate(c, today) })),
+  // Into the last column (Done) completed today, out of it cleared, other moves left be.
+  stamped: [
+    ['p1', 'p2', null], ['p2', 'p1', '2026-03-01'], ['p1', 'p1', null], [null, 'p2', null], [null, 'p1', '2026-03-01'],
+  ].map(([from, to, had]) => {
+    const k = card('s', 'Moving', had ? { completed: had } : {});
+    T.stampCompleted(board, k, from, to, today);
+    return { from, to, had, completed: k.completed ?? null };
+  }),
+  shifted: spanCards.map((c) => { const k = S.clone(c); T.shift(k, 3); return { id: c.id, start: k.start ?? null, due: k.due, completed: k.completed ?? null }; }),
   clashes: [
     ['a', 'b'], ['b', 'c'], ['a', 'f'],
   ].map(([p, k]) => {
@@ -82,16 +103,57 @@ pruned.columns[0].cards.splice(0, 1);
 T.pruneDeps(pruned);
 timeline.pruned = pruned.columns.flatMap((c) => c.cards).map((c) => ({ id: c.id, dependsOn: c.dependsOn || null }));
 
+// ---- Descriptions (markdown.js) ----
+const markdownCases = [
+  '**bold** *it* _it_ __u__ ~~s~~ `code` ``a ` b`` ||spoil||',
+  '***both*** __*ui*__ ~~**x**~~ ||*hid*||',
+  'snake_case_name and 2*3*4, a * b * c, _not_italic_ here',
+  '\\*not\\* **a *b* c** \\# \\> x',
+  'see https://x.com/a_(b). and <https://y.com> or [site](https://z.com/p?q=1) [bad](javascript:alert(1)) http:// nothing',
+  '**https://bold.link** [**strong** words](https://a.b/c) [a [b](https://c.d)',
+  '# Head\n## Two\n### Three\n#nottag\n#### four\n-# small\n-#not',
+  '> quote **b**\n> more\n>\n> after gap\nafter',
+  '>>> all\nof this\n# even this',
+  '- a\n* b\n  - nested\n      - deep\n1. one\n10. ten\n-not a list',
+  '```js\nconst a = 1;\n\nconst b = 2;\n```\n```inline```\n```\nnever closed',
+  'line1\nline2\n\n\npara2\r\nwindows',
+  '**unclosed and *also ~~ and || and `',
+  '<script>alert(1)</script> & "q" \'s\'',
+  'Émile_ünïcode_ *ça* **日本語**',
+  '',
+  '   \n\n',
+];
+const markdown = markdownCases.map((src) => {
+  const blocks = M.parse(src);
+  return { src, blocks, snippet: M.snippetLines(blocks) };
+});
+// The toolbar, on a stand-in for the text box: what it leaves, and what it selects.
+const box = (value, a, b) => ({
+  value, selectionStart: a, selectionEnd: b,
+  setRangeText(text, s, e, mode) { this.value = this.value.slice(0, s) + text + this.value.slice(e); if (mode === 'end') this.selectionStart = this.selectionEnd = s + text.length; },
+  setSelectionRange(s, e) { this.selectionStart = s; this.selectionEnd = e; },
+  focus() {}, dispatchEvent() {},
+});
+const formatted = [
+  ['make this bold', 10, 14, 'bold'], ['', 0, 0, 'italic'], ['a b', 2, 3, 'strike'], ['x', 0, 1, 'code'], ['hide', 0, 4, 'spoiler'],
+  ['u', 1, 1, 'underline'], ['go here', 3, 7, 'link'], ['', 0, 0, 'link'], ['https://a.b/c', 0, 13, 'link'],
+  ['one\ntwo\nthree', 1, 6, 'list'], ['- one\n- two', 0, 11, 'list'], ['\nnext', 0, 0, 'list'], ['solo', 4, 4, 'list'],
+].map(([value, a, b, kind]) => {
+  const t = box(value, a, b);
+  M.format(t, kind);
+  return { value, a, b, kind, text: t.value, from: t.selectionStart, to: t.selectionEnd };
+});
+
 // ---- Sync ----
 const raw = [
   { id: 'b1', name: '  Home  ', view: 'timeline', updatedAt: 5, columns: [
     { id: 'c1', name: ' To Do ', updatedAt: 2, cards: [
-      card('k1', '', { priority: 'urgent', due: '2026-1-1', labels: [{ text: ' x ', color: '#ABCDEF' }, { text: '', color: '#000000' }, { text: 'bad', color: 'red' }], checklist: [{ text: 'a', done: 1 }, { text: ' ', done: true }], images: [{ id: 'i1', name: 'one' }, { id: 'bad id!' }], thumbnailId: 'nope', start: '2026-01-01', milestone: 'yes', dependsOn: ['k2', 'k1', 'k2', 'no way'] }),
+      card('k1', '', { priority: 'urgent', due: '2026-1-1', labels: [{ text: ' x ', color: '#ABCDEF' }, { text: '', color: '#000000' }, { text: 'bad', color: 'red' }], checklist: [{ text: 'a', done: 1 }, { text: ' ', done: true }], images: [{ id: 'i1', name: 'one' }, { id: 'bad id!' }], thumbnailId: 'nope', start: '2026-01-01', milestone: 'yes', completed: '2026-01-04', dependsOn: ['k2', 'k1', 'k2', 'no way'] }),
       card('k1', 'duplicate'),
       { title: 'no id' },
     ] },
     { id: 'c1', name: 'dup column', cards: [] },
-    { id: 'c2', name: '   ', cards: [card('k2', 'Two', { updatedAt: -3 })] },
+    { id: 'c2', name: '   ', cards: [card('k2', 'Two', { updatedAt: -3, completed: 'yesterday' })] },
   ] },
   { id: 'b1', name: 'Duplicate board', columns: [] },
   { id: 'b2', name: '   ', columns: [] },
@@ -123,5 +185,5 @@ const sync = {
   wouldChangeNew: S.wouldChange([], S.clone(src)),
 };
 
-writeFileSync(join(here, '../test/fixtures/expected.json'), JSON.stringify({ timeline, sync }, null, 2) + '\n');
+writeFileSync(join(here, '../test/fixtures/expected.json'), JSON.stringify({ timeline, sync, markdown, formatted }, null, 2) + '\n');
 console.log('test/fixtures/expected.json written');

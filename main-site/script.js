@@ -498,7 +498,10 @@ function buildCard(card, colId) {
   // The thumbnail's bytes arrive as a blob: URL (js/images.js), never the storage address.
   const thumb = card.images?.length ? (card.images.find(i => i.id === card.thumbnailId) || card.images[0]) : null;
   const thumbnailHtml = thumb ? `<div class="card-thumb"><img alt="" /></div>` : '';
-  el.innerHTML = `${thumbnailHtml}${labelsHtml}<div class="card-title">${esc(card.title)}</div>${metaHtml}${checkHtml}`;
+  // The description's first lines, formatted, under the title (js/markdown.js).
+  const snippet = card.description?.trim() ? Markdown.snippetHtml(card.description) : '';
+  const descHtml = snippet ? `<div class="card-desc">${snippet}</div>` : '';
+  el.innerHTML = `${thumbnailHtml}${labelsHtml}<div class="card-title">${esc(card.title)}</div>${descHtml}${metaHtml}${checkHtml}`;
   if (thumb) ImageStore.show(el.querySelector('.card-thumb img'), thumb);
   el.addEventListener('click', () => openCardModal(card.id, colId));
   el.addEventListener('dragstart', e => {
@@ -549,6 +552,7 @@ async function addCard(colId, title) {
   if (!col) return;
   const card = touch({ id: uid(), title, description: '', labels: [], checklist: [], due: '', priority: '', images: [], thumbnailId: null });
   col.cards.push(card);
+  Timeline.stampCompleted(board, card, null, colId); // added straight into Done: done today
 
   if (!S.isGuest) {
     try { await api('PUT', `/boards/update`, { board }); }
@@ -595,6 +599,7 @@ function setupColDrop(cardsList, colId) {
     const [card] = srcCol.cards.splice(cardIdx, 1);
     // Where a card is counts as a change to it, so a move made here wins over an older copy.
     if (srcCol !== dstCol) touch(card);
+    Timeline.stampCompleted(board, card, srcCol.id, dstCol.id);
 
     const afterEl = getDragAfterEl(cardsList, e.clientY);
     if (!afterEl) {
@@ -686,6 +691,7 @@ function openCardModal(cardId, colId) {
 
   $('card-modal-title').value = card.title;
   $('card-modal-desc').value = card.description || '';
+  showDescription(!card.description);
   $('card-modal-due').value = card.due || '';
   $('card-modal-priority').value = card.priority || '';
 
@@ -701,6 +707,7 @@ function openCardModal(cardId, colId) {
   $('card-modal-start').value = card.start || '';
   $('card-modal-milestone').checked = !!card.milestone;
   $('card-modal-start').disabled = !!card.milestone;
+  $('card-modal-completed').value = card.completed || '';
   renderDeps(card);
 
   $('card-modal').classList.remove('hidden');
@@ -839,14 +846,17 @@ $('save-card-btn').addEventListener('click', () => {
   const card = col?.cards.find(c => c.id === S.editingCardId);
   if (!card) return;
 
-  // Timeline dates: a start after the due date is a mistake to fix, not to guess at.
+  // Timeline dates: a start after the due date is work that's very late, and the bar shows
+  // it (js/timeline.js); work completed before it started is a mistake to fix.
   const timeline = isTimeline(board);
   const due = $('card-modal-due').value;
   const milestone = timeline ? $('card-modal-milestone').checked : !!card.milestone;
   let start = timeline ? $('card-modal-start').value : (card.start || '');
+  const completed = timeline ? $('card-modal-completed').value : (card.completed || '');
+  const completedTyped = completed !== (card.completed || '');
   if (milestone) start = due || start;
-  if (start && due && start > due) {
-    toast('The start date is after the due date', 'error');
+  if (start && completed && completed < start) {
+    toast('The completed date is before the start date', 'error');
     return;
   }
 
@@ -856,6 +866,7 @@ $('save-card-btn').addEventListener('click', () => {
   card.priority = $('card-modal-priority').value;
   if (start) card.start = start; else delete card.start;
   if (milestone) card.milestone = true; else delete card.milestone;
+  if (completed) card.completed = completed; else delete card.completed;
   touch(card);
 
   const targetColId = $('card-modal-col').value;
@@ -864,6 +875,8 @@ $('save-card-btn').addEventListener('click', () => {
     if (targetCol) {
       col.cards = col.cards.filter(c => c.id !== S.editingCardId);
       targetCol.cards.push(card);
+      // Into Done: completed today, unless a date was just typed in for it.
+      if (!completedTyped) Timeline.stampCompleted(board, card, col.id, targetCol.id);
     }
   }
 
@@ -913,6 +926,52 @@ $('card-modal-col-btn').addEventListener('click', () => {
 
 $('col-picker-close').addEventListener('click', () => $('col-picker-sheet').classList.add('hidden'));
 $('col-picker-sheet').addEventListener('click', e => { if (e.target === $('col-picker-sheet')) $('col-picker-sheet').classList.add('hidden'); });
+
+/* ── The description: formatted, or as text to edit ── */
+// Formatted when there's something to show; the text box (and its toolbar) to write in when
+// it's empty or being edited.
+function showDescription(editing) {
+  const text = $('card-modal-desc').value;
+  const edit = editing || !text.trim();
+  $('card-desc-editor').classList.toggle('hidden', !edit);
+  $('card-desc-view').classList.toggle('hidden', edit);
+  $('card-desc-edit').classList.toggle('hidden', edit);
+  if (!edit) $('card-desc-view').innerHTML = Markdown.toHtml(text);
+}
+
+function editDescription() {
+  showDescription(true);
+  const ta = $('card-modal-desc');
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+$('card-desc-edit').addEventListener('click', editDescription);
+// A press on the formatted text edits it, unless it was on a link or a spoiler.
+$('card-desc-view').addEventListener('click', (e) => {
+  if (e.target.closest('a, .md-spoiler') || getSelection()?.toString()) return;
+  editDescription();
+});
+Markdown.wireSpoilers($('card-desc-view'));
+// Leaving the box (not for its own toolbar) shows it formatted again.
+$('card-desc-editor').addEventListener('focusout', (e) => {
+  if (e.relatedTarget && $('card-desc-editor').contains(e.relatedTarget)) return;
+  setTimeout(() => {
+    if (!$('card-desc-editor').contains(document.activeElement) && !$('card-modal').classList.contains('hidden')) showDescription(false);
+  }, 0);
+});
+// Ctrl (⌘ on a Mac) with B, I or U, as in any editor.
+$('card-modal-desc').addEventListener('keydown', (e) => {
+  const kind = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && { b: 'bold', i: 'italic', u: 'underline' }[e.key.toLowerCase()];
+  if (!kind) return;
+  e.preventDefault();
+  Markdown.format(e.target, kind);
+});
+document.querySelectorAll('.md-tool').forEach((btn) => {
+  // Pressing a button keeps the caret in the box.
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', () => Markdown.format($('card-modal-desc'), btn.dataset.md));
+});
 
 function closeCardModal() {
   if ($('card-modal').classList.contains('hidden')) return;

@@ -78,10 +78,11 @@ Json? cleanCard(Object? raw) {
     ],
     'images': images,
     'thumbnailId': images.any((img) => img['id'] == raw['thumbnailId']) ? raw['thumbnailId'] : (images.isEmpty ? null : images.first['id']),
-    // A timeline's: when it starts, whether it's a milestone, and the cards it waits for, by
-    // id. Only there when set, as on the board they came from.
+    // A timeline's: when it starts, whether it's a milestone, when it was completed, and the
+    // cards it waits for, by id. Only there when set, as on the board they came from.
     if (raw['start'] is String && _dateRe.hasMatch(raw['start'] as String)) 'start': raw['start'],
     if (raw['milestone'] == true) 'milestone': true,
+    if (raw['completed'] is String && _dateRe.hasMatch(raw['completed'] as String)) 'completed': raw['completed'],
     'dependsOn': ?cleanDeps,
     'updatedAt': stamp(raw['updatedAt']),
   };
@@ -139,6 +140,7 @@ String cardSig(Json c) => jsonEncode([
   c['start'] ?? '',
   c['milestone'] == true,
   [...depsOf(c)]..sort(),
+  c['completed'] ?? '',
 ]);
 
 /// Merges `src` into `dest` in place and says how many things that changed. Adds what `dest`

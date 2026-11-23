@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uwuboard/data/board.dart';
+import 'package:uwuboard/data/markdown.dart';
 import 'package:uwuboard/data/sync_logic.dart';
 import 'package:uwuboard/data/timeline_logic.dart';
 
@@ -27,7 +28,21 @@ void main() {
     card('e', 'Milestone', {'start': '2026-03-01', 'due': '2026-03-10', 'milestone': true}),
     card('f', 'None'),
     card('g', 'Bad dates', {'start': '2026-3-1', 'due': 'soon'}),
+    card('h', 'Started late, done', {'start': '2026-03-12', 'due': '2026-03-05', 'completed': '2026-03-15'}),
+    card('i', 'Done early', {'start': '2026-03-01', 'due': '2026-03-10', 'completed': '2026-03-06'}),
+    card('j', 'Ran over', {'start': '2026-03-01', 'due': '2026-03-05', 'completed': '2026-03-08'}),
+    card('k', 'Done before it started', {'start': '2026-03-10', 'completed': '2026-03-08'}),
+    card('l', 'Ticked off', {
+      'start': '2026-03-01',
+      'due': '2026-03-05',
+      'checklist': [
+        {'text': 'x', 'done': true},
+      ],
+    }),
   ];
+  // "Today" for the answers that depend on it, as tool/expected.mjs has it.
+  const today = '2026-03-20';
+  Map<String, int>? spanJson(Span? s) => s == null ? null : {'start': s.start, 'end': s.end};
   Json board() => clone(<String, dynamic>{
         'id': 'b1', 'name': 'Plan', 'view': 'timeline',
         'columns': [
@@ -40,9 +55,44 @@ void main() {
     test('spans', () {
       for (final e in timeline['spans'] as List) {
         final c = spanCards.firstWhere((k) => k['id'] == e['id']);
-        final s = spanOf(c);
-        final want = e['span'];
-        expect(s == null ? null : {'start': s.start, 'end': s.end}, want, reason: '${e['id']}');
+        expect(spanJson(spanOf(c, today: today)), e['span'], reason: '${e['id']}');
+      }
+    });
+
+    test('the work as it went: started after its due date, or completed', () {
+      for (final e in timeline['actual'] as List) {
+        final c = spanCards.firstWhere((k) => k['id'] == e['id']);
+        expect(spanJson(actualOf(c, today: today)), e['actual'], reason: '${e['id']}');
+      }
+    });
+
+    test('what a row says of its dates', () {
+      for (final e in timeline['when'] as List) {
+        final c = spanCards.firstWhere((k) => k['id'] == e['id']);
+        expect(whenOf(c, today: today), e['when'], reason: '${e['id']}');
+      }
+    });
+
+    test('late', () {
+      for (final e in timeline['late'] as List) {
+        final c = spanCards.firstWhere((k) => k['id'] == e['id']);
+        expect(isLate(c, today: today), e['late'], reason: '${e['id']}');
+      }
+    });
+
+    test('a card is completed the day it reaches the last column', () {
+      for (final e in timeline['stamped'] as List) {
+        final k = card('s', 'Moving', {if (e['had'] != null) 'completed': e['had']});
+        stampCompleted(board(), k, e['from'] as String?, e['to'] as String, today: today);
+        expect(k['completed'], e['completed'], reason: '${e['from']} → ${e['to']}');
+      }
+    });
+
+    test('a bar that moves whole moves every date', () {
+      for (final e in timeline['shifted'] as List) {
+        final c = clone(spanCards.firstWhere((k) => k['id'] == e['id']));
+        shiftDates(c, 3);
+        expect({'id': c['id'], 'start': c['start'], 'due': c['due'], 'completed': c['completed']}, e, reason: '${e['id']}');
       }
     });
 
@@ -68,6 +118,24 @@ void main() {
       final got = [for (final c in allCards(b)) {'id': c['id'], 'dependsOn': c['dependsOn']}];
       expect(got, timeline['pruned']);
     });
+  });
+
+  group('Descriptions, as main-site/js/markdown.js', () {
+    for (final e in expected['markdown'] as List) {
+      final src = e['src'] as String;
+      test(jsonEncode(src), () {
+        final blocks = parseMarkdown(src);
+        expect(jsonDecode(jsonEncode(blocks)), e['blocks']);
+        expect(jsonDecode(jsonEncode(snippetLines(blocks))), e['snippet']);
+      });
+    }
+  });
+
+  test('the description toolbar, as main-site/js/markdown.js', () {
+    for (final e in expected['formatted'] as List) {
+      final r = formatText(e['value'] as String, e['a'] as int, e['b'] as int, e['kind'] as String);
+      expect({'text': r.text, 'from': r.from, 'to': r.to}, {'text': e['text'], 'from': e['from'], 'to': e['to']}, reason: '${e['kind']} on ${jsonEncode(e['value'])}');
+    }
   });
 
   group('Sync, as main-site/js/sync.js', () {
